@@ -18,7 +18,7 @@ type containerRow struct {
 	cpuUsage float64 // 0.0 - 1.0
 	mem      string
 	status   string
-	bar      tea.Model
+	bar      progress.Model
 }
 
 type model struct {
@@ -72,7 +72,7 @@ func initialModel() model {
 }
 
 func newContainer(name string, cpu float64, mem, status string) containerRow {
-	bar := progress.New(progress.WithGradient("#00ff00", "#ff0000"))
+	bar := progress.New(progress.WithDefaultGradient())
 	bar.SetPercent(cpu)
 	return containerRow{name, cpu, mem, status, bar}
 }
@@ -97,6 +97,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols[1].Width = total / 4
 		cols[2].Width = total / 4
 		cols[3].Width = total / 4
+
+		for i := range m.containers {
+			m.containers[i].bar.Width = cols[1].Width
+		}
+
 		m.table.SetColumns(cols)
 
 	case tickMsg:
@@ -113,12 +118,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.containers[i].cpuUsage = 1
 			}
 
-			// Convert to Progress model and set percent
-			if bar, ok := m.containers[i].bar.(progress.Model); ok {
-				cmd := bar.SetPercent(m.containers[i].cpuUsage)
-				m.containers[i].bar = bar
-				cmds = append(cmds, cmd)
-			}
+			bar := m.containers[i].bar
+			cmd := bar.SetPercent(m.containers[i].cpuUsage)
+			m.containers[i].bar = bar
+			cmds = append(cmds, cmd)
 		}
 
 		// Schedule next tick
@@ -142,12 +145,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	for i := range m.containers {
 		var cmd tea.Cmd
-		m.containers[i].bar, cmd = m.containers[i].bar.Update(msg)
+		var barModel tea.Model
+		barModel, cmd = m.containers[i].bar.Update(msg)
+		m.containers[i].bar = barModel.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
 }
+
+var selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#f00")).Bold(true)
 
 func (m model) View() string {
 	var sb strings.Builder
@@ -164,29 +171,27 @@ func (m model) View() string {
 	cursor := m.table.Cursor()
 
 	for i, c := range m.containers {
-		bar := c.bar.View()
 		name := c.name
+		cpu := c.bar.View()
+		mem := c.mem
+		status := c.status
+
 		if i == cursor {
 			name = selectedStyle.Width(headers[0].Width).Render(name)
+			mem = selectedStyle.Width(headers[2].Width).Render(mem)
+			status = selectedStyle.Width(headers[3].Width).Render(status)
 		}
-		line := fmt.Sprintf(
-			"%-*s %-*s %-*s %-*s",
-			headers[0].Width, name,
-			headers[1].Width, bar,
-			headers[2].Width, c.mem,
-			headers[3].Width, c.status,
-		)
 
-		sb.WriteString(line)
-		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf(
+			"%-*s %-*s %-*s %-*s\n",
+			headers[0].Width, name,
+			headers[1].Width, cpu,
+			headers[2].Width, mem,
+			headers[3].Width, status,
+		))
 	}
 
 	sb.WriteString(fmt.Sprintf("\nCursor: %d | Use ↑/↓ to select, q to quit.", cursor))
 
 	return sb.String()
 }
-
-var selectedStyle = lipgloss.NewStyle().
-	Background(lipgloss.Color("57")).
-	Foreground(lipgloss.Color("230")).
-	Bold(true)
