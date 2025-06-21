@@ -88,15 +88,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		m.table.SetWidth(msg.Width - 6)
+		m.table.SetWidth(msg.Width - 2)
 
 		// Resize columns proportionally
-		total := m.width - 6
+		total := m.table.Width()
 		cols := m.table.Columns()
-		cols[0].Width = total / 5 // name
-		cols[1].Width = total / 3 // cpu (bar)
-		cols[2].Width = total / 6 // mem
-		cols[3].Width = total - (cols[0].Width + cols[1].Width + cols[2].Width)
+		cols[0].Width = total / 4
+		cols[1].Width = total / 4
+		cols[2].Width = total / 4
+		cols[3].Width = total / 4
 		m.table.SetColumns(cols)
 
 	case tickMsg:
@@ -165,16 +165,17 @@ func (m model) View() string {
 
 	for i, c := range m.containers {
 		bar := c.bar.View()
+		name := c.name
+		if i == cursor {
+			name = selectedStyle.Width(headers[0].Width).Render(name)
+		}
 		line := fmt.Sprintf(
 			"%-*s %-*s %-*s %-*s",
-			headers[0].Width, c.name,
+			headers[0].Width, name,
 			headers[1].Width, bar,
 			headers[2].Width, c.mem,
 			headers[3].Width, c.status,
 		)
-		if i == cursor {
-			line = selectedStyle.Render(line)
-		}
 
 		sb.WriteString(line)
 		sb.WriteString("\n")
