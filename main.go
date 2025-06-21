@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type containerRow struct {
@@ -43,6 +45,11 @@ func initialModel() model {
 		newContainer("app", 0.65, "35MB", "Running"),
 	}
 
+	dummyRows := []table.Row{}
+	for _, c := range rows {
+		dummyRows = append(dummyRows, table.Row{c.name, fmt.Sprintf("%.2f", c.cpuUsage), c.mem, c.status})
+	}
+
 	// Dummy table just for layout (we’ll override the View)
 	tbl := table.New(
 		table.WithColumns([]table.Column{
@@ -51,7 +58,7 @@ func initialModel() model {
 			{Title: "Memory", Width: 12},
 			{Title: "Status", Width: 12},
 		}),
-		table.WithRows([]table.Row{}), // not using native rows
+		table.WithRows(dummyRows),
 		table.WithFocused(true),
 		table.WithHeight(10),
 	)
@@ -127,43 +134,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update all bars
 	cmds := []tea.Cmd{}
+
+	var tblCmd tea.Cmd
+	m.table, tblCmd = m.table.Update(msg)
+	cmds = append(cmds, tblCmd)
+
 	for i := range m.containers {
 		var cmd tea.Cmd
 		m.containers[i].bar, cmd = m.containers[i].bar.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
-	var tblCmd tea.Cmd
-	m.table, tblCmd = m.table.Update(msg)
-	cmds = append(cmds, tblCmd)
-
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
-	s := "Container Stats (press 'q' to quit)\n\n"
+	var sb strings.Builder
 
 	headers := m.table.Columns()
-	s += fmt.Sprintf(
+	sb.WriteString(fmt.Sprintf(
 		"%-*s %-*s %-*s %-*s\n",
 		headers[0].Width, headers[0].Title,
 		headers[1].Width, headers[1].Title,
 		headers[2].Width, headers[2].Title,
 		headers[3].Width, headers[3].Title,
-	)
+	))
 
-	for _, c := range m.containers {
+	cursor := m.table.Cursor()
+
+	for i, c := range m.containers {
 		bar := c.bar.View()
-		s += fmt.Sprintf(
-			"%-*s %-*s %-*s %-*s\n",
+		line := fmt.Sprintf(
+			"%-*s %-*s %-*s %-*s",
 			headers[0].Width, c.name,
 			headers[1].Width, bar,
 			headers[2].Width, c.mem,
 			headers[3].Width, c.status,
 		)
+		if i == cursor {
+			line = selectedStyle.Render(line)
+		}
+
+		sb.WriteString(line)
+		sb.WriteString("\n")
 	}
 
-	return s
+	sb.WriteString(fmt.Sprintf("\nCursor: %d | Use ↑/↓ to select, q to quit.", cursor))
+
+	return sb.String()
 }
+
+var selectedStyle = lipgloss.NewStyle().
+	Background(lipgloss.Color("57")).
+	Foreground(lipgloss.Color("230")).
+	Bold(true)
