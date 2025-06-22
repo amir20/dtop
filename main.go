@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/pkg/browser"
 )
 
 type containerRow struct {
@@ -132,8 +133,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
-		if msg.String() == "q" {
+		switch msg.String() {
+		case "q":
 			return m, tea.Quit
+		case "o":
+			container := m.containers[m.table.Cursor()]
+			browser.OpenURL("http://localhost:3100/container/" + container.name)
+			return m, nil
 		}
 	}
 
@@ -180,6 +186,8 @@ func (m model) View() string {
 			name = selectedStyle.Width(headers[0].Width).Render(name)
 			mem = selectedStyle.Width(headers[2].Width).Render(mem)
 			status = selectedStyle.Width(headers[3].Width).Render(status)
+			c.bar.PercentageStyle = selectedStyle
+			cpu = c.bar.View()
 		}
 
 		sb.WriteString(fmt.Sprintf(
