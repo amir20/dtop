@@ -35,7 +35,7 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 	channel := make(chan []*Container)
 
 	go func() {
-		close(channel)
+		defer close(channel)
 		var containers = make([]*Container, 0, len(list))
 		for _, c := range list {
 			container, err := d.InsepectContainer(ctx, c.ID)
