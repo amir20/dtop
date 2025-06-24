@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
 )
@@ -38,9 +39,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.table.SetWidth(msg.Width - 2)
+		m.table.SetWidth(msg.Width)
 
-		// Resize columns proportionally
 		total := m.table.Width()
 		cols := m.table.Columns()
 		cols[0].Width = total / 4
@@ -66,8 +66,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForStatsUpdate(m.stats)
 
 	case containers:
+		cols := m.table.Columns()
 		for _, c := range msg {
 			row := newRow(c)
+			row.bar.Width = cols[1].Width
 			m.rows[c.ID] = &row
 		}
 		m = m.updateInternalRows()

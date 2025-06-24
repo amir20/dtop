@@ -6,6 +6,7 @@ import (
 )
 
 func (m model) View() string {
+
 	var sb strings.Builder
 	lines := 0
 	headers := m.table.Columns()
@@ -27,7 +28,7 @@ func (m model) View() string {
 		c := m.orderedRows[i]
 		name := c.container.Name
 		cpu := c.bar.View()
-		mem := c.mem
+		mem := "test"
 		status := c.container.State
 
 		if i == cursor {

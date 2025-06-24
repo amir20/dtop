@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"os"
 	"term-test/internal/docker"
 	"term-test/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	client, err := docker.NewLocalClient()
 	if err != nil {
 		fmt.Println("Error:", err)
