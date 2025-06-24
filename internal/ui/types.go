@@ -12,7 +12,6 @@ import (
 
 type row struct {
 	container *docker.Container
-	cpuUsage  float64
 	mem       string
 	bar       progress.Model
 }
@@ -22,21 +21,22 @@ func newRow(container *docker.Container) row {
 	bar.SetPercent(0)
 	return row{
 		container: container,
-		cpuUsage:  0,
 		bar:       bar,
 	}
 }
 
 func (r row) toTableRow() table.Row {
-	return table.Row{r.container.Name, fmt.Sprintf("%.2f", r.cpuUsage), r.mem, r.container.State}
+	return table.Row{r.container.Name, fmt.Sprintf("%.2f", r.bar.Percent()), r.mem, r.container.State}
 }
 
 type model struct {
-	rows             []row
+	rows             map[string]*row
+	orderedRows      []*row
 	table            table.Model
 	width            int
 	height           int
 	containerWatcher <-chan []*docker.Container
+	stats            <-chan docker.ContainerStat
 }
 
 type tickMsg time.Time

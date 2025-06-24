@@ -67,3 +67,10 @@ type ContainerEvent struct {
 	ActorAttributes map[string]string `json:"actorAttributes,omitempty"`
 	Time            time.Time         `json:"time"`
 }
+
+type ContainerStat struct {
+	ID            string  `json:"id"`
+	CPUPercent    float64 `json:"cpu"`
+	MemoryPercent float64 `json:"memory"`
+	MemoryUsage   float64 `json:"memoryUsage"`
+}

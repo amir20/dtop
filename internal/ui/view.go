@@ -21,10 +21,10 @@ func (m model) View() string {
 	cursor := m.table.Cursor()
 
 	start := max(cursor-3, 0)
-	end := min(start+m.height-2, len(m.rows))
+	end := min(start+m.height-2, len(m.orderedRows))
 
 	for i := start; i < end; i++ {
-		c := m.rows[i]
+		c := m.orderedRows[i]
 		name := c.container.Name
 		cpu := c.bar.View()
 		mem := c.mem
@@ -34,8 +34,9 @@ func (m model) View() string {
 			name = selectedStyle.Width(headers[0].Width).Render(name)
 			mem = selectedStyle.Width(headers[2].Width).Render(mem)
 			status = selectedStyle.Width(headers[3].Width).Render(status)
-			c.bar.PercentageStyle = selectedStyle
-			cpu = c.bar.View()
+			bar := c.bar
+			bar.PercentageStyle = selectedStyle
+			cpu = bar.View()
 		}
 
 		sb.WriteString(fmt.Sprintf(

@@ -1,10 +1,35 @@
 package ui
 
 import (
+	"sort"
+	"term-test/internal/docker"
+
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
 )
+
+func (m model) updateInternalRows() model {
+	var values []*row
+	for _, r := range m.rows {
+		values = append(values, r)
+	}
+
+	sort.Slice(values, func(i, j int) bool {
+		return values[i].container.Created.After(values[j].container.Created)
+	})
+
+	dummyRows := []table.Row{}
+	for _, r := range values {
+		dummyRows = append(dummyRows, r.toTableRow())
+	}
+	m.table.SetRows(dummyRows)
+
+	m.orderedRows = values
+
+	return m
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -21,8 +46,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols[2].Width = total / 4
 		cols[3].Width = total / 4
 
-		for i := range m.rows {
-			m.rows[i].bar.Width = cols[1].Width
+		for _, row := range m.rows {
+			row.bar.Width = cols[1].Width
 		}
 
 		m.table.SetColumns(cols)
@@ -31,11 +56,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		return m, tick()
 
-	case containers:
-		for _, c := range msg {
-			m.rows = append(m.rows, newRow(c))
+	case docker.ContainerStat:
+		if row, exists := m.rows[msg.ID]; exists {
+			return m, tea.Batch(row.bar.SetPercent(msg.CPUPercent/100), waitForStatsUpdate(m.stats))
 		}
 
+		return m, waitForStatsUpdate(m.stats)
+
+	case containers:
+		for _, c := range msg {
+			row := newRow(c)
+			m.rows[c.ID] = &row
+		}
+		m = m.updateInternalRows()
 		return m, waitForContainerUpdate(m.containerWatcher)
 
 	case tea.KeyMsg:
@@ -43,9 +76,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q":
 			return m, tea.Quit
 		case "o":
-			container := m.rows[m.table.Cursor()]
+			container := m.orderedRows[m.table.Cursor()]
 			browser.OpenURL("http://localhost:3100/container/" + container.container.ID)
-			return m, nil
+			panic("not implemented")
+			// return m, nil
 		}
 	}
 
@@ -55,11 +89,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tblCmd = m.table.Update(msg)
 	cmds = append(cmds, tblCmd)
 
-	for i := range m.rows {
+	for _, row := range m.rows {
 		var cmd tea.Cmd
 		var barModel tea.Model
-		barModel, cmd = m.rows[i].bar.Update(msg)
-		m.rows[i].bar = barModel.(progress.Model)
+		barModel, cmd = row.bar.Update(msg)
+		row.bar = barModel.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
 
