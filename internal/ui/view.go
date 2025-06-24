@@ -7,7 +7,7 @@ import (
 
 func (m model) View() string {
 	var sb strings.Builder
-
+	lines := 0
 	headers := m.table.Columns()
 	sb.WriteString(fmt.Sprintf(
 		"%-*s %-*s %-*s %-*s\n",
@@ -16,11 +16,12 @@ func (m model) View() string {
 		headers[2].Width, headers[2].Title,
 		headers[3].Width, headers[3].Title,
 	))
+	lines++
 
 	cursor := m.table.Cursor()
 
 	start := max(cursor-3, 0)
-	end := min(start+m.height-1, len(m.rows))
+	end := min(start+m.height-2, len(m.rows))
 
 	for i := start; i < end; i++ {
 		c := m.rows[i]
@@ -44,9 +45,11 @@ func (m model) View() string {
 			headers[2].Width, mem,
 			headers[3].Width, status,
 		))
+		lines++
 	}
 
-	sb.WriteString(fmt.Sprintf("\nCursor: %d | Use ↑/↓ to select, q to quit.", cursor))
+	sb.WriteString(strings.Repeat("\n", max(m.height-lines-1, 0)))
+	sb.WriteString(fmt.Sprintf("Cursor: %d | Use ↑/↓ to select, q to quit.", cursor))
 
 	return sb.String()
 }
