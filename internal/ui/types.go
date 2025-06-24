@@ -35,6 +35,7 @@ type model struct {
 	rows             []row
 	table            table.Model
 	width            int
+	height           int
 	containerWatcher <-chan []*docker.Container
 }
 

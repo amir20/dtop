@@ -19,7 +19,11 @@ func (m model) View() string {
 
 	cursor := m.table.Cursor()
 
-	for i, c := range m.rows {
+	start := max(cursor-3, 0)
+	end := min(start+m.height-1, len(m.rows))
+
+	for i := start; i < end; i++ {
+		c := m.rows[i]
 		name := c.container.Name
 		cpu := c.bar.View()
 		mem := c.mem
