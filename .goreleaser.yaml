@@ -15,6 +15,11 @@ before:
     # you may remove this if you don't need go generate
     - go generate ./...
 
+upx:
+  - enabled: true
+    compress: best
+    lzma: true
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -22,6 +27,11 @@ builds:
       - linux
       - windows
       - darwin
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+    flags:
+      - -trimpath
 
 archives:
   - formats: [tar.gz]
