@@ -8,13 +8,15 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
+	"github.com/samber/lo"
 )
 
 func (m model) updateInternalRows() model {
-	var values []*row
-	for _, r := range m.rows {
-		values = append(values, r)
-	}
+	values := lo.Values(m.rows)
+
+	values = lo.Filter(values, func(item *row, index int) bool {
+		return item.container.State == "running"
+	})
 
 	sort.Slice(values, func(i, j int) bool {
 		return values[i].container.Created.After(values[j].container.Created)
