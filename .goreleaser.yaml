@@ -24,28 +24,29 @@ builds:
   - env:
       - CGO_ENABLED=0
     goos:
-      - linux
+      - freebsd
       - windows
       - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - arm64
+      - "386"
     ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-    flags:
-      - -trimpath
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.buildSource=binaryRelease
 
 archives:
-  - formats: [tar.gz]
-    # this name template makes the OS and Arch compatible with the results of `uname`.
-    name_template: >-
-      {{ .ProjectName }}_
+  - name_template: >-
+      {{- .ProjectName }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end -}}
     format_overrides:
       - goos: windows
-        formats: [zip]
+        formats: zip
 
 changelog:
   sort: asc
