@@ -17,8 +17,7 @@ dtop provides a comprehensive summary of all Docker containers running on your s
 ## Installation
 
 ```bash
-# Install from source
-// TODO: Add installation instructions
+curl -sSfL https://amir20.github.io/dtop/install.sh | bash
 ```
 
 ## Usage
