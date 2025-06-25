@@ -15,9 +15,11 @@ import (
 func (m model) updateInternalRows() model {
 	values := lo.Values(m.rows)
 
-	values = lo.Filter(values, func(item *row, index int) bool {
-		return item.container.State == "running"
-	})
+	if !m.showAll {
+		values = lo.Filter(values, func(item *row, index int) bool {
+			return item.container.State == "running"
+		})
+	}
 
 	sort.Slice(values, func(i, j int) bool {
 		return values[i].container.Created.After(values[j].container.Created)
@@ -49,7 +51,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols[3].Width = total / 4
 
 		for _, row := range m.rows {
-			row.bar.Width = cols[1].Width
+			row.cpu.Width = cols[1].Width
+			row.mem.Width = cols[2].Width
 		}
 
 		m.table.SetColumns(cols)
@@ -60,7 +63,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
-			return m, tea.Batch(row.bar.SetPercent(msg.CPUPercent/100), waitForStatsUpdate(m.stats))
+			return m, tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
 		}
 
 		return m, waitForStatsUpdate(m.stats)
@@ -69,7 +72,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols := m.table.Columns()
 		for _, c := range msg {
 			row := newRow(c)
-			row.bar.Width = cols[1].Width
+			row.cpu.Width = cols[1].Width
+			row.mem.Width = cols[2].Width
 			m.rows[c.ID] = &row
 		}
 		m = m.updateInternalRows()
@@ -82,8 +86,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "o":
 			container := m.orderedRows[m.table.Cursor()]
 			browser.OpenURL("http://localhost:3100/container/" + container.container.ID)
-			panic("not implemented")
-			// return m, nil
+			return m, nil
+		case "a":
+			m.showAll = !m.showAll
+			m = m.updateInternalRows()
+			return m, nil
 		}
 	}
 
@@ -95,9 +102,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	for _, row := range m.rows {
 		var cmd tea.Cmd
-		var barModel tea.Model
-		barModel, cmd = row.bar.Update(msg)
-		row.bar = barModel.(progress.Model)
+		var cpu tea.Model
+		cpu, cmd = row.cpu.Update(msg)
+		row.cpu = cpu.(progress.Model)
+		var mem tea.Model
+		mem, cmd = row.mem.Update(msg)
+		row.mem = mem.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
 

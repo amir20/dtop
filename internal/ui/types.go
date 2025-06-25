@@ -12,21 +12,25 @@ import (
 
 type row struct {
 	container *docker.Container
-	mem       string
-	bar       progress.Model
+
+	cpu progress.Model
+	mem progress.Model
 }
 
 func newRow(container *docker.Container) row {
-	bar := progress.New(progress.WithDefaultGradient())
-	bar.SetPercent(0)
+	cpu := progress.New(progress.WithDefaultGradient())
+	cpu.SetPercent(0)
+	mem := progress.New(progress.WithDefaultGradient())
+	mem.SetPercent(0)
 	return row{
 		container: container,
-		bar:       bar,
+		cpu:       cpu,
+		mem:       mem,
 	}
 }
 
 func (r row) toTableRow() table.Row {
-	return table.Row{r.container.Name, fmt.Sprintf("%.2f", r.bar.Percent()), r.mem, r.container.State}
+	return table.Row{r.container.Name, fmt.Sprintf("%.2f", r.cpu.Percent()), fmt.Sprintf("%.2f", r.mem.Percent()), r.container.State}
 }
 
 type model struct {
@@ -37,6 +41,7 @@ type model struct {
 	height           int
 	containerWatcher <-chan []*docker.Container
 	stats            <-chan docker.ContainerStat
+	showAll          bool
 }
 
 type tickMsg time.Time
