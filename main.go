@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"dtop/internal/docker"
+	"dtop/internal/ui"
 	"os"
-	"term-test/internal/docker"
-	"term-test/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rs/zerolog"

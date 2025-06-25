@@ -1,8 +1,8 @@
 package ui
 
 import (
+	"dtop/internal/docker"
 	"fmt"
-	"term-test/internal/docker"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"

@@ -2,9 +2,9 @@ package ui
 
 import (
 	"context"
+	"dtop/internal/docker"
 	"fmt"
 	"os"
-	"term-test/internal/docker"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"

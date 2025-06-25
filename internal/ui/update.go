@@ -1,8 +1,8 @@
 package ui
 
 import (
+	"dtop/internal/docker"
 	"sort"
-	"term-test/internal/docker"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
