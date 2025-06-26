@@ -1,3 +1,7 @@
+> [!WARNING]
+> This project is still under active development and is not ready for use yet.
+
+
 # dtop
 
 A terminal-based dashboard for monitoring Docker containers in real-time.
