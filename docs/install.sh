@@ -27,16 +27,10 @@ esac
 
 # Convert architecture to match goreleaser naming
 case "$ARCH" in
-  x86_64)
-    if [ "$OS" = "darwin" ] || [ "$OS" = "linux" ] || [ "$OS" = "freebsd" ] || [ "$OS" = "windows" ]; then
-      ARCH="amd64_v1"
-    else
-      ARCH="amd64"
-    fi
-    ;;
+  x86_64) ARCH="x86_64" ;;
   aarch64 | arm64) ARCH="arm64_v8.0" ;;
-  armv6l) ARCH="arm_6" ;;
-  i386 | i686) ARCH="386_sse2" ;;
+  armv6l) ARCH="armv6" ;;
+  i386 | i686) ARCH="i386" ;;
   *) echo "⚠️ Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
