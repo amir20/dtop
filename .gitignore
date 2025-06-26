@@ -1,3 +1,4 @@
 # Added by goreleaser init:
 dist/
 *.log
+dtop
