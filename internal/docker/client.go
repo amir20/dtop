@@ -11,84 +11,83 @@ import (
 )
 
 type Client struct {
-	cli *client.Client
+	clients []*client.Client
 }
 
-func NewLocalClient() (*Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation(), client.WithUserAgent("Docker-Client/dtop"))
-	if err != nil {
-		return nil, err
-	}
-
+func NewMultiClient(clients ...*client.Client) *Client {
 	return &Client{
-		cli: cli,
-	}, nil
+		clients: clients,
+	}
 }
 
 func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, error) {
 	containerListOptions := container.ListOptions{
 		All: true,
 	}
-	list, err := d.cli.ContainerList(ctx, containerListOptions)
-	if err != nil {
-		return nil, err
-	}
-
 	channel := make(chan []*Container)
 
-	go func() {
-		defer close(channel)
-		var containers = make([]*Container, 0, len(list))
-		for _, c := range list {
-			container, err := d.InsepectContainer(ctx, c.ID)
+	for _, dockerClient := range d.clients {
+		go func(client *client.Client) {
+			list, err := client.ContainerList(ctx, containerListOptions)
 			if err != nil {
-				continue
-			}
-			containers = append(containers, &container)
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case channel <- containers:
-		}
-
-		dockerMessages, err := d.cli.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
-			filters.Arg("type", "container"),
-			filters.Arg("event", "start"),
-			filters.Arg("event", "stop"),
-			filters.Arg("event", "die"),
-		)})
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case err := <-err:
 				panic(err)
+			}
 
-			case message := <-dockerMessages:
-				if len(message.Actor.ID) > 0 {
-					container, err := d.InsepectContainer(ctx, message.Actor.ID)
+			go func() {
+				defer close(channel)
+				var containers = make([]*Container, 0, len(list))
+				for _, c := range list {
+					container, err := inspectContainer(ctx, client, c.ID)
 					if err != nil {
-						continue
+						panic(err)
 					}
+					containers = append(containers, &container)
+				}
 
+				select {
+				case <-ctx.Done():
+					return
+				case channel <- containers:
+				}
+
+				dockerMessages, err := client.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
+					filters.Arg("type", "container"),
+					filters.Arg("event", "start"),
+					filters.Arg("event", "stop"),
+					filters.Arg("event", "die"),
+				)})
+
+				for {
 					select {
 					case <-ctx.Done():
 						return
-					case channel <- []*Container{&container}:
+					case err := <-err:
+						panic(err)
+
+					case message := <-dockerMessages:
+						if len(message.Actor.ID) > 0 {
+							container, err := inspectContainer(ctx, client, message.Actor.ID)
+							if err != nil {
+								continue
+							}
+
+							select {
+							case <-ctx.Done():
+								return
+							case channel <- []*Container{&container}:
+							}
+						}
 					}
 				}
-			}
-		}
-	}()
+			}()
+		}(dockerClient)
+	}
 
 	return channel, nil
 }
 
-func (d *Client) InsepectContainer(ctx context.Context, id string) (Container, error) {
-	json, err := d.cli.ContainerInspect(ctx, id)
+func inspectContainer(ctx context.Context, client *client.Client, id string) (Container, error) {
+	json, err := client.ContainerInspect(ctx, id)
 	if err != nil {
 		return Container{}, err
 	}
@@ -97,47 +96,49 @@ func (d *Client) InsepectContainer(ctx context.Context, id string) (Container, e
 
 func (d *Client) WatchContainerStats(ctx context.Context) (<-chan ContainerStat, error) {
 	stats := make(chan ContainerStat)
-
-	list, err := d.cli.ContainerList(ctx, container.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		defer close(stats)
-		for _, c := range list {
-			go d.streamStats(ctx, c.ID, stats)
-		}
-
-		dockerMessages, err := d.cli.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
-			filters.Arg("type", "container"),
-			filters.Arg("event", "start"),
-			filters.Arg("event", "stop"),
-			filters.Arg("event", "die"),
-		)})
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case err := <-err:
+	for _, dockerClient := range d.clients {
+		go func(client *client.Client) {
+			list, err := client.ContainerList(ctx, container.ListOptions{})
+			if err != nil {
 				panic(err)
+			}
 
-			case message := <-dockerMessages:
-				if len(message.Actor.ID) > 0 {
-					if message.Action == "start" {
-						go d.streamStats(ctx, message.Actor.ID, stats)
+			go func() {
+				defer close(stats)
+				for _, c := range list {
+					go streamStats(ctx, client, c.ID, stats)
+				}
+
+				dockerMessages, err := client.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
+					filters.Arg("type", "container"),
+					filters.Arg("event", "start"),
+					filters.Arg("event", "stop"),
+					filters.Arg("event", "die"),
+				)})
+
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case err := <-err:
+						panic(err)
+
+					case message := <-dockerMessages:
+						if len(message.Actor.ID) > 0 {
+							if message.Action == "start" {
+								go streamStats(ctx, client, message.Actor.ID, stats)
+							}
+						}
 					}
 				}
-			}
-		}
-	}()
-
+			}()
+		}(dockerClient)
+	}
 	return stats, nil
 }
 
-func (d *Client) streamStats(ctx context.Context, id string, stats chan<- ContainerStat) error {
-	response, err := d.cli.ContainerStats(ctx, id, true)
+func streamStats(ctx context.Context, client *client.Client, id string, stats chan<- ContainerStat) error {
+	response, err := client.ContainerStats(ctx, id, true)
 	if err != nil {
 		return err
 	}
