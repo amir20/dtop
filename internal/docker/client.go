@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
@@ -15,6 +16,14 @@ type Client struct {
 }
 
 func NewMultiClient(clients ...*client.Client) *Client {
+	for _, client := range clients {
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+		defer cancel()
+		_, err := client.Ping(ctx)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return &Client{
 		clients: clients,
 	}
