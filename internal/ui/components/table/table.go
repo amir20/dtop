@@ -28,9 +28,9 @@ type Model struct {
 
 // Column defines the table structure.
 type Column struct {
-	Title           string
-	Width           int
-	DisableTruncate bool
+	Title        string
+	Width        int
+	DisableStyle bool
 }
 
 // SetStyles sets the table styles.
@@ -322,19 +322,18 @@ func (m *Model) renderRow(r int) string {
 		}
 		style := lipgloss.NewStyle().Width(m.cols[i].Width).MaxWidth(m.cols[i].Width).Inline(true)
 		var renderedCell string
-		if m.cols[i].DisableTruncate {
+		if m.cols[i].DisableStyle {
 			renderedCell = m.styles.Cell.Render(style.Render(value))
 		} else {
 			renderedCell = m.styles.Cell.Render(style.Render(runewidth.Truncate(value, m.cols[i].Width, "…")))
+			if r == m.cursor {
+				renderedCell = m.styles.Selected.Render(renderedCell)
+			}
 		}
 		s = append(s, renderedCell)
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, s...)
-
-	if r == m.cursor {
-		return m.styles.Selected.Render(row)
-	}
 
 	return row
 }

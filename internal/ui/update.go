@@ -42,7 +42,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.table.SetWidth(msg.Width)
-
+		m.table.SetHeight(msg.Height - 1)
 		total := m.table.Width()
 		cols := m.table.Columns()
 		cols[0].Width = total / 4
