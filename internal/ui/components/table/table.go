@@ -323,7 +323,8 @@ func (m *Model) renderRow(r int) string {
 		style := lipgloss.NewStyle().Width(m.cols[i].Width).MaxWidth(m.cols[i].Width).Inline(true)
 		var renderedCell string
 		if m.cols[i].DisableStyle {
-			renderedCell = m.styles.Cell.Render(style.Render(value))
+			renderedCell = style.Render(value)
+			renderedCell = m.styles.Cell.Render(renderedCell)
 		} else {
 			renderedCell = m.styles.Cell.Render(style.Render(runewidth.Truncate(value, m.cols[i].Width, "…")))
 			if r == m.cursor {

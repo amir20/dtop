@@ -12,7 +12,7 @@ type Container struct {
 	Name        string            `json:"name"`
 	Image       string            `json:"image"`
 	Command     string            `json:"command"`
-	Created     time.Time         `json:"created"`
+	CreatedAt   time.Time         `json:"created"`
 	StartedAt   time.Time         `json:"startedAt"`
 	FinishedAt  time.Time         `json:"finishedAt"`
 	State       string            `json:"state"`
@@ -42,7 +42,7 @@ func newContainerFromJSON(c docker.InspectResponse) Container {
 	}
 
 	if createdAt, err := time.Parse(time.RFC3339Nano, c.Created); err == nil {
-		container.Created = createdAt.UTC()
+		container.CreatedAt = createdAt.UTC()
 	}
 
 	if startedAt, err := time.Parse(time.RFC3339Nano, c.State.StartedAt); err == nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	teaTable "github.com/charmbracelet/bubbles/table"
+	"github.com/dustin/go-humanize"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -31,7 +32,23 @@ func newRow(container *docker.Container) row {
 }
 
 func (r row) toTableRow() teaTable.Row {
-	return teaTable.Row{r.container.Name, r.cpu.View(), r.mem.View(), r.container.State}
+	status := ""
+	cpu := ""
+	mem := ""
+	style := redStyle
+	icon := "⚫"
+	if r.container.State == "running" {
+		status = "Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", "")
+		cpu = r.cpu.View()
+		mem = r.mem.View()
+		icon = "🟢"
+		style = greenStyle
+	} else if r.container.State == "exited" {
+		status = "Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", "")
+		icon = "🔴"
+		style = redStyle
+	}
+	return teaTable.Row{icon, r.container.Name, r.container.ID, cpu, mem, style.Render(status)}
 }
 
 type model struct {

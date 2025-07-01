@@ -27,9 +27,11 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 
 	tbl := table.New(
 		table.WithColumns([]table.Column{
-			{Title: "Container", Width: 10},
+			{Title: "", Width: 2, DisableStyle: true},
+			{Title: "NAME", Width: 10},
+			{Title: "ID", Width: 13},
 			{Title: "CPU", Width: 10, DisableStyle: true},
-			{Title: "Memory", Width: 10, DisableStyle: true},
+			{Title: "MEMORY", Width: 10, DisableStyle: true},
 			{Title: "Status", Width: 10},
 		}),
 		table.WithFocused(true),

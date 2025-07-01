@@ -22,7 +22,7 @@ func (m model) updateInternalRows() model {
 	}
 
 	sort.Slice(values, func(i, j int) bool {
-		return values[i].container.Created.After(values[j].container.Created)
+		return values[i].container.CreatedAt.After(values[j].container.CreatedAt)
 	})
 
 	rows := []table.Row{}
@@ -41,21 +41,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
 		m.table.SetWidth(msg.Width)
 		m.table.SetHeight(msg.Height - 1)
-		total := m.table.Width()
+
+		total := m.table.Width() - (13 + 2)
 		cols := m.table.Columns()
-		cols[0].Width = total / 4
+
 		cols[1].Width = total / 4
-		cols[2].Width = total / 4
 		cols[3].Width = total / 4
+		cols[4].Width = total / 4
+		cols[5].Width = total / 4
 
 		for _, row := range m.rows {
-			row.cpu.Width = cols[1].Width
-			row.mem.Width = cols[2].Width
+			row.cpu.Width = cols[3].Width
+			row.mem.Width = cols[4].Width
 		}
 
-		m.table.SetColumns(cols)
 		return m, nil
 
 	case tickMsg:
@@ -73,8 +75,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols := m.table.Columns()
 		for _, c := range msg {
 			row := newRow(c)
-			row.cpu.Width = cols[1].Width
-			row.mem.Width = cols[2].Width
+			row.cpu.Width = cols[3].Width
+			row.mem.Width = cols[4].Width
 			m.rows[c.ID] = &row
 		}
 		m = m.updateInternalRows()
