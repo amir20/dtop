@@ -25,11 +25,11 @@ func (m model) updateInternalRows() model {
 		return values[i].container.Created.After(values[j].container.Created)
 	})
 
-	dummyRows := []table.Row{}
+	rows := []table.Row{}
 	for _, r := range values {
-		dummyRows = append(dummyRows, r.toTableRow())
+		rows = append(rows, r.toTableRow())
 	}
-	m.table.SetRows(dummyRows)
+	m.table.SetRows(rows)
 
 	m.orderedRows = values
 
@@ -66,6 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
 		}
 
+		m = m.updateInternalRows()
 		return m, waitForStatsUpdate(m.stats)
 
 	case containers:
@@ -110,6 +111,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		row.mem = mem.(progress.Model)
 		cmds = append(cmds, cmd)
 	}
+
+	rows := []table.Row{}
+	for _, r := range m.orderedRows {
+		rows = append(rows, r.toTableRow())
+	}
+	m.table.SetRows(rows)
 
 	return m, tea.Batch(cmds...)
 }
