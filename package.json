@@ -1,6 +1,6 @@
 {
   "name": "dtop",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A terminal-based dashboard for monitoring Docker containers in real-time.",
   "homepage": "https://github.com/amir20/termui#readme",
   "bugs": {
