@@ -18,9 +18,20 @@ import (
 	"github.com/docker/docker/client"
 )
 
+var (
+	version = "dev"
+	commit  = "n/a"
+	date    = "n/a"
+)
+
 func main() {
 	var cfg config.CliConfig
 	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "~/.config/dtop/config.yaml", "~/.dtop.yaml"))
+
+	if cfg.Version {
+		fmt.Printf("dtop version: %s\nCommit: %s\nBuilt on: %s\n", version, commit, date)
+		os.Exit(0)
+	}
 
 	var clients []*client.Client
 	for _, host := range cfg.Hosts {
