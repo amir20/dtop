@@ -2,11 +2,12 @@ package ui
 
 import (
 	"dtop/internal/docker"
-	"fmt"
+	"dtop/internal/ui/components/table"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/table"
+	teaTable "github.com/charmbracelet/bubbles/table"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -29,8 +30,8 @@ func newRow(container *docker.Container) row {
 	}
 }
 
-func (r row) toTableRow() table.Row {
-	return table.Row{r.container.Name, fmt.Sprintf("%.2f", r.cpu.Percent()), fmt.Sprintf("%.2f", r.mem.Percent()), r.container.State}
+func (r row) toTableRow() teaTable.Row {
+	return teaTable.Row{r.container.Name, r.cpu.View(), r.mem.View(), r.container.State}
 }
 
 type model struct {
