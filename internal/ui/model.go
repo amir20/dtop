@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
 	teaTable "github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -40,12 +42,19 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 
 	tbl.SetStyles(teaTable.DefaultStyles())
 
+	help := help.New()
+
+	help.Styles.ShortKey = lipgloss.NewStyle().Bold(true)
+	help.Styles.ShortDesc = lipgloss.NewStyle()
+
 	return model{
 		rows:             make(map[string]*row),
 		orderedRows:      make([]*row, 0),
 		table:            tbl,
 		containerWatcher: containerWatcher,
 		stats:            stats,
+		keyMap:           defaultKeyMap,
+		help:             help,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"dtop/internal/docker"
 	"sort"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -83,14 +84,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForContainerUpdate(m.containerWatcher)
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q":
+		switch {
+		case key.Matches(msg, m.keyMap.LineUp):
+			m.table.MoveUp(1)
+			return m, nil
+		case key.Matches(msg, m.keyMap.LineDown):
+			m.table.MoveDown(1)
+			return m, nil
+		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
-		case "o":
+		case key.Matches(msg, m.keyMap.Open):
 			container := m.orderedRows[m.table.Cursor()]
 			browser.OpenURL("http://localhost:3100/container/" + container.container.ID)
 			return m, nil
-		case "a":
+		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll
 			m = m.updateInternalRows()
 			return m, nil

@@ -5,6 +5,8 @@ import (
 	"dtop/internal/ui/components/table"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
 	teaTable "github.com/charmbracelet/bubbles/table"
 	"github.com/dustin/go-humanize"
@@ -60,6 +62,8 @@ type model struct {
 	containerWatcher <-chan []*docker.Container
 	stats            <-chan docker.ContainerStat
 	showAll          bool
+	keyMap           KeyMap
+	help             help.Model
 }
 
 type tickMsg time.Time
@@ -71,3 +75,31 @@ func tick() tea.Cmd {
 }
 
 type containers []*docker.Container
+
+type KeyMap struct {
+	LineUp   key.Binding
+	LineDown key.Binding
+	ShowAll  key.Binding
+	Open     key.Binding
+	Quit     key.Binding
+}
+
+func (km KeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Quit}
+}
+
+// FullHelp implements the KeyMap interface.
+func (km KeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Quit},
+		{},
+	}
+}
+
+var defaultKeyMap = KeyMap{
+	LineUp:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "Move up")),
+	LineDown: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "Move down")),
+	ShowAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "Toggle all")),
+	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open")),
+	Quit:     key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "Quit")),
+}
