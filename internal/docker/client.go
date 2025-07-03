@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"dtop/config"
 	"encoding/json"
 	"time"
 
@@ -12,11 +13,17 @@ import (
 )
 
 type Client struct {
-	clients []*client.Client
+	hosts []Host
 }
 
-func NewMultiClient(clients ...*client.Client) *Client {
-	for _, client := range clients {
+type Host struct {
+	*client.Client
+	config.HostConfig
+	Local bool
+}
+
+func NewMultiClient(hosts ...Host) *Client {
+	for _, client := range hosts {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
 		defer cancel()
 		_, err := client.Ping(ctx)
@@ -25,7 +32,7 @@ func NewMultiClient(clients ...*client.Client) *Client {
 		}
 	}
 	return &Client{
-		clients: clients,
+		hosts: hosts,
 	}
 }
 
@@ -35,9 +42,9 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 	}
 	channel := make(chan []*Container)
 
-	for _, dockerClient := range d.clients {
-		go func(client *client.Client) {
-			list, err := client.ContainerList(ctx, containerListOptions)
+	for _, dockerClient := range d.hosts {
+		go func(host Host) {
+			list, err := host.ContainerList(ctx, containerListOptions)
 			if err != nil {
 				panic(err)
 			}
@@ -46,7 +53,7 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 				defer close(channel)
 				var containers = make([]*Container, 0, len(list))
 				for _, c := range list {
-					container, err := inspectContainer(ctx, client, c.ID)
+					container, err := inspectContainer(ctx, host, c.ID)
 					if err != nil {
 						panic(err)
 					}
@@ -59,7 +66,7 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 				case channel <- containers:
 				}
 
-				dockerMessages, err := client.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
+				dockerMessages, err := host.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
 					filters.Arg("type", "container"),
 					filters.Arg("event", "start"),
 					filters.Arg("event", "stop"),
@@ -75,7 +82,7 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 
 					case message := <-dockerMessages:
 						if len(message.Actor.ID) > 0 {
-							container, err := inspectContainer(ctx, client, message.Actor.ID)
+							container, err := inspectContainer(ctx, host, message.Actor.ID)
 							if err != nil {
 								continue
 							}
@@ -95,8 +102,8 @@ func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, erro
 	return channel, nil
 }
 
-func inspectContainer(ctx context.Context, client *client.Client, id string) (Container, error) {
-	json, err := client.ContainerInspect(ctx, id)
+func inspectContainer(ctx context.Context, host Host, id string) (Container, error) {
+	json, err := host.ContainerInspect(ctx, id)
 	if err != nil {
 		return Container{}, err
 	}
@@ -105,9 +112,9 @@ func inspectContainer(ctx context.Context, client *client.Client, id string) (Co
 
 func (d *Client) WatchContainerStats(ctx context.Context) (<-chan ContainerStat, error) {
 	stats := make(chan ContainerStat)
-	for _, dockerClient := range d.clients {
-		go func(client *client.Client) {
-			list, err := client.ContainerList(ctx, container.ListOptions{})
+	for _, dockerClient := range d.hosts {
+		go func(host Host) {
+			list, err := host.ContainerList(ctx, container.ListOptions{})
 			if err != nil {
 				panic(err)
 			}
@@ -115,10 +122,10 @@ func (d *Client) WatchContainerStats(ctx context.Context) (<-chan ContainerStat,
 			go func() {
 				defer close(stats)
 				for _, c := range list {
-					go streamStats(ctx, client, c.ID, stats)
+					go streamStats(ctx, host.Client, c.ID, stats)
 				}
 
-				dockerMessages, err := client.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
+				dockerMessages, err := host.Events(ctx, events.ListOptions{Filters: filters.NewArgs(
 					filters.Arg("type", "container"),
 					filters.Arg("event", "start"),
 					filters.Arg("event", "stop"),
@@ -135,7 +142,7 @@ func (d *Client) WatchContainerStats(ctx context.Context) (<-chan ContainerStat,
 					case message := <-dockerMessages:
 						if len(message.Actor.ID) > 0 {
 							if message.Action == "start" {
-								go streamStats(ctx, client, message.Actor.ID, stats)
+								go streamStats(ctx, host.Client, message.Actor.ID, stats)
 							}
 						}
 					}
