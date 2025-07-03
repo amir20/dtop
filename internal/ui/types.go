@@ -3,6 +3,8 @@ package ui
 import (
 	"dtop/internal/docker"
 	"dtop/internal/ui/components/table"
+	"fmt"
+	"path"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -39,6 +41,8 @@ func (r row) toTableRow() teaTable.Row {
 	mem := ""
 	style := redStyle
 	icon := "⚫"
+	name := r.container.Name
+
 	if r.container.State == "running" {
 		status = "Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", "")
 		cpu = r.cpu.View()
@@ -50,7 +54,16 @@ func (r row) toTableRow() teaTable.Row {
 		icon = "🔴"
 		style = redStyle
 	}
-	return teaTable.Row{icon, r.container.Name, r.container.ID, cpu, mem, style.Render(status)}
+
+	if r.container.Dozzle != "" {
+		name = link(r.container.Name, path.Join(r.container.Dozzle, "container", r.container.ID))
+	}
+
+	return teaTable.Row{icon, name, r.container.ID, cpu, mem, style.Render(status)}
+}
+
+func link(text, url string) string {
+	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, text)
 }
 
 type model struct {

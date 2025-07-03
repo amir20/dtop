@@ -30,7 +30,7 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 	tbl := table.New(
 		table.WithColumns([]table.Column{
 			{Title: "", Width: 2, DisableStyle: true},
-			{Title: "NAME", Width: 10},
+			{Title: "NAME", Width: 10, DisableStyle: true},
 			{Title: "ID", Width: 13},
 			{Title: "CPU", Width: 10, DisableStyle: true},
 			{Title: "MEMORY", Width: 10, DisableStyle: true},

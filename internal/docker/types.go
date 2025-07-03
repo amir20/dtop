@@ -20,9 +20,11 @@ type Container struct {
 	MemoryLimit uint64            `json:"memoryLimit"`
 	CPULimit    float64           `json:"cpuLimit"`
 	Labels      map[string]string `json:"labels,omitempty"`
+	Dozzle      string            `json:"dozzle,omitempty"`
+	Host        string            `json:"host,omitempty"`
 }
 
-func newContainerFromJSON(c docker.InspectResponse) Container {
+func newContainerFromJSON(c docker.InspectResponse, host Host) Container {
 	name := "no name"
 	if c.Config.Labels["dev.dozzle.name"] != "" {
 		name = c.Config.Labels["dev.dozzle.name"]
@@ -39,6 +41,8 @@ func newContainerFromJSON(c docker.InspectResponse) Container {
 		Labels:      c.Config.Labels,
 		MemoryLimit: uint64(c.HostConfig.Memory),
 		CPULimit:    float64(c.HostConfig.NanoCPUs) / 1e9,
+		Host:        host.Host,
+		Dozzle:      host.Dozzle,
 	}
 
 	if createdAt, err := time.Parse(time.RFC3339Nano, c.Created); err == nil {

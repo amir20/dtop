@@ -107,7 +107,7 @@ func inspectContainer(ctx context.Context, host Host, id string) (Container, err
 	if err != nil {
 		return Container{}, err
 	}
-	return newContainerFromJSON(json), nil
+	return newContainerFromJSON(json, host), nil
 }
 
 func (d *Client) WatchContainerStats(ctx context.Context) (<-chan ContainerStat, error) {
