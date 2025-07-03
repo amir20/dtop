@@ -32,9 +32,9 @@ Simply run dtop to see all container information:
 dtop
 ```
 
-### Example Output
+### Screenshot
 
-// TODO add screenshot
+![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.png)
 
 ## Options
 
