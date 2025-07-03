@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/docker/cli v28.3.1+incompatible
-	github.com/docker/docker v28.3.0+incompatible
+	github.com/docker/docker v28.3.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/mattn/go-runewidth v0.0.16
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
