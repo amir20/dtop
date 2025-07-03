@@ -38,9 +38,20 @@ dtop
 
 ## Options
 
-- `--refresh <seconds>` - Set refresh interval (default: 2 seconds)
 - `--help` - Display help information
-- `--version` - Show version information
+- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`
+
+## Supported Connections
+
+- **Local Docker** - Monitor containers running on the local Docker daemon using `--hosts local`
+- **Remote Docker** - Monitor containers running on remote Docker daemons via SSH using `--hosts tcp://host2:2375`
+- **SSH Tunneling** - Establish an SSH tunnel to a remote host and monitor containers running on it using `--hosts ssh://user@host`
+
+You can connect to multiple hosts by separating them with commas:
+
+```bash
+dtop --hosts local,tcp://host2:2375,ssh://user@host
+```
 
 ## Requirements
 
