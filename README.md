@@ -4,11 +4,13 @@
 
 # dtop
 
-A terminal-based dashboard for monitoring Docker containers in real-time.
+A Docker terminal-based dashboard for monitoring multiple hosts in real-time.
+
+![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
 
 ## Overview
 
-dtop provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line.
+dtop provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line. It supports ssh, tcp and local connections.
 
 ## Features
 
@@ -16,7 +18,7 @@ dtop provides a comprehensive summary of all Docker containers running on your s
 - **Comprehensive container information** - View names, IDs, status, ports, and resource usage
 - **Clean terminal interface** - Easy-to-read tabular display
 - **Lightweight** - Minimal resource footprint
-- **No external dependencies** - Works with standard Docker installation
+- **Hyperlinks** - Clickable links to container logs and stats using Dozzle
 
 ## Installation
 
@@ -26,15 +28,11 @@ curl -sSfL https://amir20.github.io/dtop/install.sh | bash
 
 ## Usage
 
-Simply run dtop to see all container information:
+By default, `dtop` will connect to the local Docker daemon:
 
 ```bash
 dtop
 ```
-
-### Screenshot
-
-![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
 
 ## Options
 
