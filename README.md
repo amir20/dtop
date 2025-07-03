@@ -34,7 +34,7 @@ dtop
 
 ### Screenshot
 
-![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.png)
+![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
 
 ## Options
 
