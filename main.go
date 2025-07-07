@@ -22,6 +22,16 @@ var (
 )
 
 func main() {
+	if _, ok := os.LookupEnv("DEBUG"); ok {
+		f, err := tea.LogToFile("debug.log", "debug")
+		if err != nil {
+			fmt.Println("fatal:", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+	} else {
+		tea.LogToFile("/dev/null", "")
+	}
 	var cfg config.Cli
 	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml", "~/.dtop.yml", "~/.dtop.yaml"))
 

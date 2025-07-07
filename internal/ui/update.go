@@ -2,11 +2,11 @@ package ui
 
 import (
 	"dtop/internal/docker"
+	"log"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pkg/browser"
@@ -14,25 +14,22 @@ import (
 )
 
 func (m model) updateInternalRows() model {
-	values := lo.Values(m.rows)
+	rows := lo.Values(m.rows)
+	log.Printf("Number of rows: %d", len(rows))
 
 	if !m.showAll {
-		values = lo.Filter(values, func(item *row, index int) bool {
+		rows = lo.Filter(rows, func(item row, index int) bool {
 			return item.container.State == "running"
 		})
 	}
 
-	sort.Slice(values, func(i, j int) bool {
-		return values[i].container.CreatedAt.After(values[j].container.CreatedAt)
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].container.CreatedAt.After(rows[j].container.CreatedAt)
 	})
 
-	rows := []table.Row{}
-	for _, r := range values {
-		rows = append(rows, r.toTableRow())
-	}
-	m.table.SetRows(rows)
+	log.Printf("Number of rows after filtering: %d", len(rows))
 
-	m.orderedRows = values
+	m.table.SetRows(rows)
 
 	return m
 }
@@ -54,11 +51,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cols[4].Width = total / 4
 		cols[5].Width = total / 4
 
-		for _, row := range m.rows {
-			row.cpu.Width = cols[3].Width
-			row.mem.Width = cols[4].Width
-		}
-
 		return m, nil
 
 	case tickMsg:
@@ -66,10 +58,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
-			return m, tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
+			cmd := tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
+			m.rows[msg.ID] = row
+			m = m.updateInternalRows()
+			return m, cmd
 		}
 
-		m = m.updateInternalRows()
 		return m, waitForStatsUpdate(m.stats)
 
 	case containers:
@@ -78,7 +72,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			row := newRow(c)
 			row.cpu.Width = cols[3].Width
 			row.mem.Width = cols[4].Width
-			m.rows[c.ID] = &row
+			m.rows[c.ID] = row
 		}
 		m = m.updateInternalRows()
 		return m, waitForContainerUpdate(m.containerWatcher)
@@ -94,7 +88,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Open):
-			container := m.orderedRows[m.table.Cursor()]
+			container := m.table.Rows()[m.table.Cursor()]
 			browser.OpenURL("http://localhost:3100/container/" + container.container.ID)
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
@@ -121,11 +115,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
-	rows := []table.Row{}
-	for _, r := range m.orderedRows {
-		rows = append(rows, r.toTableRow())
-	}
-	m.table.SetRows(rows)
+	m = m.updateInternalRows()
 
 	return m, tea.Batch(cmds...)
 }
