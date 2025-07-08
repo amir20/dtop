@@ -33,7 +33,7 @@ func main() {
 		tea.LogToFile("/dev/null", "")
 	}
 	var cfg config.Cli
-	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml", "~/.dtop.yml", "~/.dtop.yaml"))
+	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.dtop.yaml", "~/.dtop.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml"))
 
 	if cfg.Version {
 		fmt.Printf("dtop version: %s\nCommit: %s\nBuilt on: %s\n", version, commit, date)
