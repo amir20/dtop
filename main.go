@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -22,15 +24,15 @@ var (
 )
 
 func main() {
+	log.SetOutput(io.Discard)
 	if _, ok := os.LookupEnv("DEBUG"); ok {
-		f, err := tea.LogToFile("debug.log", "debug")
+		f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600) //nolint:mnd
 		if err != nil {
 			fmt.Println("fatal:", err)
 			os.Exit(1)
 		}
+		log.SetOutput(f)
 		defer f.Close()
-	} else {
-		tea.LogToFile("/dev/null", "")
 	}
 	var cfg config.Cli
 	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.dtop.yaml", "~/.dtop.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml"))

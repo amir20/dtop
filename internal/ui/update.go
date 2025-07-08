@@ -3,6 +3,7 @@ package ui
 import (
 	"dtop/internal/docker"
 	"log"
+	"path"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -88,8 +89,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Open):
-			container := m.table.Rows()[m.table.Cursor()]
-			browser.OpenURL("http://localhost:3100/container/" + container.container.ID)
+			r := m.table.Rows()[m.table.Cursor()]
+			browser.OpenURL(path.Join(r.container.Dozzle, "container", r.container.ID))
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll
