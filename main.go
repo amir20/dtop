@@ -26,7 +26,7 @@ var (
 func main() {
 	log.SetOutput(io.Discard)
 	if _, ok := os.LookupEnv("DEBUG"); ok {
-		f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600) //nolint:mnd
+		f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:mnd
 		if err != nil {
 			fmt.Println("fatal:", err)
 			os.Exit(1)

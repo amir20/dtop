@@ -1,8 +1,6 @@
 package table
 
 import (
-	"log"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	teaModel "github.com/charmbracelet/bubbles/table"
@@ -175,9 +173,6 @@ func (m Model[T]) HelpView() string {
 // UpdateViewport updates the list content based on the previously defined
 // columns and rows.
 func (m *Model[T]) UpdateViewport() {
-
-	log.Printf("Updating viewport with %d rows", len(m.rows))
-
 	renderedRows := make([]string, 0, len(m.rows))
 
 	// Render only rows from: m.cursor-m.viewport.Height to: m.cursor+m.viewport.Height

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"dtop/internal/docker"
-	"log"
 	"path"
 	"sort"
 
@@ -16,7 +15,6 @@ import (
 
 func (m model) updateInternalRows() model {
 	rows := lo.Values(m.rows)
-	log.Printf("Number of rows: %d", len(rows))
 
 	if !m.showAll {
 		rows = lo.Filter(rows, func(item row, index int) bool {
@@ -27,8 +25,6 @@ func (m model) updateInternalRows() model {
 	sort.Slice(rows, func(i, j int) bool {
 		return rows[i].container.CreatedAt.After(rows[j].container.CreatedAt)
 	})
-
-	log.Printf("Number of rows after filtering: %d", len(rows))
 
 	m.table.SetRows(rows)
 
@@ -105,7 +101,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tblCmd = m.table.Update(msg)
 	cmds = append(cmds, tblCmd)
 
-	for _, row := range m.rows {
+	for id, row := range m.rows {
 		var cmd tea.Cmd
 		var cpu tea.Model
 		cpu, cmd = row.cpu.Update(msg)
@@ -113,6 +109,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var mem tea.Model
 		mem, cmd = row.mem.Update(msg)
 		row.mem = mem.(progress.Model)
+		m.rows[id] = row
 		cmds = append(cmds, cmd)
 	}
 

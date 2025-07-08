@@ -14,20 +14,15 @@ import (
 
 type row struct {
 	container *docker.Container
-
-	cpu progress.Model
-	mem progress.Model
+	cpu       progress.Model
+	mem       progress.Model
 }
 
 func newRow(container *docker.Container) row {
-	cpu := progress.New(progress.WithDefaultGradient())
-	cpu.SetPercent(0)
-	mem := progress.New(progress.WithDefaultGradient())
-	mem.SetPercent(0)
 	return row{
 		container: container,
-		cpu:       cpu,
-		mem:       mem,
+		cpu:       progress.New(progress.WithDefaultGradient()),
+		mem:       progress.New(progress.WithDefaultGradient()),
 	}
 }
 
