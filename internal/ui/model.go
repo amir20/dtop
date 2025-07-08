@@ -94,6 +94,10 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 	help.Styles.ShortKey = lipgloss.NewStyle().Bold(true)
 	help.Styles.ShortDesc = lipgloss.NewStyle()
 
+	if isSSHSession() {
+		defaultKeyMap.Open.SetEnabled(false)
+	}
+
 	return model{
 		rows:             make(map[string]row),
 		table:            tbl,
@@ -127,4 +131,15 @@ func (m model) Init() tea.Cmd {
 		waitForContainerUpdate(m.containerWatcher),
 		waitForStatsUpdate(m.stats),
 	)
+}
+
+func isSSHSession() bool {
+	sshVars := []string{"SSH_CLIENT", "SSH_TTY", "SSH_CONNECTION"}
+
+	for _, envVar := range sshVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+	return false
 }
