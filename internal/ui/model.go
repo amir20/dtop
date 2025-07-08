@@ -34,19 +34,23 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 	tbl := table.New(
 		table.WithColumns([]table.Column[row]{
 			{
-				Title: "", Width: 2, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+				Title: "", Width: 1, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Right).MaxWidth(col.Width).Inline(true)
 					if r.container.State == "running" {
-						return style.Render("🟢")
+						return greenStyle.Render(style.Render("▶"))
 					}
-					return style.Render("🔴")
+					return redStyle.Render(style.Render("⏹"))
 				},
 			},
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					href := link(runewidth.Truncate(r.container.Name, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
-					return style.Render(href)
+					value := link(runewidth.Truncate(r.container.Name, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					value = style.Render(value)
+					if selected {
+						value = selectedStyle.Render(value)
+					}
+					return value
 				},
 			},
 			{
@@ -61,7 +65,7 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 						r.cpu.Width = col.Width
 						return r.cpu.View()
 					}
-					return ""
+					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
 			},
 			{
@@ -70,7 +74,7 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 						r.mem.Width = col.Width
 						return r.mem.View()
 					}
-					return ""
+					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
 			},
 			{

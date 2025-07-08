@@ -317,7 +317,7 @@ func (m Model[T]) headersView() string {
 func (m *Model[T]) renderRow(r int) string {
 	s := make([]string, 0, len(m.cols))
 
-	for i, col := range m.cols {
+	for _, col := range m.cols {
 		if col.Width <= 0 {
 			continue
 		}
@@ -326,7 +326,7 @@ func (m *Model[T]) renderRow(r int) string {
 			panic("nil renderer")
 		}
 
-		value := col.Renderer(col, m.rows[r], i == m.cursor)
+		value := col.Renderer(col, m.rows[r], r == m.cursor)
 		s = append(s, m.styles.Cell.Render(value))
 	}
 
