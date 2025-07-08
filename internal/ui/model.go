@@ -6,10 +6,14 @@ import (
 	"dtop/internal/ui/components/table"
 	"fmt"
 	"os"
+	"path"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	teaTable "github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
+	"github.com/mattn/go-runewidth"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -28,16 +32,59 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 	}
 
 	tbl := table.New(
-		table.WithColumns([]table.Column{
-			{Title: "", Width: 2, DisableStyle: true},
-			{Title: "NAME", Width: 10, DisableStyle: true},
-			{Title: "ID", Width: 13},
-			{Title: "CPU", Width: 10, DisableStyle: true},
-			{Title: "MEMORY", Width: 10, DisableStyle: true},
-			{Title: "Status", Width: 10},
+		table.WithColumns([]table.Column[row]{
+			{
+				Title: "", Width: 2, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					if r.container.State == "running" {
+						return style.Render("🟢")
+					}
+					return style.Render("🔴")
+				},
+			},
+			{
+				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					href := link(runewidth.Truncate(r.container.Name, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					return style.Render(href)
+				},
+			},
+			{
+				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					return style.Render(r.container.ID)
+				},
+			},
+			{
+				Title: "CPU", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					if r.container.State == "running" {
+						r.cpu.Width = col.Width
+						return r.cpu.View()
+					}
+					return ""
+				},
+			},
+			{
+				Title: "MEMORY", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					if r.container.State == "running" {
+						r.mem.Width = col.Width
+						return r.mem.View()
+					}
+					return ""
+				},
+			},
+			{
+				Title: "STATUS", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					if r.container.State == "running" {
+						return style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+					}
+					return style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+				},
+			},
 		}),
-		table.WithFocused(true),
-		table.WithHeight(15),
+		table.WithFocused[row](true),
+		table.WithHeight[row](15),
 	)
 
 	tbl.SetStyles(teaTable.DefaultStyles())
@@ -48,14 +95,17 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 	help.Styles.ShortDesc = lipgloss.NewStyle()
 
 	return model{
-		rows:             make(map[string]*row),
-		orderedRows:      make([]*row, 0),
+		rows:             make(map[string]row),
 		table:            tbl,
 		containerWatcher: containerWatcher,
 		stats:            stats,
 		keyMap:           defaultKeyMap,
 		help:             help,
 	}
+}
+
+func link(text, url string) string {
+	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, text)
 }
 
 func waitForContainerUpdate(ch <-chan []*docker.Container) tea.Cmd {

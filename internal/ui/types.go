@@ -3,73 +3,32 @@ package ui
 import (
 	"dtop/internal/docker"
 	"dtop/internal/ui/components/table"
-	"fmt"
-	"path"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
-	teaTable "github.com/charmbracelet/bubbles/table"
-	"github.com/dustin/go-humanize"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type row struct {
 	container *docker.Container
-
-	cpu progress.Model
-	mem progress.Model
+	cpu       progress.Model
+	mem       progress.Model
 }
 
 func newRow(container *docker.Container) row {
-	cpu := progress.New(progress.WithDefaultGradient())
-	cpu.SetPercent(0)
-	mem := progress.New(progress.WithDefaultGradient())
-	mem.SetPercent(0)
 	return row{
 		container: container,
-		cpu:       cpu,
-		mem:       mem,
+		cpu:       progress.New(progress.WithDefaultGradient()),
+		mem:       progress.New(progress.WithDefaultGradient()),
 	}
-}
-
-func (r row) toTableRow() teaTable.Row {
-	status := ""
-	cpu := ""
-	mem := ""
-	style := redStyle
-	icon := "⚫"
-	name := r.container.Name
-
-	if r.container.State == "running" {
-		status = "Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", "")
-		cpu = r.cpu.View()
-		mem = r.mem.View()
-		icon = "🟢"
-		style = greenStyle
-	} else if r.container.State == "exited" {
-		status = "Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", "")
-		icon = "🔴"
-		style = redStyle
-	}
-
-	if r.container.Dozzle != "" {
-		name = link(r.container.Name, path.Join(r.container.Dozzle, "container", r.container.ID))
-	}
-
-	return teaTable.Row{icon, name, r.container.ID, cpu, mem, style.Render(status)}
-}
-
-func link(text, url string) string {
-	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, text)
 }
 
 type model struct {
-	rows             map[string]*row
-	orderedRows      []*row
-	table            table.Model
+	rows             map[string]row
+	table            table.Model[row]
 	width            int
 	height           int
 	containerWatcher <-chan []*docker.Container

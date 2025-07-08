@@ -11,12 +11,12 @@ import (
 )
 
 // Model defines a state for the table widget.
-type Model struct {
+type Model[T any] struct {
 	KeyMap teaModel.KeyMap
 	Help   help.Model
 
-	cols   []Column
-	rows   []teaModel.Row
+	cols   []Column[T]
+	rows   []T
 	cursor int
 	focus  bool
 	styles teaModel.Styles
@@ -27,23 +27,23 @@ type Model struct {
 }
 
 // Column defines the table structure.
-type Column struct {
-	Title        string
-	Width        int
-	DisableStyle bool
+type Column[T any] struct {
+	Title    string
+	Width    int
+	Renderer func(Column[T], T, bool) string
 }
 
 // SetStyles sets the table styles.
-func (m *Model) SetStyles(s teaModel.Styles) {
+func (m *Model[T]) SetStyles(s teaModel.Styles) {
 	m.styles = s
 	m.UpdateViewport()
 }
 
-type Option func(*Model)
+type Option[T any] func(*Model[T])
 
 // New creates a new model for the table widget.
-func New(opts ...Option) Model {
-	m := Model{
+func New[T any](opts ...Option[T]) Model[T] {
+	m := Model[T]{
 		cursor:   0,
 		viewport: viewport.New(0, 20),
 		KeyMap:   teaModel.DefaultKeyMap(),
@@ -61,56 +61,56 @@ func New(opts ...Option) Model {
 }
 
 // WithColumns sets the table columns (headers).
-func WithColumns(cols []Column) Option {
-	return func(m *Model) {
+func WithColumns[T any](cols []Column[T]) Option[T] {
+	return func(m *Model[T]) {
 		m.cols = cols
 	}
 }
 
 // WithRows sets the table rows (data).
-func WithRows(rows []teaModel.Row) Option {
-	return func(m *Model) {
+func WithRows[T any](rows []T) Option[T] {
+	return func(m *Model[T]) {
 		m.rows = rows
 	}
 }
 
 // WithHeight sets the height of the table.
-func WithHeight(h int) Option {
-	return func(m *Model) {
+func WithHeight[T any](h int) Option[T] {
+	return func(m *Model[T]) {
 		m.viewport.Height = h - lipgloss.Height(m.headersView())
 	}
 }
 
 // WithWidth sets the width of the table.
-func WithWidth(w int) Option {
-	return func(m *Model) {
+func WithWidth[T any](w int) Option[T] {
+	return func(m *Model[T]) {
 		m.viewport.Width = w
 	}
 }
 
 // WithFocused sets the focus state of the table.
-func WithFocused(f bool) Option {
-	return func(m *Model) {
+func WithFocused[T any](f bool) Option[T] {
+	return func(m *Model[T]) {
 		m.focus = f
 	}
 }
 
 // WithStyles sets the table styles.
-func WithStyles(s teaModel.Styles) Option {
-	return func(m *Model) {
+func WithStyles[T any](s teaModel.Styles) Option[T] {
+	return func(m *Model[T]) {
 		m.styles = s
 	}
 }
 
 // WithKeyMap sets the key map.
-func WithKeyMap(km teaModel.KeyMap) Option {
-	return func(m *Model) {
+func WithKeyMap[T any](km teaModel.KeyMap) Option[T] {
+	return func(m *Model[T]) {
 		m.KeyMap = km
 	}
 }
 
 // Update is the Bubble Tea update loop.
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model[T]) Update(msg tea.Msg) (Model[T], tea.Cmd) {
 	if !m.focus {
 		return m, nil
 	}
@@ -141,38 +141,38 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // Focused returns the focus state of the table.
-func (m Model) Focused() bool {
+func (m Model[T]) Focused() bool {
 	return m.focus
 }
 
 // Focus focuses the table, allowing the user to move around the rows and
 // interact.
-func (m *Model) Focus() {
+func (m *Model[T]) Focus() {
 	m.focus = true
 	m.UpdateViewport()
 }
 
 // Blur blurs the table, preventing selection or movement.
-func (m *Model) Blur() {
+func (m *Model[T]) Blur() {
 	m.focus = false
 	m.UpdateViewport()
 }
 
 // View renders the component.
-func (m Model) View() string {
+func (m Model[T]) View() string {
 	return m.headersView() + "\n" + m.viewport.View()
 }
 
 // HelpView is a helper method for rendering the help menu from the keymap.
 // Note that this view is not rendered by default and you must call it
 // manually in your application, where applicable.
-func (m Model) HelpView() string {
+func (m Model[T]) HelpView() string {
 	return m.Help.View(m.KeyMap)
 }
 
 // UpdateViewport updates the list content based on the previously defined
 // columns and rows.
-func (m *Model) UpdateViewport() {
+func (m *Model[T]) UpdateViewport() {
 	renderedRows := make([]string, 0, len(m.rows))
 
 	// Render only rows from: m.cursor-m.viewport.Height to: m.cursor+m.viewport.Height
@@ -195,72 +195,73 @@ func (m *Model) UpdateViewport() {
 
 // SelectedRow returns the selected row.
 // You can cast it to your own implementation.
-func (m Model) SelectedRow() teaModel.Row {
+func (m Model[T]) SelectedRow() T {
 	if m.cursor < 0 || m.cursor >= len(m.rows) {
-		return nil
+		var zero T
+		return zero
 	}
 
 	return m.rows[m.cursor]
 }
 
 // Rows returns the current rows.
-func (m Model) Rows() []teaModel.Row {
+func (m Model[T]) Rows() []T {
 	return m.rows
 }
 
 // Columns returns the current columns.
-func (m Model) Columns() []Column {
+func (m Model[T]) Columns() []Column[T] {
 	return m.cols
 }
 
 // SetRows sets a new rows state.
-func (m *Model) SetRows(r []teaModel.Row) {
+func (m *Model[T]) SetRows(r []T) {
 	m.rows = r
 	m.UpdateViewport()
 }
 
 // SetColumns sets a new columns state.
-func (m *Model) SetColumns(c []Column) {
+func (m *Model[T]) SetColumns(c []Column[T]) {
 	m.cols = c
 	m.UpdateViewport()
 }
 
 // SetWidth sets the width of the viewport of the table.
-func (m *Model) SetWidth(w int) {
+func (m *Model[T]) SetWidth(w int) {
 	m.viewport.Width = w
 	m.UpdateViewport()
 }
 
 // SetHeight sets the height of the viewport of the table.
-func (m *Model) SetHeight(h int) {
+func (m *Model[T]) SetHeight(h int) {
 	m.viewport.Height = h - lipgloss.Height(m.headersView())
 	m.UpdateViewport()
 }
 
 // Height returns the viewport height of the table.
-func (m Model) Height() int {
+func (m Model[T]) Height() int {
 	return m.viewport.Height
 }
 
 // Width returns the viewport width of the table.
-func (m Model) Width() int {
+func (m Model[T]) Width() int {
 	return m.viewport.Width
 }
 
 // Cursor returns the index of the selected row.
-func (m Model) Cursor() int {
+func (m Model[T]) Cursor() int {
 	return m.cursor
 }
 
 // SetCursor sets the cursor position in the table.
-func (m *Model) SetCursor(n int) {
+func (m *Model[T]) SetCursor(n int) {
 	m.cursor = clamp(n, 0, len(m.rows)-1)
 	m.UpdateViewport()
 }
 
 // MoveUp moves the selection up by any number of rows.
 // It can not go above the first row.
-func (m *Model) MoveUp(n int) {
+func (m *Model[T]) MoveUp(n int) {
 	m.cursor = clamp(m.cursor-n, 0, len(m.rows)-1)
 	switch {
 	case m.start == 0:
@@ -275,7 +276,7 @@ func (m *Model) MoveUp(n int) {
 
 // MoveDown moves the selection down by any number of rows.
 // It can not go below the last row.
-func (m *Model) MoveDown(n int) {
+func (m *Model[T]) MoveDown(n int) {
 	m.cursor = clamp(m.cursor+n, 0, len(m.rows)-1)
 	m.UpdateViewport()
 
@@ -291,16 +292,16 @@ func (m *Model) MoveDown(n int) {
 }
 
 // GotoTop moves the selection to the first row.
-func (m *Model) GotoTop() {
+func (m *Model[T]) GotoTop() {
 	m.MoveUp(m.cursor)
 }
 
 // GotoBottom moves the selection to the last row.
-func (m *Model) GotoBottom() {
+func (m *Model[T]) GotoBottom() {
 	m.MoveDown(len(m.rows))
 }
 
-func (m Model) headersView() string {
+func (m Model[T]) headersView() string {
 	s := make([]string, 0, len(m.cols))
 	for _, col := range m.cols {
 		if col.Width <= 0 {
@@ -313,25 +314,20 @@ func (m Model) headersView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, s...)
 }
 
-func (m *Model) renderRow(r int) string {
+func (m *Model[T]) renderRow(r int) string {
 	s := make([]string, 0, len(m.cols))
 
-	for i, value := range m.rows[r] {
-		if m.cols[i].Width <= 0 {
+	for i, col := range m.cols {
+		if col.Width <= 0 {
 			continue
 		}
-		style := lipgloss.NewStyle().Width(m.cols[i].Width).MaxWidth(m.cols[i].Width).Inline(true)
-		var renderedCell string
-		if m.cols[i].DisableStyle {
-			renderedCell = style.Render(value)
-			renderedCell = m.styles.Cell.Render(renderedCell)
-		} else {
-			renderedCell = m.styles.Cell.Render(style.Render(runewidth.Truncate(value, m.cols[i].Width, "…")))
-			if r == m.cursor {
-				renderedCell = m.styles.Selected.Render(renderedCell)
-			}
+
+		if col.Renderer == nil {
+			panic("nil renderer")
 		}
-		s = append(s, renderedCell)
+
+		value := col.Renderer(col, m.rows[r], i == m.cursor)
+		s = append(s, m.styles.Cell.Render(value))
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, s...)
