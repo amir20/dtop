@@ -13,6 +13,7 @@ import (
 	teaTable "github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
+	"github.com/mattn/go-runewidth"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -34,21 +35,24 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 		table.WithColumns([]table.Column[row]{
 			{
 				Title: "", Width: 2, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 					if r.container.State == "running" {
-						return "🟢"
+						return style.Render("🟢")
 					}
-					return "🔴"
+					return style.Render("🔴")
 				},
 			},
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
-					href := link(r.container.Name, path.Join(r.container.Dozzle, "container", r.container.ID))
-					return href
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					href := link(runewidth.Truncate(r.container.Name, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					return style.Render(href)
 				},
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
-					return r.container.ID
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					return style.Render(r.container.ID)
 				},
 			},
 			{
@@ -71,10 +75,11 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 			},
 			{
 				Title: "STATUS", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 					if r.container.State == "running" {
-						return "Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", "")
+						return style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
 					}
-					return "Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", "")
+					return style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
 				},
 			},
 		}),
