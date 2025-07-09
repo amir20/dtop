@@ -4,19 +4,17 @@
 
 # dtop
 
-A Docker terminal-based dashboard for monitoring multiple hosts in real-time.
+A terminal-based dashboard for Docker that monitors multiple hosts in real-time.
 
 ![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
 
 ## Overview
 
-dtop provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line. It supports ssh, tcp and local connections.
+dtop provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line. It supports ssh, tcp and local connections and integrates with [Dozzle](https://github.com/amir20/dozzle) for container logs.
 
 ## Features
 
 - **Real-time monitoring** - Live updates of container status and metrics
-- **Comprehensive container information** - View names, IDs, status, ports, and resource usage
-- **Clean terminal interface** - Easy-to-read tabular display
 - **Lightweight** - Minimal resource footprint
 - **Hyperlinks** - Clickable links to container logs and stats using Dozzle
 
@@ -34,7 +32,29 @@ By default, `dtop` will connect to the local Docker daemon:
 dtop
 ```
 
-## Options
+## Configuration
+
+`dtop` supports command line flags or configuration file. The configuration file reads from the following locations:
+
+- `./config.yaml`
+- `~/.dtop.yaml`
+- `~/.config/dtop/config.yaml`
+
+> [!Note]
+> `yaml` and `yml` files are supported.
+Here's an example configuration:
+
+```yaml
+hosts:
+  - host: local
+    dozzle: http://localhost:3100/ # this is optional
+  - host: tcp://host2:2375
+    dozzle: http://host2:3100/
+  - host: ssh://user@host
+    dozzle: http://host:8080/
+```
+
+## Command Line Options
 
 - `--help` - Display help information
 - `--hosts` - A comma separated list of hosts to connect. Defaults to `local`
@@ -50,6 +70,12 @@ You can connect to multiple hosts by separating them with commas:
 ```bash
 dtop --hosts local,tcp://host2:2375,ssh://user@host
 ```
+
+## Dozzle Support
+
+`dtop` supports linking to container logs using Dozzle. To enable this feature, specify the Dozzle URL in the configuration file or command line flags. Once enabled, `dtop` will automatically open the Dozzle UI when you click on a container. `dtop` leverages [OSC8](https://github.com/Alhadis/OSC8-Adoption/) to send the URL to the terminal. iTerm, Ghostty and a few other terminals supports this with `cmd+click` or `ctrl+click` on the container name. For tmux, you need to have `tmux` version 3.4 or higher installed with `hyperlinks` enabled. This is usually enabled with `set -as terminal-features ",*:hyperlinks"`.
+
+
 
 ## Requirements
 
