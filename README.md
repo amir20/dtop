@@ -4,13 +4,13 @@
 
 # dtop
 
-A terminal-based dashboard for Docker that monitors multiple hosts in real-time.
+A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 ![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
 
 ## Overview
 
-dtop provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line. It supports ssh, tcp and local connections and integrates with [Dozzle](https://github.com/amir20/dozzle) for container logs.
+`dtop` provides a comprehensive summary of all Docker containers running on your system, displayed directly in your terminal. Get instant visibility into container status, resource usage, and key metrics without leaving the command line. It supports ssh, tcp and local connections and integrates with [Dozzle](https://github.com/amir20/dozzle) for container logs.
 
 ## Features
 
@@ -71,11 +71,13 @@ You can connect to multiple hosts by separating them with commas:
 dtop --hosts local,tcp://host2:2375,ssh://user@host
 ```
 
-## Dozzle Support
+## Dozzle Integration
 
 `dtop` supports linking to container logs using Dozzle. To enable this feature, specify the Dozzle URL in the configuration file or command line flags. Once enabled, `dtop` will automatically open the Dozzle UI when you click on a container. `dtop` leverages [OSC8](https://github.com/Alhadis/OSC8-Adoption/) to send the URL to the terminal. iTerm, Ghostty and a few other terminals supports this with `cmd+click` or `ctrl+click` on the container name. For tmux, you need to have `tmux` version 3.4 or higher installed with `hyperlinks` enabled. This is usually enabled with `set -as terminal-features ",*:hyperlinks"`.
 
+## Related Projects & Inspirations
 
+I am a big fan of [ctop](https://github.com/bcicen/ctop). `ctop` inspired me to create Dozzle but in the browser. However, it seems like `ctop` is no longer maintained. I considered forking `ctop` but deploying with same name would be challenging. I created `dtop` for my personal use case. I often want to see all my containers at a glance across multiple hosts. `dtop` achieves that by supporting remote hosts via `ssh` or `tcp`. Additionally, since I use Dozzle, I integrated Dozzle into `dtop` to provide a seamless experience for monitoring container logs.
 
 ## Requirements
 
