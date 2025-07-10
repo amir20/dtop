@@ -45,7 +45,12 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					value := link(runewidth.Truncate(r.container.Name, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					value := r.container.Name
+					if r.container.Dozzle != "" {
+						value = link(runewidth.Truncate(value, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					} else {
+						value = runewidth.Truncate(value, col.Width, "…")
+					}
 					value = style.Render(value)
 					if selected {
 						value = selectedStyle.Render(value)
