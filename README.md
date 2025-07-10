@@ -75,10 +75,6 @@ dtop --hosts local,tcp://host2:2375,ssh://user@host
 
 I am a big fan of [ctop](https://github.com/bcicen/ctop). `ctop` inspired me to create Dozzle but in the browser. However, it seems like `ctop` is no longer maintained. I considered forking `ctop` but deploying with same name would be challenging. I created `dtop` for my personal use case. I often want to see all my containers at a glance across multiple hosts. `dtop` achieves that by supporting remote hosts via `ssh` or `tcp`. Additionally, since I use Dozzle, I integrated Dozzle into `dtop` to provide a seamless experience for monitoring container logs.
 
-## Requirements
-
-- Docker installed and running
-- Terminal with basic color support
 
 ## Contributing
 
