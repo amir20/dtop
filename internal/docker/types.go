@@ -73,8 +73,10 @@ type ContainerEvent struct {
 }
 
 type ContainerStat struct {
-	ID            string  `json:"id"`
-	CPUPercent    float64 `json:"cpu"`
-	MemoryPercent float64 `json:"memory"`
-	MemoryUsage   float64 `json:"memoryUsage"`
+	ID              string  `json:"id"`
+	CPUPercent      float64 `json:"cpu"`
+	MemoryPercent   float64 `json:"memory"`
+	MemoryUsage     float64 `json:"memoryUsage"`
+	NetworkReceive  uint64  `json:"networkReceive"`
+	NetworkTransmit uint64  `json:"networkTransmit"`
 }
