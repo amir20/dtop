@@ -41,7 +41,8 @@ dtop
 - `~/.config/dtop/config.yaml`
 
 > [!Note]
-> `yaml` and `yml` files are supported.
+> Both `yaml` and `yml` files are supported.
+
 Here's an example configuration:
 
 ```yaml
