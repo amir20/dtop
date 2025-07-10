@@ -24,15 +24,15 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 curl -sSfL https://amir20.github.io/dtop/install.sh | bash
 ```
 
-## Usage
+## Command Line Options
 
-By default, `dtop` will connect to the local Docker daemon:
+By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
 
-```bash
-dtop
-```
+- `--help` - Display help information
+- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`
 
-## Configuration
+
+## Configuration File
 
 `dtop` supports command line flags or configuration file. The configuration file reads from the following locations:
 
@@ -54,11 +54,6 @@ hosts:
   - host: ssh://user@host
     dozzle: http://host:8080/
 ```
-
-## Command Line Options
-
-- `--help` - Display help information
-- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`
 
 ## Supported Connections
 

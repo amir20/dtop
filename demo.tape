@@ -55,6 +55,7 @@
 #   Hide                            Hide the subsequent commands from the output
 #   Show                            Show the subsequent commands in the output
 
+Set Theme "Ayu Mirage"
 Output demo.gif
 
 Set TypingSpeed 100ms
