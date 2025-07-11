@@ -10,9 +10,7 @@ version: 2
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
     - go generate ./...
 
 upx:
@@ -46,7 +44,17 @@ archives:
     format_overrides:
       - goos: windows
         formats: zip
-
+nfpms:
+  - id: dtop
+    package_name: dtop
+    vendor: amir20
+    homepage: https://github.com/amir20/dtop
+    maintainer: Amir Raminfar <findamir@gmail.com>
+    description: "dtop - A top-like tool for Docker containers"
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/local/bin
 changelog:
   sort: asc
   filters:
