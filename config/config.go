@@ -5,7 +5,7 @@ import (
 )
 
 type Cli struct {
-	Hosts   []HostConfig `help:"Complex host configuration." name:"hosts" aliases:"host" default:"local"`
+	Hosts   []HostConfig `help:"Complex host configuration." name:"hosts" aliases:"host" default:"local" env:"DTOP_HOSTS"`
 	Version bool         `help:"Show version information." default:"false" name:"version" short:"v"`
 }
 
