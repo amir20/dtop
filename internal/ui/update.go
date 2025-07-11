@@ -3,6 +3,7 @@ package ui
 import (
 	"dtop/internal/docker"
 	"path"
+	"slices"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -31,6 +32,8 @@ func (m model) updateInternalRows() model {
 	return m
 }
 
+var flexibleColumns = []string{"NAME", "CPU", "MEMORY", "STATUS", "NETWORK IO"}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -40,13 +43,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetWidth(msg.Width)
 		m.table.SetHeight(msg.Height - 1)
 
-		total := m.table.Width() - (13 + 2)
-		cols := m.table.Columns()
+		total := m.table.Width()
+		for _, col := range m.table.Columns() {
+			if !slices.Contains(flexibleColumns, col.Title) {
+				total -= col.Width
+			}
+		}
 
-		cols[1].Width = total / 4
-		cols[3].Width = total / 4
-		cols[4].Width = total / 4
-		cols[5].Width = total / 4
+		cols := m.table.Columns()
+		for i, col := range cols {
+			if slices.Contains(flexibleColumns, col.Title) {
+				cols[i].Width = total / len(flexibleColumns)
+			}
+		}
 
 		return m, nil
 
@@ -56,6 +65,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
 			cmd := tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
+			row.bytesSent = msg.NetworkReceive
+			row.bytesReceived = msg.NetworkTransmit
 			m.rows[msg.ID] = row
 			m = m.updateInternalRows()
 			return m, cmd

@@ -183,15 +183,25 @@ func streamStats(ctx context.Context, client *client.Client, id string, stats ch
 			mem = float64(statsResponse.MemoryStats.PrivateWorkingSet)
 		}
 
+		rxBytes := uint64(0)
+		txBytes := uint64(0)
+
+		for _, network := range statsResponse.Networks {
+			rxBytes += network.RxBytes
+			txBytes += network.TxBytes
+		}
+
 		if cpuPercent > 0 || mem > 0 {
 			select {
 			case <-ctx.Done():
 				return nil
 			case stats <- ContainerStat{
-				ID:            statsResponse.ID[:12],
-				CPUPercent:    cpuPercent,
-				MemoryPercent: memPercent,
-				MemoryUsage:   mem,
+				ID:              statsResponse.ID[:12],
+				CPUPercent:      cpuPercent,
+				MemoryPercent:   memPercent,
+				MemoryUsage:     mem,
+				NetworkReceive:  rxBytes,
+				NetworkTransmit: txBytes,
 			}:
 			}
 		}

@@ -61,14 +61,22 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
 					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					return style.Render(r.container.ID)
+					value := style.Render(r.container.ID)
+					if selected {
+						value = selectedStyle.Render(value)
+					}
+					return value
 				},
 			},
 			{
 				Title: "CPU", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						r.cpu.Width = col.Width
-						return r.cpu.View()
+						bar := r.cpu
+						bar.Width = col.Width
+						if selected {
+							bar.PercentageStyle = selectedStyle
+						}
+						return bar.View()
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -76,19 +84,41 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 			{
 				Title: "MEMORY", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						r.mem.Width = col.Width
-						return r.mem.View()
+						bar := r.mem
+						bar.Width = col.Width
+						if selected {
+							bar.PercentageStyle = selectedStyle
+						}
+						return bar.View()
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
 			},
 			{
-				Title: "STATUS", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					if r.container.State == "running" {
-						return style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+				Title: "NETWORK IO", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
+					value := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Left).Inline(true).
+						Render(
+							fmt.Sprintf("↑ %-6s  ↓ %-6s", humanize.Bytes(r.bytesSent), humanize.Bytes(r.bytesReceived)),
+						)
+					if selected {
+						value = selectedStyle.Render(value)
 					}
-					return style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+					return value
+				},
+			},
+			{
+				Title: "STATUS", Width: 22, Renderer: func(col table.Column[row], r row, selected bool) string {
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					var value string
+					if r.container.State == "running" {
+						value = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+					} else {
+						value = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+					}
+					if selected {
+						value = selectedStyle.Render(value)
+					}
+					return value
 				},
 			},
 		}),
