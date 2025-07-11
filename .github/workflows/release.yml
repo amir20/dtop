@@ -87,7 +87,7 @@ jobs:
           # Create snapshot and publish
           SNAPSHOT_NAME="dtop-$(date +%Y%m%d-%H%M%S)"
           aptly snapshot create $SNAPSHOT_NAME from repo dtop
-          aptly publish snapshot $SNAPSHOT_NAME -distribution=stable -component=main
+          aptly publish snapshot $SNAPSHOT_NAME stable
 
           # Copy install.sh from your repository
           cp scripts/install.sh public/install.sh  # Replace 'scripts/' with your actual directory
