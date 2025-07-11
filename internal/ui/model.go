@@ -98,7 +98,7 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 				Title: "NETWORK IO", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					value := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Left).Inline(true).
 						Render(
-							fmt.Sprintf("↑ %-8s  ↓ %-8s", humanize.Bytes(r.bytesSentPerSecond)+"/s", humanize.Bytes(r.bytesReceivedPerSecond)+"/s"),
+							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.bytesSentPerSecond)+"/s", humanize.Bytes(r.bytesReceivedPerSecond)+"/s"),
 						)
 					if selected {
 						value = selectedStyle.Render(value)
