@@ -13,11 +13,14 @@ import (
 )
 
 type row struct {
-	container     *docker.Container
-	cpu           progress.Model
-	mem           progress.Model
-	bytesReceived uint64
-	bytesSent     uint64
+	container              *docker.Container
+	cpu                    progress.Model
+	mem                    progress.Model
+	lastUpdate             time.Time
+	totalBytesReceived     uint64
+	totalBytesSent         uint64
+	bytesReceivedPerSecond uint64
+	bytesSentPerSecond     uint64
 }
 
 func newRow(container *docker.Container) row {

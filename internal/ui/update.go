@@ -64,9 +64,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
-			cmd := tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats))
-			row.bytesSent = msg.NetworkReceive
-			row.bytesReceived = msg.NetworkTransmit
+			cmd := tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats)) // Compute delta of bytes per second
+			timeDelta := uint64(msg.Time.Sub(row.lastUpdate).Seconds())
+			if timeDelta > 0 && !row.lastUpdate.IsZero() {
+				currentBytesReceivedPerSecond := (msg.TotalNetworkReceived - row.totalBytesReceived) / timeDelta
+				currentBytesSentPerSecond := (msg.TotalNetworkTransmitted - row.totalBytesSent) / timeDelta
+				alpha := 0.75
+				row.bytesReceivedPerSecond = uint64(alpha*float64(currentBytesReceivedPerSecond) + (1-alpha)*float64(row.bytesReceivedPerSecond))
+				row.bytesSentPerSecond = uint64(alpha*float64(currentBytesSentPerSecond) + (1-alpha)*float64(row.bytesSentPerSecond))
+			}
+			row.totalBytesReceived = msg.TotalNetworkReceived
+			row.totalBytesSent = msg.TotalNetworkTransmitted
+			row.lastUpdate = msg.Time
 			m.rows[msg.ID] = row
 			m = m.updateInternalRows()
 			return m, cmd

@@ -196,12 +196,13 @@ func streamStats(ctx context.Context, client *client.Client, id string, stats ch
 			case <-ctx.Done():
 				return nil
 			case stats <- ContainerStat{
-				ID:              statsResponse.ID[:12],
-				CPUPercent:      cpuPercent,
-				MemoryPercent:   memPercent,
-				MemoryUsage:     mem,
-				NetworkReceive:  rxBytes,
-				NetworkTransmit: txBytes,
+				ID:                      statsResponse.ID[:12],
+				Time:                    statsResponse.Read,
+				CPUPercent:              cpuPercent,
+				MemoryPercent:           memPercent,
+				MemoryUsage:             mem,
+				TotalNetworkReceived:    rxBytes,
+				TotalNetworkTransmitted: txBytes,
 			}:
 			}
 		}
