@@ -13,9 +13,11 @@ import (
 )
 
 type row struct {
-	container *docker.Container
-	cpu       progress.Model
-	mem       progress.Model
+	container     *docker.Container
+	cpu           progress.Model
+	mem           progress.Model
+	bytesReceived uint64
+	bytesSent     uint64
 }
 
 func newRow(container *docker.Container) row {
