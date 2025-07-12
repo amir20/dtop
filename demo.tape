@@ -12,5 +12,9 @@ Type "dtop"
 Sleep 700ms
 Enter
 
+Sleep 1s
+Down
+Sleep 1s
+Down
 
 Sleep 8s
