@@ -62,7 +62,7 @@ homebrew_casks:
       owner: amir20
       name: homebrew-dtop
       branch: main
-      token: "{{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
     directory: Casks
     homepage: https://github.com/amir20/dtop
     description: "dtop - A top-like tool for Docker containers"
