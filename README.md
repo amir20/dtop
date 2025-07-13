@@ -19,9 +19,31 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - **Hyperlinks** - Clickable links to container logs and stats using Dozzle
 
 ## Installation
+`dtop` can be installed through multiple package managers or by downloading the binary directly.
 
-```bash
+### Homebrew
+
+This is recommended for macOS and Linux users. Automatic updates are handled by Homebrew.
+
+```sh
+brew tap amir20/homebrew-dtop
+brew install --cask dtop
+```
+
+### Install Script
+
+Downloads the latest release from GitHub.
+
+```sh
 curl -sSfL https://amir20.github.io/dtop/install.sh | bash
+```
+
+### Install using Go
+
+Downloads the latest release from GitHub.
+
+```sh
+go install github.com/amir20/dtop@latest
 ```
 
 ## Command Line Options
