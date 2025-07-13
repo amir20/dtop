@@ -75,6 +75,17 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dtop"]
           end
 
+scoops:
+  - name: dtop
+    repository:
+      owner: amir20
+      name: scoop-dtop
+      branch: main
+      token: "{{ .Env.SCOOP_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/amir20/dtop
+    description: "dtop - A top-like tool for Docker containers"
+    license: "MIT"
+
 changelog:
   sort: asc
   filters:
