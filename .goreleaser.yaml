@@ -56,24 +56,17 @@ nfpms:
       - deb
     bindir: /usr/local/bin
 
-homebrew_casks:
+brews:
   - name: dtop
     repository:
       owner: amir20
       name: homebrew-dtop
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formulas
     homepage: https://github.com/amir20/dtop
     description: "dtop - A top-like tool for Docker containers"
     license: "MIT"
-    binary: dtop
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dtop"]
-          end
 
 scoops:
   - name: dtop
