@@ -29,7 +29,7 @@ This is recommended for macOS and Linux users. Automatic updates are handled by 
 brew tap amir20/homebrew-dtop
 brew install --cask dtop
 ```
-### Scopp (Windows)
+### Scoop (Windows)
 
 `dtop` supports prebuilt binaries for Windows. You can install it using [Scoop](https://scoop.sh/).
 
