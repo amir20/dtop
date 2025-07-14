@@ -56,18 +56,6 @@ nfpms:
       - deb
     bindir: /usr/local/bin
 
-brews:
-  - name: dtop
-    repository:
-      owner: amir20
-      name: homebrew-dtop
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formulas
-    homepage: https://github.com/amir20/dtop
-    description: "dtop - A top-like tool for Docker containers"
-    license: "MIT"
-
 homebrew_casks:
   - name: dtop
     repository:
