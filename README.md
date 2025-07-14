@@ -48,7 +48,7 @@ curl -sSfL https://amir20.github.io/dtop/install.sh | bash
 
 ### Install using Go
 
-Downloads the latest release from GitHub.
+Downloads the latest release from source with Go.
 
 ```sh
 go install github.com/amir20/dtop@latest
