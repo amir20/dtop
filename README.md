@@ -21,13 +21,21 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
 
-### Homebrew
+### Homebrew (macOS and Linux)
 
 This is recommended for macOS and Linux users. Automatic updates are handled by Homebrew.
 
 ```sh
 brew tap amir20/homebrew-dtop
 brew install --cask dtop
+```
+### Scopp (Windows)
+
+`dtop` supports prebuilt binaries for Windows. You can install it using [Scoop](https://scoop.sh/).
+
+```sh
+scoop bucket add amir20 https://github.com/amir20/scoop-dtop
+scoop install amir20/dtop
 ```
 
 ### Install Script
