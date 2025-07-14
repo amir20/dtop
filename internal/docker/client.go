@@ -22,18 +22,18 @@ type Host struct {
 	Local bool
 }
 
-func NewMultiClient(hosts ...Host) *Client {
+func NewMultiClient(hosts ...Host) (*Client, error) {
 	for _, client := range hosts {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
 		defer cancel()
 		_, err := client.Ping(ctx)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 	return &Client{
 		hosts: hosts,
-	}
+	}, nil
 }
 
 func (d *Client) WatchContainers(ctx context.Context) (<-chan []*Container, error) {

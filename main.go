@@ -83,7 +83,11 @@ func main() {
 		}
 	}
 
-	client := docker.NewMultiClient(hosts...)
+	client, err := docker.NewMultiClient(hosts...)
+	if err != nil {
+		fmt.Println("Error while creating docker client:", err)
+		os.Exit(1)
+	}
 
 	p := tea.NewProgram(ui.NewModel(context.Background(), client), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
