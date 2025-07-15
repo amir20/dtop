@@ -1,7 +1,3 @@
-> [!WARNING]
-> This project is still under active development and is not ready for use yet.
-
-
 # dtop
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
@@ -17,6 +13,15 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - **Real-time monitoring** - Live updates of container status and metrics
 - **Lightweight** - Minimal resource footprint
 - **Hyperlinks** - Clickable links to container logs and stats using Dozzle
+
+## Roadmap
+
+- [ ] Add support for disk IO.
+- [ ] Add support for Kubernetes clusters
+- [ ] Created detailed view, but not to compete with Dozzle
+- [ ] Search or filter for containers
+- [ ] Sort containers by name, status, or resource usage
+- [ ] Configurable columns and saving preferences
 
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
