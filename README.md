@@ -31,9 +31,9 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 This is recommended for macOS and Linux users. Automatic updates are handled by Homebrew.
 
 ```sh
-brew tap amir20/homebrew-dtop
-brew install --cask dtop
+brew install --cask amir20/homebrew-dtop/dtop
 ```
+
 ### Scoop (Windows)
 
 `dtop` supports prebuilt binaries for Windows. You can install it using [Scoop](https://scoop.sh/).
