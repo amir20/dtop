@@ -77,6 +77,6 @@ var defaultKeyMap = KeyMap{
 	LineUp:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "Move up")),
 	LineDown: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "Move down")),
 	ShowAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "Toggle all")),
-	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open")),
+	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open Dozzle")),
 	Quit:     key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "Quit")),
 }
