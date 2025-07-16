@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"dtop/config"
-	"dtop/internal/docker"
-	"dtop/internal/ui"
+	"github.com/amir20/dtop/config"
+	"github.com/amir20/dtop/internal/docker"
+	"github.com/amir20/dtop/internal/ui"
 
 	"github.com/alecthomas/kong"
 	kongyaml "github.com/alecthomas/kong-yaml"

@@ -1,4 +1,4 @@
-module dtop
+module github.com/amir20/dtop
 
 go 1.24.5
 

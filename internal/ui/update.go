@@ -1,10 +1,11 @@
 package ui
 
 import (
-	"dtop/internal/docker"
 	"path"
 	"slices"
 	"sort"
+
+	"github.com/amir20/dtop/internal/docker"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"

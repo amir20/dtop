@@ -1,9 +1,11 @@
 package ui
 
 import (
-	"dtop/internal/docker"
-	"dtop/internal/ui/components/table"
 	"time"
+
+	"github.com/amir20/dtop/internal/ui/components/table"
+
+	"github.com/amir20/dtop/internal/docker"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
