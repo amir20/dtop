@@ -92,6 +92,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rows[c.ID] = row
 		}
 		m = m.updateInternalRows()
+		m.loading = false
 		return m, waitForContainerUpdate(m.containerWatcher)
 
 	case tea.KeyMsg:
@@ -117,12 +118,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds := []tea.Cmd{}
 
-	var tblCmd tea.Cmd
-	m.table, tblCmd = m.table.Update(msg)
-	cmds = append(cmds, tblCmd)
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+	cmds = append(cmds, cmd)
 
 	for id, row := range m.rows {
-		var cmd tea.Cmd
 		var cpu tea.Model
 		cpu, cmd = row.cpu.Update(msg)
 		row.cpu = cpu.(progress.Model)
@@ -132,8 +132,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rows[id] = row
 		cmds = append(cmds, cmd)
 	}
+	if m.loading {
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	m = m.updateInternalRows()
-
 	return m, tea.Batch(cmds...)
 }

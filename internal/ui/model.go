@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/spinner"
 	teaTable "github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
@@ -137,6 +138,10 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 		defaultKeyMap.Open.SetEnabled(false)
 	}
 
+	s := spinner.New()
+	s.Spinner = spinner.Points
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return model{
 		rows:             make(map[string]row),
 		table:            tbl,
@@ -144,6 +149,8 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 		stats:            stats,
 		keyMap:           defaultKeyMap,
 		help:             help,
+		spinner:          s,
+		loading:          true,
 	}
 }
 
@@ -167,6 +174,7 @@ func waitForStatsUpdate(ch <-chan docker.ContainerStat) tea.Cmd {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		tick(),
+		m.spinner.Tick,
 		waitForContainerUpdate(m.containerWatcher),
 		waitForStatsUpdate(m.stats),
 	)

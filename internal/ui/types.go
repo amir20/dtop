@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -34,6 +35,7 @@ func newRow(container *docker.Container) row {
 type model struct {
 	rows             map[string]row
 	table            table.Model[row]
+	spinner          spinner.Model
 	width            int
 	height           int
 	containerWatcher <-chan []*docker.Container
@@ -41,6 +43,7 @@ type model struct {
 	showAll          bool
 	keyMap           KeyMap
 	help             help.Model
+	loading          bool
 }
 
 type tickMsg time.Time
