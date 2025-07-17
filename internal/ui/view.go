@@ -14,7 +14,7 @@ func (m model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, spinner)
 	} else {
 		if keymap.Open.Enabled() {
-			if m.table.Cursor() > -1 {
+			if m.table.Cursor() > -1 && m.table.Cursor() < len(rows) {
 				selected := rows[m.table.Cursor()]
 				if selected.container.Dozzle == "" {
 					keymap.Open.SetEnabled(false)
