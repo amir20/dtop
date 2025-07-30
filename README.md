@@ -106,6 +106,9 @@ dtop --hosts local,tcp://host2:2375,ssh://user@host
 
 `dtop` supports linking to container logs using Dozzle. To enable this feature, specify the Dozzle URL in the configuration file or command line flags. Once enabled, `dtop` will automatically open the Dozzle UI when you click on a container. `dtop` leverages [OSC8](https://github.com/Alhadis/OSC8-Adoption/) to send the URL to the terminal. iTerm, Ghostty and a few other terminals supports this with `cmd+click` or `ctrl+click` on the container name. For tmux, you need to have `tmux` version 3.4 or higher installed with `hyperlinks` enabled. This is usually enabled with `set -as terminal-features ",*:hyperlinks"`.
 
+> [!Note]
+> Currently, Dozzle url can only be configured in the configuration file. There is no way to provide it directly in the command line flags.
+
 ## Related Projects & Inspirations
 
 I am a big fan of [ctop](https://github.com/bcicen/ctop). `ctop` inspired me to create Dozzle but in the browser. However, it seems like `ctop` is no longer maintained. I considered forking `ctop` but deploying with same name would be challenging. I created `dtop` for my personal use case. I often want to see all my containers at a glance across multiple hosts. `dtop` achieves that by supporting remote hosts via `ssh` or `tcp`. Additionally, since I use Dozzle, I integrated Dozzle into `dtop` to provide a seamless experience for monitoring container logs.
