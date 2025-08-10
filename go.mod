@@ -1,6 +1,6 @@
 module github.com/amir20/dtop
 
-go 1.24.5
+go 1.24.6
 
 require (
 	github.com/alecthomas/kong v1.12.1
