@@ -24,8 +24,22 @@ func (m model) updateInternalRows() model {
 		})
 	}
 
+	var flipDesc = func(descSort bool) bool {
+		if m.sortAsc {
+			return !descSort
+		}
+		return descSort
+	}
+
 	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].container.CreatedAt.After(rows[j].container.CreatedAt)
+		switch m.sortBy {
+		case sortByName:
+			return flipDesc(rows[i].container.Name < rows[j].container.Name)
+		case sortByStatus:
+			return flipDesc(rows[i].container.CreatedAt.After(rows[j].container.CreatedAt))
+		default:
+			panic("unknown sort type")
+		}
 	})
 
 	m.table.SetRows(rows)
@@ -112,6 +126,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll
+			m = m.updateInternalRows()
+			return m, nil
+
+		case key.Matches(msg, m.keyMap.Sort.Name, m.keyMap.Sort.Status):
+			var field sortField
+			switch {
+			case key.Matches(msg, m.keyMap.Sort.Name):
+				field = sortByName
+			case key.Matches(msg, m.keyMap.Sort.Status):
+				field = sortByStatus
+			default:
+				panic("unknown sort type")
+			}
+
+			if field == m.sortBy {
+				m.sortAsc = !m.sortAsc
+			} else {
+				m.sortBy = field
+			}
 			m = m.updateInternalRows()
 			return m, nil
 		}

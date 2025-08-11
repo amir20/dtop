@@ -152,6 +152,8 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 		help:             help,
 		spinner:          s,
 		loading:          true,
+		sortBy:           sortByStatus,
+		sortAsc:          false,
 	}
 }
 
