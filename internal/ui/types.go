@@ -49,11 +49,11 @@ type model struct {
 	height           int
 	containerWatcher <-chan []*docker.Container
 	stats            <-chan docker.ContainerStat
-	showAll          bool
 	keyMap           KeyMap
 	help             help.Model
-	loading          bool
 	sortBy           sortField
+	loading          bool
+	showAll          bool
 	sortAsc          bool
 }
 
