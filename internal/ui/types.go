@@ -34,6 +34,13 @@ func newRow(container *docker.Container) row {
 	}
 }
 
+type sortField int
+
+const (
+	sortByName sortField = iota
+	sortByStatus
+)
+
 type model struct {
 	rows             map[string]row
 	table            table.Model[row]
@@ -46,6 +53,8 @@ type model struct {
 	keyMap           KeyMap
 	help             help.Model
 	loading          bool
+	sortBy           sortField
+	sortAsc          bool
 }
 
 type tickMsg time.Time
