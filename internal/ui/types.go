@@ -37,8 +37,8 @@ func newRow(container *docker.Container) row {
 type sortField int
 
 const (
-	sortByName sortField = iota
-	sortByStatus
+	sortByStatus sortField = iota
+	sortByName
 )
 
 type model struct {
