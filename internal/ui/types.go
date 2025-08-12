@@ -92,7 +92,7 @@ var defaultKeyMap = KeyMap{
 	LineDown: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "Move down")),
 	ShowAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "Toggle all")),
 	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open Dozzle")),
-	Quit:     key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "Quit")),
+	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "Quit")),
 	Sort: SortKeyMap{
 		Name:   key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "Sort by name")),
 		Status: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "Sort by status")),
