@@ -89,7 +89,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.NewModel(context.Background(), client), tea.WithAltScreen())
+	p := tea.NewProgram(ui.NewModel(context.Background(), client, cfg.Sort), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

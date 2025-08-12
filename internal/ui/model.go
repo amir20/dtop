@@ -7,6 +7,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
 	"github.com/amir20/dtop/internal/ui/components/table"
 
@@ -20,7 +21,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func NewModel(ctx context.Context, client *docker.Client) model {
+func NewModel(ctx context.Context, client *docker.Client, defaultSort config.SortField) model {
 	containerWatcher, err := client.WatchContainers(ctx)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -152,6 +153,8 @@ func NewModel(ctx context.Context, client *docker.Client) model {
 		help:             help,
 		spinner:          s,
 		loading:          true,
+		sortBy:           defaultSort,
+		sortAsc:          false,
 	}
 }
 

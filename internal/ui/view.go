@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/amir20/dtop/internal/ui/components/table"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -22,8 +24,25 @@ func (m model) View() string {
 			}
 		}
 
+		tbl := m.table
+		columns := tbl.Columns()
+		newColumns := make([]table.Column[row], len(columns))
+
+		for _, column := range columns {
+			if strings.ToLower(column.Title) == string(m.sortBy) {
+				arrow := " ↑"
+				if m.sortAsc {
+					arrow = " ↓"
+				}
+				column.Title = lipgloss.JoinHorizontal(lipgloss.Left, column.Title, selectedStyle.Render(arrow))
+			}
+			newColumns = append(newColumns, column)
+		}
+
+		tbl.SetColumns(newColumns)
+
 		return lipgloss.JoinVertical(
-			lipgloss.Left, m.table.View(),
+			lipgloss.Left, tbl.View(),
 			lipgloss.PlaceHorizontal(m.width, lipgloss.Center, helpBarStyle.Render(m.help.View(keymap))),
 		)
 	}

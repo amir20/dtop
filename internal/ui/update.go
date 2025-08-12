@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -24,8 +25,22 @@ func (m model) updateInternalRows() model {
 		})
 	}
 
+	var flipDesc = func(descSort bool) bool {
+		if m.sortAsc {
+			return !descSort
+		}
+		return descSort
+	}
+
 	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].container.CreatedAt.After(rows[j].container.CreatedAt)
+		switch m.sortBy {
+		case config.SortByName:
+			return flipDesc(rows[i].container.Name < rows[j].container.Name)
+		case config.SortByStatus:
+			return flipDesc(rows[i].container.CreatedAt.After(rows[j].container.CreatedAt))
+		default:
+			panic("unknown sort type")
+		}
 	})
 
 	m.table.SetRows(rows)
@@ -112,6 +127,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll
+			m = m.updateInternalRows()
+			return m, nil
+
+		case key.Matches(msg, m.keyMap.Sort.Name, m.keyMap.Sort.Status):
+			var field config.SortField
+			switch {
+			case key.Matches(msg, m.keyMap.Sort.Name):
+				field = config.SortByName
+			case key.Matches(msg, m.keyMap.Sort.Status):
+				field = config.SortByStatus
+			default:
+				panic("unknown sort type")
+			}
+
+			if field == m.sortBy {
+				m.sortAsc = !m.sortAsc
+			} else {
+				m.sortBy = field
+			}
 			m = m.updateInternalRows()
 			return m, nil
 		}

@@ -3,6 +3,7 @@ package ui
 import (
 	"time"
 
+	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/ui/components/table"
 
 	"github.com/amir20/dtop/internal/docker"
@@ -42,10 +43,12 @@ type model struct {
 	height           int
 	containerWatcher <-chan []*docker.Container
 	stats            <-chan docker.ContainerStat
-	showAll          bool
 	keyMap           KeyMap
 	help             help.Model
+	sortBy           config.SortField
 	loading          bool
+	showAll          bool
+	sortAsc          bool
 }
 
 type tickMsg time.Time
@@ -64,16 +67,22 @@ type KeyMap struct {
 	ShowAll  key.Binding
 	Open     key.Binding
 	Quit     key.Binding
+	Sort     SortKeyMap
+}
+
+type SortKeyMap struct {
+	Name   key.Binding
+	Status key.Binding
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Quit}
+	return []key.Binding{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Sort.Name, km.Sort.Status, km.Quit}
 }
 
 // FullHelp implements the KeyMap interface.
 func (km KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Quit},
+		{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.Sort.Name, km.Sort.Status, km.Quit},
 		{},
 	}
 }
@@ -84,4 +93,8 @@ var defaultKeyMap = KeyMap{
 	ShowAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "Toggle all")),
 	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open Dozzle")),
 	Quit:     key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "Quit")),
+	Sort: SortKeyMap{
+		Name:   key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "Sort by name")),
+		Status: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "Sort by status")),
+	},
 }
