@@ -30,11 +30,11 @@ func (m model) View() string {
 
 		for _, column := range columns {
 			if strings.ToLower(column.Title) == string(m.sortBy) {
+				arrow := " ↑"
 				if m.sortAsc {
-					column.Title = lipgloss.JoinHorizontal(lipgloss.Left, column.Title, selectedStyle.Render(" ↓"))
-				} else {
-					column.Title = lipgloss.JoinHorizontal(lipgloss.Left, column.Title, selectedStyle.Render(" ↑"))
+					arrow = " ↓"
 				}
+				column.Title = lipgloss.JoinHorizontal(lipgloss.Left, column.Title, selectedStyle.Render(arrow))
 			}
 			newColumns = append(newColumns, column)
 		}
