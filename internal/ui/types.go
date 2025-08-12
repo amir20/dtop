@@ -3,6 +3,7 @@ package ui
 import (
 	"time"
 
+	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/ui/components/table"
 
 	"github.com/amir20/dtop/internal/docker"
@@ -34,13 +35,6 @@ func newRow(container *docker.Container) row {
 	}
 }
 
-type sortField int
-
-const (
-	sortByStatus sortField = iota
-	sortByName
-)
-
 type model struct {
 	rows             map[string]row
 	table            table.Model[row]
@@ -51,7 +45,7 @@ type model struct {
 	stats            <-chan docker.ContainerStat
 	keyMap           KeyMap
 	help             help.Model
-	sortBy           sortField
+	sortBy           config.SortField
 	loading          bool
 	showAll          bool
 	sortAsc          bool

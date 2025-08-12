@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -33,9 +34,9 @@ func (m model) updateInternalRows() model {
 
 	sort.Slice(rows, func(i, j int) bool {
 		switch m.sortBy {
-		case sortByName:
+		case config.SortByName:
 			return flipDesc(rows[i].container.Name < rows[j].container.Name)
-		case sortByStatus:
+		case config.SortByStatus:
 			return flipDesc(rows[i].container.CreatedAt.After(rows[j].container.CreatedAt))
 		default:
 			panic("unknown sort type")
@@ -130,12 +131,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, m.keyMap.Sort.Name, m.keyMap.Sort.Status):
-			var field sortField
+			var field config.SortField
 			switch {
 			case key.Matches(msg, m.keyMap.Sort.Name):
-				field = sortByName
+				field = config.SortByName
 			case key.Matches(msg, m.keyMap.Sort.Status):
-				field = sortByStatus
+				field = config.SortByStatus
 			default:
 				panic("unknown sort type")
 			}

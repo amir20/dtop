@@ -4,9 +4,17 @@ import (
 	"github.com/alecthomas/kong"
 )
 
+type SortField string
+
+const (
+	SortByStatus SortField = "status"
+	SortByName             = "name"
+)
+
 type Cli struct {
 	Hosts   []HostConfig `help:"List of hosts to connect to." name:"hosts" aliases:"host" default:"local" env:"DTOP_HOSTS"`
 	Version bool         `help:"Show version information." default:"false" name:"version" short:"v"`
+	Sort    SortField    `help:"Default sort order. Options are status or name." name:"sort" enum:"name,status" default:"status"`
 }
 
 type HostConfig struct {
