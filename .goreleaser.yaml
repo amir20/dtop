@@ -115,6 +115,10 @@ docker_manifests:
     image_templates:
       - "amir20/dtop:{{ .Tag }}-amd64"
       - "amir20/dtop:{{ .Tag }}-arm64"
+  - name_template: "amir20/dtop:latest"
+    image_templates:
+      - "amir20/dtop:{{ .Tag }}-amd64"
+      - "amir20/dtop:{{ .Tag }}-arm64"
 
 release:
   footer: >-
