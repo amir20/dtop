@@ -35,7 +35,7 @@ brew install --cask amir20/homebrew-dtop/dtop
 ```
 
 ### Docker
-`dtop` is released as a Docker image. You can pull it from Docker Hub.
+`dtop` is released as a [Docker image](https://hub.docker.com/r/amir20/dtop). You can pull it from Docker Hub.
 
 ```sh
 docker run -v /var/run/docker.sock:/var/run/docker.sock -it amir20/dtop
