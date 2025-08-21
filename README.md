@@ -34,6 +34,15 @@ This is recommended for macOS and Linux users. Automatic updates are handled by 
 brew install --cask amir20/homebrew-dtop/dtop
 ```
 
+### Docker
+`dtop` is released as a Docker image. You can pull it from Docker Hub.
+
+```sh
+docker run -v /var/run/docker.sock:/var/run/docker.sock -it amir20/dtop
+```
+
+Currently, the image is available for amd64 and arm64 architectures.
+
 ### Scoop (Windows)
 
 `dtop` supports prebuilt binaries for Windows. You can install it using [Scoop](https://scoop.sh/).
