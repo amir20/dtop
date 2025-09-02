@@ -16,7 +16,7 @@ func NewLocalClient() (*client.Client, error) {
 }
 
 func NewRemoteClient(host string) (*client.Client, error) {
-	cli, err := client.NewClientWithOpts(client.WithHost(host), client.WithTLSClientConfigFromEnv(), client.WithUserAgent("Docker-Client/dtop"))
+	cli, err := client.NewClientWithOpts(client.WithHost(host), client.WithAPIVersionNegotiation(), client.WithTLSClientConfigFromEnv(), client.WithUserAgent("Docker-Client/dtop"))
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +40,7 @@ func NewSSHClient(host string) (*client.Client, error) {
 		client.WithHost(helper.Host),
 		client.WithDialContext(helper.Dialer),
 		client.WithAPIVersionNegotiation(),
+		client.WithUserAgent("Docker-Client/dtop"),
 	)
 
 	if err != nil {
