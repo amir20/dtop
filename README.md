@@ -73,8 +73,9 @@ go install github.com/amir20/dtop@latest
 
 By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
 
-- `--help` - Display help information
-- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`
+- `--help` - Display help information.
+- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`.
+- `--sort` - Sort containers by name, `status`, or `name`. Defaults to `status`.
 
 
 ## Configuration File
