@@ -16,11 +16,12 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 ## Roadmap
 
+- [x] Sort containers by name and status
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
 - [ ] Created detailed view, but not to compete with Dozzle
 - [ ] Search or filter for containers
-- [x] Sort containers by name and status
+- [ ] Support multiple certs for TLS
 - [ ] Configurable columns and saving preferences
 
 ## Installation
@@ -103,13 +104,24 @@ hosts:
 
 - **Local Docker** - Monitor containers running on the local Docker daemon using `--hosts local`
 - **Remote Docker** - Monitor containers running on remote Docker daemons via SSH using `--hosts tcp://host2:2375`
-- **SSH Tunneling** - Establish an SSH tunnel to a remote host and monitor containers running on it using `--hosts ssh://user@host`
+- **SSH** - Establish an SSH connection to a remote host and monitor containers running on it using `--hosts ssh://user@host`
 
 You can connect to multiple hosts by separating them with commas:
 
 ```bash
 dtop --hosts local,tcp://host2:2375,ssh://user@host
 ```
+
+### TLS
+
+TLS is supported for TCP connections with `DOCKER_CERT_PATH` environment variable. This is the standard way to configure TLS for Docker clients. You can set the `DOCKER_CERT_PATH` environment variable to the path of your TLS certificate files.
+
+```bash
+DOCKER_CERT_PATH=/path/to/docker-certs dtop --host tcp://host2:2375
+```
+
+> [!Note]
+> Currently, multiple certs are not supported. `DOCKER_CERT_PATH` expects a directory with ca.pem, cert.pem, and key.pem files. These files are used to establish a secure connection to the Docker daemon. Supporting multiple certs is planned for future releases.
 
 ## Dozzle Integration
 
