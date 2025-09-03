@@ -35,7 +35,7 @@ func (m model) updateInternalRows() model {
 	sort.Slice(rows, func(i, j int) bool {
 		switch m.sortBy {
 		case config.SortByName:
-			return flipDesc(rows[i].container.Name < rows[j].container.Name)
+			return flipDesc(rows[i].container.Name+rows[i].container.ID < rows[j].container.Name+rows[j].container.ID)
 		case config.SortByStatus:
 			return flipDesc(rows[i].container.CreatedAt.After(rows[j].container.CreatedAt))
 		default:
