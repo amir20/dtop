@@ -24,6 +24,8 @@ github.com/charmbracelet/bubbletea v1.3.7 h1:FNaEEFEenOEPnZsY9MI64thl2c84MI66+1Q
 github.com/charmbracelet/bubbletea v1.3.7/go.mod h1:PEOcbQCNzJ2BYUd484kHPO5g3kLO28IffOdFeI2EWus=
 github.com/charmbracelet/bubbletea v1.3.9 h1:OBYdfRo6QnlIcXNmcoI2n1NNS65Nk6kI2L2FO1puS/4=
 github.com/charmbracelet/bubbletea v1.3.9/go.mod h1:ORQfo0fk8U+po9VaNvnV95UPWA1BitP1E0N6xJPlHr4=
+github.com/charmbracelet/bubbletea v1.3.10 h1:otUDHWMMzQSB0Pkc87rm691KZ3SWa4KUlvF9nRvCICw=
+github.com/charmbracelet/bubbletea v1.3.10/go.mod h1:ORQfo0fk8U+po9VaNvnV95UPWA1BitP1E0N6xJPlHr4=
 github.com/charmbracelet/colorprofile v0.3.1 h1:k8dTHMd7fgw4bnFd7jXTLZrSU/CQrKnL3m+AxCzDz40=
 github.com/charmbracelet/colorprofile v0.3.1/go.mod h1:/GkGusxNs8VB/RSOh3fu0TJmQ4ICMMPApIIVn0KszZ0=
 github.com/charmbracelet/harmonica v0.2.0 h1:8NxJWRWg/bzKqqEaaeFNipOu77YR5t8aSwG4pgaUBiQ=
