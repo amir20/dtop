@@ -1,3 +1,4 @@
 FROM scratch
-COPY dtop /dtop
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/dtop /dtop
 ENTRYPOINT ["/dtop"]
