@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/trace"
 	"strings"
 
 	"github.com/amir20/dtop/config"
@@ -33,6 +34,12 @@ func main() {
 		}
 		log.SetOutput(f)
 		defer f.Close()
+
+		t, _ := os.Create("trace.out")
+		defer t.Close()
+		trace.Start(t)
+		defer trace.Stop()
+
 	}
 	var cfg config.Cli
 	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.dtop.yaml", "~/.dtop.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml"))
