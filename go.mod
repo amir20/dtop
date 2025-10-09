@@ -1,6 +1,6 @@
 module github.com/amir20/dtop
 
-go 1.25.1
+go 1.25.2
 
 require (
 	github.com/alecthomas/kong v1.12.1
@@ -8,12 +8,12 @@ require (
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/docker/cli v28.5.0+incompatible
-	github.com/docker/docker v28.5.0+incompatible
+	github.com/docker/cli v28.5.1+incompatible
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
-	github.com/samber/lo v1.51.0
+	github.com/samber/lo v1.52.0
 )
 
 require (
