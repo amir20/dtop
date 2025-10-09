@@ -70,5 +70,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: snapshot-build
-          path: dist/
+          name: dtop-snapshot-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
