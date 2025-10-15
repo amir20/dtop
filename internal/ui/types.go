@@ -10,7 +10,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,8 +17,8 @@ import (
 
 type row struct {
 	container              *docker.Container
-	cpu                    progress.Model
-	mem                    progress.Model
+	cpuPercent             float64
+	memPercent             float64
 	lastUpdate             time.Time
 	totalBytesReceived     uint64
 	totalBytesSent         uint64
@@ -30,8 +29,6 @@ type row struct {
 func newRow(container *docker.Container) row {
 	return row{
 		container: container,
-		cpu:       progress.New(progress.WithDefaultGradient()),
-		mem:       progress.New(progress.WithDefaultGradient()),
 	}
 }
 
@@ -54,7 +51,7 @@ type model struct {
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*200, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
