@@ -35,18 +35,7 @@ func main() {
 		log.SetOutput(f)
 		defer f.Close()
 
-		// Start CPU profiling
-		cpuProfile, err := os.Create("cpu.pprof")
-		if err != nil {
-			log.Printf("could not create CPU profile: %v", err)
-		} else {
-			if err := pprof.StartCPUProfile(cpuProfile); err != nil {
-				log.Printf("could not start CPU profile: %v", err)
-			} else {
-				defer pprof.StopCPUProfile()
-				defer cpuProfile.Close()
-			}
-		}
+		defer startCPUProfile()()
 	}
 	var cfg config.Cli
 	kong.Parse(&cfg, kong.Configuration(kongyaml.Loader, "./config.yaml", "./config.yml", "~/.dtop.yaml", "~/.dtop.yml", "~/.config/dtop/config.yaml", "~/.config/dtop/config.yml"))
@@ -107,5 +96,24 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
+	}
+}
+
+func startCPUProfile() func() {
+	cpuProfile, err := os.Create("cpu.pprof")
+	if err != nil {
+		log.Printf("could not create CPU profile: %v", err)
+		return func() {}
+	}
+
+	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+		log.Printf("could not start CPU profile: %v", err)
+		cpuProfile.Close()
+		return func() {}
+	}
+
+	return func() {
+		pprof.StopCPUProfile()
+		cpuProfile.Close()
 	}
 }
