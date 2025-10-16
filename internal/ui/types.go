@@ -26,9 +26,9 @@ type rowStats struct {
 }
 
 type rowCache struct {
-	cachedName   string
-	cachedID     string
-	cachedStatus string
+	name   string
+	id     string
+	status string
 }
 
 type row struct {

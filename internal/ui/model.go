@@ -51,7 +51,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					// Cache the base rendering (without selection styling)
-					if r.cache.cachedName == "" {
+					if r.cache.name == "" {
 						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 						value := r.container.Name
 						if r.container.Dozzle != "" {
@@ -59,29 +59,29 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						} else {
 							value = runewidth.Truncate(value, col.Width, "…")
 						}
-						r.cache.cachedName = style.Render(value)
+						r.cache.name = style.Render(value)
 					}
 
 					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.cachedName)
+						return selectedStyle.Render(r.cache.name)
 					}
-					return r.cache.cachedName
+					return r.cache.name
 				},
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
 					// Cache the base rendering (without selection styling)
-					if r.cache.cachedID == "" {
+					if r.cache.id == "" {
 						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-						r.cache.cachedID = style.Render(r.container.ID)
+						r.cache.id = style.Render(r.container.ID)
 					}
 
 					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.cachedID)
+						return selectedStyle.Render(r.cache.id)
 					}
-					return r.cache.cachedID
+					return r.cache.id
 				},
 			},
 			{
@@ -125,20 +125,20 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "STATUS", Width: 22, Renderer: func(col table.Column[row], r row, selected bool) string {
 					// Cache the base rendering (without selection styling)
-					if r.cache.cachedStatus == "" {
+					if r.cache.status == "" {
 						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 						if r.container.State == "running" {
-							r.cache.cachedStatus = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+							r.cache.status = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
 						} else {
-							r.cache.cachedStatus = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+							r.cache.status = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
 						}
 					}
 
 					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.cachedStatus)
+						return selectedStyle.Render(r.cache.status)
 					}
-					return r.cache.cachedStatus
+					return r.cache.status
 				},
 			},
 		}),

@@ -14,7 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pkg/browser"
-	"github.com/samber/lo"
 )
 
 func (m model) updateColumnHeaders() model {
@@ -47,12 +46,11 @@ func (m model) updateColumnHeaders() model {
 }
 
 func (m model) updateInternalRows() model {
-	rows := lo.Values(m.rows)
-
-	if !m.showAll {
-		rows = lo.Filter(rows, func(item row, index int) bool {
-			return item.container.State == "running"
-		})
+	rows := make([]row, 0, len(m.rows))
+	for _, r := range m.rows {
+		if m.showAll || r.container.State == "running" {
+			rows = append(rows, r)
+		}
 	}
 
 	var flipDesc = func(descSort bool) bool {
@@ -72,12 +70,6 @@ func (m model) updateInternalRows() model {
 			panic("unknown sort type")
 		}
 	})
-
-	for _, row := range rows {
-		row.cache.cachedID = ""
-		row.cache.cachedName = ""
-		row.cache.cachedStatus = ""
-	}
 
 	m.table.SetRows(rows)
 
@@ -107,6 +99,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if slices.Contains(flexibleColumns, col.Title) {
 				cols[i].Width = total / len(flexibleColumns)
 			}
+		}
+
+		// Invalidate caches since column widths changed
+		for _, row := range m.rows {
+			row.cache.id = ""
+			row.cache.name = ""
+			row.cache.status = ""
 		}
 
 		m = m.updateInternalRows()

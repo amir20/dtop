@@ -161,10 +161,10 @@ func streamStats(ctx context.Context, client *client.Client, id string, stats ch
 	defer response.Body.Close()
 
 	decoder := json.NewDecoder(response.Body)
-	var statsResponse *container.StatsResponse
+	statsResponse := &container.StatsResponse{}
 
 	for {
-		if err := decoder.Decode(&statsResponse); err != nil {
+		if err := decoder.Decode(statsResponse); err != nil {
 			return err
 		}
 
