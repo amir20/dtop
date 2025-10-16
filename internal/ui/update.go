@@ -73,6 +73,12 @@ func (m model) updateInternalRows() model {
 		}
 	})
 
+	for _, row := range rows {
+		row.cache.cachedID = ""
+		row.cache.cachedName = ""
+		row.cache.cachedStatus = ""
+	}
+
 	m.table.SetRows(rows)
 
 	return m
@@ -103,7 +109,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		m.updateInternalRows()
+		m = m.updateInternalRows()
 
 		return m, nil
 

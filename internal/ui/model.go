@@ -35,12 +35,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 		os.Exit(1)
 	}
 
-	// Create a static progress bar for rendering with ViewAs()
-	// Using simple ASCII characters instead of Unicode for better performance
-	progressBar := progress.New(
-		progress.WithFillCharacters('#', '-'),
-		progress.WithSolidFill("#7571F9"),
-	)
+	progressBar := progress.New(progress.WithDefaultGradient())
 
 	tbl := table.New(
 		table.WithColumns([]table.Column[row]{
