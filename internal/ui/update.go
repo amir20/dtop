@@ -9,7 +9,6 @@ import (
 	"github.com/amir20/dtop/internal/docker"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/pkg/browser"
@@ -76,11 +75,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		m = m.updateInternalRows()
 		return m, tick()
 
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
-			cmd := tea.Batch(row.cpu.SetPercent(msg.CPUPercent/100), row.mem.SetPercent(msg.MemoryPercent/100), waitForStatsUpdate(m.stats)) // Compute delta of bytes per second
+			// Store percentage values directly instead of using progress bar animation
+			row.cpuPercent = msg.CPUPercent / 100
+			row.memPercent = msg.MemoryPercent / 100
+
 			timeDelta := uint64(msg.Time.Sub(row.lastUpdate).Seconds())
 			if timeDelta > 0 && !row.lastUpdate.IsZero() {
 				currentBytesReceivedPerSecond := (msg.TotalNetworkReceived - row.totalBytesReceived) / timeDelta
@@ -93,18 +96,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			row.totalBytesSent = msg.TotalNetworkTransmitted
 			row.lastUpdate = msg.Time
 			m.rows[msg.ID] = row
-			m = m.updateInternalRows()
-			return m, cmd
+			return m, waitForStatsUpdate(m.stats)
 		}
 
 		return m, waitForStatsUpdate(m.stats)
 
 	case containers:
-		cols := m.table.Columns()
 		for _, c := range msg {
 			row := newRow(c)
-			row.cpu.Width = cols[3].Width
-			row.mem.Width = cols[4].Width
 			m.rows[c.ID] = row
 		}
 		m = m.updateInternalRows()
@@ -157,21 +156,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, cmd = m.table.Update(msg)
 	cmds = append(cmds, cmd)
 
-	for id, row := range m.rows {
-		var cpu tea.Model
-		cpu, cmd = row.cpu.Update(msg)
-		row.cpu = cpu.(progress.Model)
-		var mem tea.Model
-		mem, cmd = row.mem.Update(msg)
-		row.mem = mem.(progress.Model)
-		m.rows[id] = row
-		cmds = append(cmds, cmd)
-	}
+	// Don't update progress bars - they don't need animation and cause excessive re-renders
+	// The bars are updated via SetPercent() in the ContainerStat case
+
 	if m.loading {
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
-	m = m.updateInternalRows()
 	return m, tea.Batch(cmds...)
 }

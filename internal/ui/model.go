@@ -12,6 +12,7 @@ import (
 	"github.com/amir20/dtop/internal/ui/components/table"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	teaTable "github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -33,6 +34,9 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
+
+	// Create a static progress bar for rendering with ViewAs()
+	progressBar := progress.New(progress.WithDefaultGradient())
 
 	tbl := table.New(
 		table.WithColumns([]table.Column[row]{
@@ -74,12 +78,12 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "CPU", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						bar := r.cpu
+						bar := progressBar
 						bar.Width = col.Width
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.View()
+						return bar.ViewAs(r.cpuPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -87,12 +91,12 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "MEMORY", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						bar := r.mem
+						bar := progressBar
 						bar.Width = col.Width
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.View()
+						return bar.ViewAs(r.memPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
