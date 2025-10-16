@@ -103,6 +103,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		m.updateInternalRows()
+
 		return m, nil
 
 	case tickMsg:
