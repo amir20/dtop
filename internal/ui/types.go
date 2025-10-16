@@ -15,8 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type row struct {
-	container              *docker.Container
+type rowStats struct {
 	cpuPercent             float64
 	memPercent             float64
 	lastUpdate             time.Time
@@ -26,9 +25,23 @@ type row struct {
 	bytesSentPerSecond     uint64
 }
 
+type rowCache struct {
+	cachedName   string
+	cachedID     string
+	cachedStatus string
+}
+
+type row struct {
+	container *docker.Container
+	stats     *rowStats
+	cache     *rowCache
+}
+
 func newRow(container *docker.Container) row {
 	return row{
 		container: container,
+		stats:     &rowStats{},
+		cache:     &rowCache{},
 	}
 }
 

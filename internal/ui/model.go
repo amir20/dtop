@@ -35,7 +35,6 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 		os.Exit(1)
 	}
 
-	// Create a static progress bar for rendering with ViewAs()
 	progressBar := progress.New(progress.WithDefaultGradient())
 
 	tbl := table.New(
@@ -51,28 +50,38 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			},
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					value := r.container.Name
-					if r.container.Dozzle != "" {
-						value = link(runewidth.Truncate(value, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
-					} else {
-						value = runewidth.Truncate(value, col.Width, "…")
+					// Cache the base rendering (without selection styling)
+					if r.cache.cachedName == "" {
+						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+						value := r.container.Name
+						if r.container.Dozzle != "" {
+							value = link(runewidth.Truncate(value, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+						} else {
+							value = runewidth.Truncate(value, col.Width, "…")
+						}
+						r.cache.cachedName = style.Render(value)
 					}
-					value = style.Render(value)
+
+					// Apply selection styling dynamically
 					if selected {
-						value = selectedStyle.Render(value)
+						return selectedStyle.Render(r.cache.cachedName)
 					}
-					return value
+					return r.cache.cachedName
 				},
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					value := style.Render(r.container.ID)
-					if selected {
-						value = selectedStyle.Render(value)
+					// Cache the base rendering (without selection styling)
+					if r.cache.cachedID == "" {
+						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+						r.cache.cachedID = style.Render(r.container.ID)
 					}
-					return value
+
+					// Apply selection styling dynamically
+					if selected {
+						return selectedStyle.Render(r.cache.cachedID)
+					}
+					return r.cache.cachedID
 				},
 			},
 			{
@@ -83,7 +92,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.cpuPercent)
+						return bar.ViewAs(r.stats.cpuPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -96,7 +105,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.memPercent)
+						return bar.ViewAs(r.stats.memPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -105,7 +114,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 				Title: "NETWORK IO", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					value := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Left).Inline(true).
 						Render(
-							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.bytesSentPerSecond)+"/s", humanize.Bytes(r.bytesReceivedPerSecond)+"/s"),
+							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.stats.bytesSentPerSecond)+"/s", humanize.Bytes(r.stats.bytesReceivedPerSecond)+"/s"),
 						)
 					if selected {
 						value = selectedStyle.Render(value)
@@ -115,17 +124,21 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			},
 			{
 				Title: "STATUS", Width: 22, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					var value string
-					if r.container.State == "running" {
-						value = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
-					} else {
-						value = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+					// Cache the base rendering (without selection styling)
+					if r.cache.cachedStatus == "" {
+						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+						if r.container.State == "running" {
+							r.cache.cachedStatus = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+						} else {
+							r.cache.cachedStatus = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
+						}
 					}
+
+					// Apply selection styling dynamically
 					if selected {
-						value = selectedStyle.Render(value)
+						return selectedStyle.Render(r.cache.cachedStatus)
 					}
-					return value
+					return r.cache.cachedStatus
 				},
 			},
 		}),
@@ -148,7 +161,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return model{
+	m := model{
 		rows:             make(map[string]row),
 		table:            tbl,
 		containerWatcher: containerWatcher,
@@ -160,6 +173,11 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 		sortBy:           defaultSort,
 		sortAsc:          false,
 	}
+
+	// Set initial column headers with sort arrow
+	m = m.updateColumnHeaders()
+
+	return m
 }
 
 func link(text, url string) string {
