@@ -148,7 +148,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	return model{
+	m := model{
 		rows:             make(map[string]row),
 		table:            tbl,
 		containerWatcher: containerWatcher,
@@ -160,6 +160,11 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 		sortBy:           defaultSort,
 		sortAsc:          false,
 	}
+
+	// Set initial column headers with sort arrow
+	m = m.updateColumnHeaders()
+
+	return m
 }
 
 func link(text, url string) string {

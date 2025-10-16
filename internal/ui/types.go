@@ -38,21 +38,19 @@ func newRow(container *docker.Container) row {
 }
 
 type model struct {
-	rows                map[string]row
-	table               table.Model[row]
-	spinner             spinner.Model
-	width               int
-	height              int
-	containerWatcher    <-chan []*docker.Container
-	stats               <-chan docker.ContainerStat
-	keyMap              KeyMap
-	help                help.Model
-	sortBy              config.SortField
-	loading             bool
-	showAll             bool
-	sortAsc             bool
-	lastRenderedSortBy  config.SortField
-	lastRenderedSortAsc bool
+	rows             map[string]row
+	table            table.Model[row]
+	spinner          spinner.Model
+	width            int
+	height           int
+	containerWatcher <-chan []*docker.Container
+	stats            <-chan docker.ContainerStat
+	keyMap           KeyMap
+	help             help.Model
+	sortBy           config.SortField
+	loading          bool
+	showAll          bool
+	sortAsc          bool
 }
 
 type tickMsg time.Time

@@ -4,9 +4,11 @@ import (
 	"path"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
+	"github.com/amir20/dtop/internal/ui/components/table"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +16,35 @@ import (
 	"github.com/pkg/browser"
 	"github.com/samber/lo"
 )
+
+func (m model) updateColumnHeaders() model {
+
+	columns := m.table.Columns()
+	newColumns := make([]table.Column[row], 0, len(columns))
+
+	for _, column := range columns {
+		// Remove any existing arrows from column titles
+		title := column.Title
+		title = strings.TrimSuffix(title, " ↑")
+		title = strings.TrimSuffix(title, " ↓")
+
+		// Add arrow to the sorted column
+		if strings.ToLower(title) == string(m.sortBy) {
+			arrow := " ↑"
+			if m.sortAsc {
+				arrow = " ↓"
+			}
+			title = title + arrow
+		}
+
+		column.Title = title
+		newColumns = append(newColumns, column)
+	}
+
+	m.table.SetColumns(newColumns)
+
+	return m
+}
 
 func (m model) updateInternalRows() model {
 	rows := lo.Values(m.rows)
@@ -75,6 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		m.table.UpdateViewport()
 		return m, tick()
 
 	case docker.ContainerStat:
@@ -145,6 +177,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sortBy = field
 			}
 			m = m.updateInternalRows()
+			m = m.updateColumnHeaders()
 			return m, nil
 		}
 	}
