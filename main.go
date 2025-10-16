@@ -27,14 +27,7 @@ var (
 func main() {
 	log.SetOutput(io.Discard)
 	if _, ok := os.LookupEnv("DEBUG"); ok {
-		f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:mnd
-		if err != nil {
-			fmt.Println("fatal:", err)
-			os.Exit(1)
-		}
-		log.SetOutput(f)
-		defer f.Close()
-
+		defer setupDebugLogging()()
 		defer startCPUProfile()()
 	}
 	var cfg config.Cli
@@ -96,6 +89,19 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
+	}
+}
+
+func setupDebugLogging() func() {
+	f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:mnd
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+	log.SetOutput(f)
+
+	return func() {
+		f.Close()
 	}
 }
 
