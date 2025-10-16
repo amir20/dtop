@@ -83,7 +83,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.cpuPercent)
+						return bar.ViewAs(r.stats.cpuPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -96,7 +96,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						if selected {
 							bar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.memPercent)
+						return bar.ViewAs(r.stats.memPercent)
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -105,7 +105,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 				Title: "NETWORK IO", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					value := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Left).Inline(true).
 						Render(
-							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.bytesSentPerSecond)+"/s", humanize.Bytes(r.bytesReceivedPerSecond)+"/s"),
+							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.stats.bytesSentPerSecond)+"/s", humanize.Bytes(r.stats.bytesReceivedPerSecond)+"/s"),
 						)
 					if selected {
 						value = selectedStyle.Render(value)

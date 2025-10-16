@@ -75,27 +75,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		m = m.updateInternalRows()
 		return m, tick()
 
 	case docker.ContainerStat:
 		if row, exists := m.rows[msg.ID]; exists {
-			// Store percentage values directly instead of using progress bar animation
-			row.cpuPercent = msg.CPUPercent / 100
-			row.memPercent = msg.MemoryPercent / 100
+			// Update stats through pointer - all table rows will see the change
+			row.stats.cpuPercent = msg.CPUPercent / 100
+			row.stats.memPercent = msg.MemoryPercent / 100
 
-			timeDelta := uint64(msg.Time.Sub(row.lastUpdate).Seconds())
-			if timeDelta > 0 && !row.lastUpdate.IsZero() {
-				currentBytesReceivedPerSecond := (msg.TotalNetworkReceived - row.totalBytesReceived) / timeDelta
-				currentBytesSentPerSecond := (msg.TotalNetworkTransmitted - row.totalBytesSent) / timeDelta
+			timeDelta := uint64(msg.Time.Sub(row.stats.lastUpdate).Seconds())
+			if timeDelta > 0 && !row.stats.lastUpdate.IsZero() {
+				currentBytesReceivedPerSecond := (msg.TotalNetworkReceived - row.stats.totalBytesReceived) / timeDelta
+				currentBytesSentPerSecond := (msg.TotalNetworkTransmitted - row.stats.totalBytesSent) / timeDelta
 				alpha := 0.75
-				row.bytesReceivedPerSecond = uint64(alpha*float64(currentBytesReceivedPerSecond) + (1-alpha)*float64(row.bytesReceivedPerSecond))
-				row.bytesSentPerSecond = uint64(alpha*float64(currentBytesSentPerSecond) + (1-alpha)*float64(row.bytesSentPerSecond))
+				row.stats.bytesReceivedPerSecond = uint64(alpha*float64(currentBytesReceivedPerSecond) + (1-alpha)*float64(row.stats.bytesReceivedPerSecond))
+				row.stats.bytesSentPerSecond = uint64(alpha*float64(currentBytesSentPerSecond) + (1-alpha)*float64(row.stats.bytesSentPerSecond))
 			}
-			row.totalBytesReceived = msg.TotalNetworkReceived
-			row.totalBytesSent = msg.TotalNetworkTransmitted
-			row.lastUpdate = msg.Time
-			m.rows[msg.ID] = row
+			row.stats.totalBytesReceived = msg.TotalNetworkReceived
+			row.stats.totalBytesSent = msg.TotalNetworkTransmitted
+			row.stats.lastUpdate = msg.Time
+
 			return m, waitForStatsUpdate(m.stats)
 		}
 
@@ -155,9 +154,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	cmds = append(cmds, cmd)
-
-	// Don't update progress bars - they don't need animation and cause excessive re-renders
-	// The bars are updated via SetPercent() in the ContainerStat case
 
 	if m.loading {
 		m.spinner, cmd = m.spinner.Update(msg)

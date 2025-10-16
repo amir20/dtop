@@ -15,8 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type row struct {
-	container              *docker.Container
+type rowStats struct {
 	cpuPercent             float64
 	memPercent             float64
 	lastUpdate             time.Time
@@ -26,26 +25,34 @@ type row struct {
 	bytesSentPerSecond     uint64
 }
 
+type row struct {
+	container *docker.Container
+	stats     *rowStats
+}
+
 func newRow(container *docker.Container) row {
 	return row{
 		container: container,
+		stats:     &rowStats{},
 	}
 }
 
 type model struct {
-	rows             map[string]row
-	table            table.Model[row]
-	spinner          spinner.Model
-	width            int
-	height           int
-	containerWatcher <-chan []*docker.Container
-	stats            <-chan docker.ContainerStat
-	keyMap           KeyMap
-	help             help.Model
-	sortBy           config.SortField
-	loading          bool
-	showAll          bool
-	sortAsc          bool
+	rows                map[string]row
+	table               table.Model[row]
+	spinner             spinner.Model
+	width               int
+	height              int
+	containerWatcher    <-chan []*docker.Container
+	stats               <-chan docker.ContainerStat
+	keyMap              KeyMap
+	help                help.Model
+	sortBy              config.SortField
+	loading             bool
+	showAll             bool
+	sortAsc             bool
+	lastRenderedSortBy  config.SortField
+	lastRenderedSortAsc bool
 }
 
 type tickMsg time.Time
