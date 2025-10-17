@@ -64,7 +64,7 @@ type model struct {
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*200, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/amir20/dtop/config"
-	"github.com/amir20/dtop/internal/docker"
 	"github.com/amir20/dtop/internal/ui/components/table"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -80,6 +79,38 @@ var flexibleColumns = []string{"NAME", "CPU", "MEMORY", "STATUS", "NETWORK IO"}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tickMsg:
+		m.table.UpdateViewport()
+
+		// Process all pending stats updates without triggering re-renders
+		cmds := []tea.Cmd{tick()}
+		processingStats := true
+		for processingStats {
+			select {
+			case stat := <-m.stats:
+				if row, exists := m.rows[stat.ID]; exists {
+					row.stats.cpuPercent = stat.CPUPercent / 100
+					row.stats.memPercent = stat.MemoryPercent / 100
+
+					timeDelta := uint64(stat.Time.Sub(row.stats.lastUpdate).Seconds())
+					if timeDelta > 0 && !row.stats.lastUpdate.IsZero() {
+						currentBytesReceivedPerSecond := (stat.TotalNetworkReceived - row.stats.totalBytesReceived) / timeDelta
+						currentBytesSentPerSecond := (stat.TotalNetworkTransmitted - row.stats.totalBytesSent) / timeDelta
+						alpha := 0.75
+						row.stats.bytesReceivedPerSecond = uint64(alpha*float64(currentBytesReceivedPerSecond) + (1-alpha)*float64(row.stats.bytesReceivedPerSecond))
+						row.stats.bytesSentPerSecond = uint64(alpha*float64(currentBytesSentPerSecond) + (1-alpha)*float64(row.stats.bytesSentPerSecond))
+					}
+					row.stats.totalBytesReceived = stat.TotalNetworkReceived
+					row.stats.totalBytesSent = stat.TotalNetworkTransmitted
+					row.stats.lastUpdate = stat.Time
+				}
+			default:
+				processingStats = false
+			}
+		}
+
+		return m, tea.Batch(cmds...)
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -111,33 +142,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.updateInternalRows()
 
 		return m, nil
-
-	case tickMsg:
-		m.table.UpdateViewport()
-		return m, tick()
-
-	case docker.ContainerStat:
-		if row, exists := m.rows[msg.ID]; exists {
-			// Update stats through pointer - all table rows will see the change
-			row.stats.cpuPercent = msg.CPUPercent / 100
-			row.stats.memPercent = msg.MemoryPercent / 100
-
-			timeDelta := uint64(msg.Time.Sub(row.stats.lastUpdate).Seconds())
-			if timeDelta > 0 && !row.stats.lastUpdate.IsZero() {
-				currentBytesReceivedPerSecond := (msg.TotalNetworkReceived - row.stats.totalBytesReceived) / timeDelta
-				currentBytesSentPerSecond := (msg.TotalNetworkTransmitted - row.stats.totalBytesSent) / timeDelta
-				alpha := 0.75
-				row.stats.bytesReceivedPerSecond = uint64(alpha*float64(currentBytesReceivedPerSecond) + (1-alpha)*float64(row.stats.bytesReceivedPerSecond))
-				row.stats.bytesSentPerSecond = uint64(alpha*float64(currentBytesSentPerSecond) + (1-alpha)*float64(row.stats.bytesSentPerSecond))
-			}
-			row.stats.totalBytesReceived = msg.TotalNetworkReceived
-			row.stats.totalBytesSent = msg.TotalNetworkTransmitted
-			row.stats.lastUpdate = msg.Time
-
-			return m, waitForStatsUpdate(m.stats)
-		}
-
-		return m, waitForStatsUpdate(m.stats)
 
 	case containers:
 		for _, c := range msg {
