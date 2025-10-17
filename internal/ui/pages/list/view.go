@@ -1,12 +1,13 @@
-package ui
+package list
 
 import (
 	"fmt"
 
+	"github.com/amir20/dtop/internal/ui/styles"
 	"github.com/charmbracelet/lipgloss"
 )
 
-func (m model) View() string {
+func (m Model) View() string {
 	keymap := m.keyMap
 	rows := m.table.Rows()
 	if m.loading {
@@ -24,7 +25,7 @@ func (m model) View() string {
 
 		return lipgloss.JoinVertical(
 			lipgloss.Left, m.table.View(),
-			lipgloss.PlaceHorizontal(m.width, lipgloss.Center, helpBarStyle.Render(m.help.View(keymap))),
+			lipgloss.PlaceHorizontal(m.width, lipgloss.Center, styles.HelpBarStyle.Render(m.help.View(keymap))),
 		)
 	}
 }

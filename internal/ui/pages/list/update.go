@@ -1,4 +1,4 @@
-package ui
+package list
 
 import (
 	"path"
@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (m model) updateColumnHeaders() model {
+func (m Model) updateColumnHeaders() Model {
 	columns := m.table.Columns()
 	newColumns := make([]table.Column[row], 0, len(columns))
 
@@ -43,7 +43,7 @@ func (m model) updateColumnHeaders() model {
 	return m
 }
 
-func (m model) updateInternalRows() model {
+func (m Model) updateInternalRows() Model {
 	rows := make([]row, 0, len(m.rows))
 	for _, r := range m.rows {
 		if m.showAll || r.container.State == "running" {
@@ -76,7 +76,7 @@ func (m model) updateInternalRows() model {
 
 var flexibleColumns = []string{"NAME", "CPU", "MEMORY", "STATUS", "NETWORK IO"}
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
 		m.table.UpdateViewport()

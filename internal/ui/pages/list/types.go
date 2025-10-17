@@ -1,4 +1,4 @@
-package ui
+package list
 
 import (
 	"time"
@@ -37,7 +37,7 @@ func newRow(container *docker.Container) row {
 	}
 }
 
-type model struct {
+type Model struct {
 	rows             map[string]row
 	table            table.Model[row]
 	spinner          spinner.Model
