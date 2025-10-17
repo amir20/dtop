@@ -37,15 +37,17 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 
 	progressBar := progress.New(progress.WithDefaultGradient())
 
+	running := greenStyle.Render(icon.Render("▶"))
+	stopped := redStyle.Render(icon.Render("⏹"))
+
 	tbl := table.New(
 		table.WithColumns([]table.Column[row]{
 			{
 				Title: "", Width: 1, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).AlignHorizontal(lipgloss.Right).MaxWidth(col.Width).Inline(true)
 					if r.container.State == "running" {
-						return greenStyle.Render(style.Render("▶"))
+						return running
 					}
-					return redStyle.Render(style.Render("⏹"))
+					return stopped
 				},
 			},
 			{
@@ -67,9 +69,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
-					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-					rendered := style.Render(r.container.ID)
-
+					rendered := idStyle.Render(r.container.ID)
 					if selected {
 						return selectedStyle.Render(rendered)
 					}
@@ -79,12 +79,14 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "CPU", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						bar := progressBar
-						bar.Width = col.Width
+						progressBar.Width = col.Width
+						beforeStyle := progressBar.PercentageStyle
 						if selected {
-							bar.PercentageStyle = selectedStyle
+							progressBar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.stats.cpuPercent)
+						rendered := progressBar.ViewAs(r.stats.cpuPercent)
+						progressBar.PercentageStyle = beforeStyle
+						return rendered
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
@@ -92,12 +94,14 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			{
 				Title: "MEMORY", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
 					if r.container.State == "running" {
-						bar := progressBar
-						bar.Width = col.Width
+						progressBar.Width = col.Width
+						beforeStyle := progressBar.PercentageStyle
 						if selected {
-							bar.PercentageStyle = selectedStyle
+							progressBar.PercentageStyle = selectedStyle
 						}
-						return bar.ViewAs(r.stats.memPercent)
+						rendered := progressBar.ViewAs(r.stats.memPercent)
+						progressBar.PercentageStyle = beforeStyle
+						return rendered
 					}
 					return lipgloss.NewStyle().Width(col.Width).Inline(true).Render("")
 				},
