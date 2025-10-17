@@ -50,38 +50,30 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			},
 			{
 				Title: "NAME", Width: 10, Renderer: func(col table.Column[row], r row, selected bool) string {
-					// Cache the base rendering (without selection styling)
-					if r.cache.name == "" {
-						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-						value := r.container.Name
-						if r.container.Dozzle != "" {
-							value = link(runewidth.Truncate(value, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
-						} else {
-							value = runewidth.Truncate(value, col.Width, "…")
-						}
-						r.cache.name = style.Render(value)
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					value := r.container.Name
+					if r.container.Dozzle != "" {
+						value = link(runewidth.Truncate(value, col.Width, "…"), path.Join(r.container.Dozzle, "container", r.container.ID))
+					} else {
+						value = runewidth.Truncate(value, col.Width, "…")
 					}
+					rendered := style.Render(value)
 
-					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.name)
+						return selectedStyle.Render(rendered)
 					}
-					return r.cache.name
+					return rendered
 				},
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
-					// Cache the base rendering (without selection styling)
-					if r.cache.id == "" {
-						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-						r.cache.id = style.Render(r.container.ID)
-					}
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					rendered := style.Render(r.container.ID)
 
-					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.id)
+						return selectedStyle.Render(rendered)
 					}
-					return r.cache.id
+					return rendered
 				},
 			},
 			{
@@ -124,21 +116,18 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 			},
 			{
 				Title: "STATUS", Width: 22, Renderer: func(col table.Column[row], r row, selected bool) string {
-					// Cache the base rendering (without selection styling)
-					if r.cache.status == "" {
-						style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
-						if r.container.State == "running" {
-							r.cache.status = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
-						} else {
-							r.cache.status = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
-						}
+					style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+					var rendered string
+					if r.container.State == "running" {
+						rendered = style.Render("Up " + humanize.RelTime(r.container.StartedAt, time.Now(), "", ""))
+					} else {
+						rendered = style.Render("Exited " + humanize.RelTime(r.container.FinishedAt, time.Now(), "ago", ""))
 					}
 
-					// Apply selection styling dynamically
 					if selected {
-						return selectedStyle.Render(r.cache.status)
+						return selectedStyle.Render(rendered)
 					}
-					return r.cache.status
+					return rendered
 				},
 			},
 		}),

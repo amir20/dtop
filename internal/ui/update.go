@@ -16,7 +16,6 @@ import (
 )
 
 func (m model) updateColumnHeaders() model {
-
 	columns := m.table.Columns()
 	newColumns := make([]table.Column[row], 0, len(columns))
 
@@ -130,13 +129,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if slices.Contains(flexibleColumns, col.Title) {
 				cols[i].Width = total / len(flexibleColumns)
 			}
-		}
-
-		// Invalidate caches since column widths changed
-		for _, row := range m.rows {
-			row.cache.id = ""
-			row.cache.name = ""
-			row.cache.status = ""
 		}
 
 		m = m.updateInternalRows()

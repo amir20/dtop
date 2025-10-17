@@ -25,23 +25,15 @@ type rowStats struct {
 	bytesSentPerSecond     uint64
 }
 
-type rowCache struct {
-	name   string
-	id     string
-	status string
-}
-
 type row struct {
 	container *docker.Container
 	stats     *rowStats
-	cache     *rowCache
 }
 
 func newRow(container *docker.Container) row {
 	return row{
 		container: container,
 		stats:     &rowStats{},
-		cache:     &rowCache{},
 	}
 }
 
