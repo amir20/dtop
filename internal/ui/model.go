@@ -202,7 +202,7 @@ func (m model) Init() tea.Cmd {
 		tick(),
 		m.spinner.Tick,
 		waitForContainerUpdate(m.containerWatcher),
-		waitForStatsUpdate(m.stats),
+		// Stats are now polled directly in tickMsg handler, not via messages
 	)
 }
 
