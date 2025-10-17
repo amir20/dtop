@@ -8,6 +8,7 @@ import (
 
 	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/ui/components/table"
+	"github.com/amir20/dtop/internal/ui/messages"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -157,6 +158,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Open):
 			r := m.table.Rows()[m.table.Cursor()]
 			browser.OpenURL(path.Join(r.container.Dozzle, "container", r.container.ID))
+			return m, nil
+		case key.Matches(msg, m.keyMap.ViewLogs):
+			// Navigate to log page for selected container (right arrow key)
+			rows := m.table.Rows()
+			if m.table.Cursor() >= 0 && m.table.Cursor() < len(rows) {
+				selected := rows[m.table.Cursor()]
+				return m, func() tea.Msg {
+					return messages.NavigateToLogMsg{
+						ContainerID:   selected.container.ID,
+						ContainerName: selected.container.Name,
+					}
+				}
+			}
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll

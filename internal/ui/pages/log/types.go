@@ -7,8 +7,10 @@ import (
 )
 
 type Model struct {
-	ctx    context.Context
-	client *docker.Client
-	width  int
-	height int
+	ctx           context.Context
+	client        *docker.Client
+	width         int
+	height        int
+	containerID   string
+	containerName string
 }

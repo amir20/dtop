@@ -15,6 +15,13 @@ func NewModel(ctx context.Context, client *docker.Client) Model {
 	}
 }
 
+// SetContainer updates the model with the container to view logs for
+func (m Model) SetContainer(containerID, containerName string) Model {
+	m.containerID = containerID
+	m.containerName = containerName
+	return m
+}
+
 func (m Model) Init() tea.Cmd {
 	return nil
 }

@@ -5,9 +5,9 @@ import (
 
 	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
-
+	"github.com/amir20/dtop/internal/ui/messages"
 	"github.com/amir20/dtop/internal/ui/pages/list"
-	"github.com/amir20/dtop/internal/ui/pages/log"
+	logpage "github.com/amir20/dtop/internal/ui/pages/log"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -24,7 +24,7 @@ type App struct {
 	client      *docker.Client
 	currentPage PageType
 	listPage    list.Model
-	logPage     log.Model
+	logPage     logpage.Model
 }
 
 func NewApp(ctx context.Context, client *docker.Client, defaultSort config.SortField) App {
@@ -33,7 +33,7 @@ func NewApp(ctx context.Context, client *docker.Client, defaultSort config.SortF
 		client:      client,
 		currentPage: List,
 		listPage:    list.NewModel(ctx, client, defaultSort),
-		logPage:     log.NewModel(ctx, client),
+		logPage:     logpage.NewModel(ctx, client),
 	}
 }
 
@@ -49,15 +49,18 @@ func (a App) Init() tea.Cmd {
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Check for page navigation keys first
+	// Handle navigation message first
+	if navMsg, ok := msg.(messages.NavigateToLogMsg); ok {
+		a.currentPage = Log
+		a.logPage = a.logPage.SetContainer(navMsg.ContainerID, navMsg.ContainerName)
+		return a, nil
+	}
+
+	// Check for page navigation keys
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
-		case "L":
-			// Switch to log page
-			a.currentPage = Log
-			return a, nil
-		case "l":
-			// Switch to list page
+		case "esc":
+			// ESC to go back to list from any page
 			if a.currentPage == Log {
 				a.currentPage = List
 				return a, nil
@@ -75,7 +78,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Log:
 		var model tea.Model
 		model, cmd = a.logPage.Update(msg)
-		a.logPage = model.(log.Model)
+		a.logPage = model.(logpage.Model)
 	}
 
 	return a, cmd
