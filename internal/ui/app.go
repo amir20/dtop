@@ -27,7 +27,7 @@ type App struct {
 	listPage    list.Model
 	logPage     logpage.Model
 	quitKey     key.Binding
-	escKey      key.Binding
+	backKey     key.Binding
 }
 
 var (
@@ -35,7 +35,7 @@ var (
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "Quit"),
 	)
-	defaultEscKey = key.NewBinding(
+	defaultBackKey = key.NewBinding(
 		key.WithKeys("esc", "left"),
 		key.WithHelp("esc/left", "Go back"),
 	)
@@ -49,7 +49,7 @@ func NewApp(ctx context.Context, client *docker.Client, defaultSort config.SortF
 		listPage:    list.NewModel(ctx, client, defaultSort),
 		logPage:     logpage.NewModel(ctx, client),
 		quitKey:     defaultQuitKey,
-		escKey:      defaultEscKey,
+		backKey:     defaultBackKey,
 	}
 }
 
@@ -75,7 +75,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, a.quitKey):
 			return a, tea.Quit
-		case key.Matches(msg, a.escKey) && a.currentPage == Log:
+		case key.Matches(msg, a.backKey) && a.currentPage == Log:
 			// Handle ESC to go back to list from any page
 			a.currentPage = List
 			return a, nil
