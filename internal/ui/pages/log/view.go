@@ -10,5 +10,5 @@ func (m Model) View() string {
 
 // StatusBar implements the StatusBar interface
 func (m Model) StatusBar() string {
-	return lipgloss.PlaceHorizontal(m.width, lipgloss.Center, "Press ESC/left to go back | Press q to quit")
+	return lipgloss.PlaceHorizontal(m.width, lipgloss.Center, "Press ESC/← to go back | Press q to quit")
 }
