@@ -8,10 +8,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func NewModel(ctx context.Context, client *docker.Client) Model {
+func NewModel(ctx context.Context, client *docker.Client, container *docker.Container) Model {
 	return Model{
-		ctx:    ctx,
-		client: client,
+		ctx:       ctx,
+		client:    client,
+		container: container,
 	}
 }
 

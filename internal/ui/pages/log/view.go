@@ -9,9 +9,15 @@ import (
 func (m Model) View() string {
 	var content string
 	if m.container != nil && m.container.Name != "" {
-		content = fmt.Sprintf("Viewing logs for: %s\nContainer ID: %s\n\nPress ESC to go back to list\nPress q to quit", m.container.Name, m.container.ID)
+		content = fmt.Sprintf("Viewing logs for: %s\nContainer ID: %s", m.container.Name, m.container.ID)
 	} else {
-		content = "No container selected\n\nPress ESC to go back to list\nPress q to quit"
+		content = "No container selected"
 	}
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+// StatusBar implements the StatusBar interface
+func (m Model) StatusBar() string {
+	return lipgloss.PlaceHorizontal(m.width, lipgloss.Center, "Press ESC/left to go back | Press q to quit")
 }

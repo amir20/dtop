@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type PageType int
@@ -28,6 +29,8 @@ type App struct {
 	logPage     logpage.Model
 	quitKey     key.Binding
 	backKey     key.Binding
+	width       int
+	height      int
 }
 
 var (
@@ -47,29 +50,43 @@ func NewApp(ctx context.Context, client *docker.Client, defaultSort config.SortF
 		client:      client,
 		currentPage: List,
 		listPage:    list.NewModel(ctx, client, defaultSort),
-		logPage:     logpage.NewModel(ctx, client),
+		logPage:     logpage.NewModel(ctx, client, nil),
 		quitKey:     defaultQuitKey,
 		backKey:     defaultBackKey,
 	}
 }
 
-func (a App) Init() tea.Cmd {
-	// Initialize the current page
+func (a App) activePage() tea.Model {
 	switch a.currentPage {
 	case List:
-		return a.listPage.Init()
+		return a.listPage
 	case Log:
-		return a.logPage.Init()
+		return a.logPage
 	}
 	return nil
+}
+
+func (a App) Init() tea.Cmd {
+	return a.activePage().Init()
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.ShowContainerMsg:
 		a.currentPage = Log
-		a.logPage = a.logPage.SetContainer(msg.Container)
-		return a, nil
+		a.logPage = logpage.NewModel(a.ctx, a.client, msg.Container)
+		return a, a.logPage.Init()
+
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+		// Check if the current page implements StatusBar interface
+		// If it does, subtract 1 from height to account for the status bar
+		if _, ok := a.activePage().(StatusBar); ok {
+			msg.Height--
+		}
+
+		a.activePage().Update(msg)
 
 	case tea.KeyMsg:
 		switch {
@@ -99,11 +116,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) View() string {
-	switch a.currentPage {
-	case List:
-		return a.listPage.View()
-	case Log:
-		return a.logPage.View()
+	content := a.activePage().View()
+	if statusBarPage, ok := a.activePage().(StatusBar); ok {
+		return lipgloss.JoinVertical(lipgloss.Left, content, statusBarPage.StatusBar())
 	}
-	return ""
+
+	return content
 }
