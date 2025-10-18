@@ -1,4 +1,4 @@
-package ui
+package list
 
 import (
 	"path"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/ui/components/table"
+	"github.com/amir20/dtop/internal/ui/messages"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,7 +16,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (m model) updateColumnHeaders() model {
+func (m Model) updateColumnHeaders() Model {
 	columns := m.table.Columns()
 	newColumns := make([]table.Column[row], 0, len(columns))
 
@@ -43,7 +44,7 @@ func (m model) updateColumnHeaders() model {
 	return m
 }
 
-func (m model) updateInternalRows() model {
+func (m Model) updateInternalRows() Model {
 	rows := make([]row, 0, len(m.rows))
 	for _, r := range m.rows {
 		if m.showAll || r.container.State == "running" {
@@ -76,7 +77,7 @@ func (m model) updateInternalRows() model {
 
 var flexibleColumns = []string{"NAME", "CPU", "MEMORY", "STATUS", "NETWORK IO"}
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
 		m.table.UpdateViewport()
@@ -152,11 +153,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.LineDown):
 			m.table.MoveDown(1)
 			return m, nil
-		case key.Matches(msg, m.keyMap.Quit):
-			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Open):
 			r := m.table.Rows()[m.table.Cursor()]
 			browser.OpenURL(path.Join(r.container.Dozzle, "container", r.container.ID))
+			return m, nil
+		case key.Matches(msg, m.keyMap.ViewLogs):
+			// Navigate to log page for selected container (right arrow key)
+			rows := m.table.Rows()
+			if m.table.Cursor() >= 0 && m.table.Cursor() < len(rows) {
+				selected := rows[m.table.Cursor()]
+				return m, func() tea.Msg {
+					return messages.ShowContainerMsg{
+						Container: selected.container,
+					}
+				}
+			}
 			return m, nil
 		case key.Matches(msg, m.keyMap.ShowAll):
 			m.showAll = !m.showAll

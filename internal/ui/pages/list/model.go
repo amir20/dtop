@@ -1,4 +1,4 @@
-package ui
+package list
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/amir20/dtop/config"
 	"github.com/amir20/dtop/internal/docker"
 	"github.com/amir20/dtop/internal/ui/components/table"
+	"github.com/amir20/dtop/internal/ui/styles"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
@@ -22,7 +23,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func NewModel(ctx context.Context, client *docker.Client, defaultSort config.SortField) model {
+func NewModel(ctx context.Context, client *docker.Client, defaultSort config.SortField) Model {
 	containerWatcher, err := client.WatchContainers(ctx)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -37,8 +38,8 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 
 	progressBar := progress.New(progress.WithDefaultGradient())
 
-	running := greenStyle.Render(icon.Render("▶"))
-	stopped := redStyle.Render(icon.Render("⏹"))
+	running := styles.GreenStyle.Render(styles.Icon.Render("▶"))
+	stopped := styles.RedStyle.Render(styles.Icon.Render("⏹"))
 
 	tbl := table.New(
 		table.WithColumns([]table.Column[row]{
@@ -62,16 +63,16 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 					rendered := style.Render(value)
 
 					if selected {
-						return selectedStyle.Render(rendered)
+						return styles.SelectedStyle.Render(rendered)
 					}
 					return rendered
 				},
 			},
 			{
 				Title: "ID", Width: 13, Renderer: func(col table.Column[row], r row, selected bool) string {
-					rendered := idStyle.Render(r.container.ID)
+					rendered := styles.IdStyle.Render(r.container.ID)
 					if selected {
-						return selectedStyle.Render(rendered)
+						return styles.SelectedStyle.Render(rendered)
 					}
 					return rendered
 				},
@@ -82,7 +83,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						progressBar.Width = col.Width
 						beforeStyle := progressBar.PercentageStyle
 						if selected {
-							progressBar.PercentageStyle = selectedStyle
+							progressBar.PercentageStyle = styles.SelectedStyle
 						}
 						rendered := progressBar.ViewAs(r.stats.cpuPercent)
 						progressBar.PercentageStyle = beforeStyle
@@ -97,7 +98,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 						progressBar.Width = col.Width
 						beforeStyle := progressBar.PercentageStyle
 						if selected {
-							progressBar.PercentageStyle = selectedStyle
+							progressBar.PercentageStyle = styles.SelectedStyle
 						}
 						rendered := progressBar.ViewAs(r.stats.memPercent)
 						progressBar.PercentageStyle = beforeStyle
@@ -113,7 +114,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 							fmt.Sprintf("↑ %-9s ↓ %s", humanize.Bytes(r.stats.bytesSentPerSecond)+"/s", humanize.Bytes(r.stats.bytesReceivedPerSecond)+"/s"),
 						)
 					if selected {
-						value = selectedStyle.Render(value)
+						value = styles.SelectedStyle.Render(value)
 					}
 					return value
 				},
@@ -129,7 +130,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 					}
 
 					if selected {
-						return selectedStyle.Render(rendered)
+						return styles.SelectedStyle.Render(rendered)
 					}
 					return rendered
 				},
@@ -154,7 +155,7 @@ func NewModel(ctx context.Context, client *docker.Client, defaultSort config.Sor
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	m := model{
+	m := Model{
 		rows:             make(map[string]row),
 		table:            tbl,
 		containerWatcher: containerWatcher,
@@ -184,13 +185,7 @@ func waitForContainerUpdate(ch <-chan []*docker.Container) tea.Cmd {
 	}
 }
 
-func waitForStatsUpdate(ch <-chan docker.ContainerStat) tea.Cmd {
-	return func() tea.Msg {
-		return <-ch
-	}
-}
-
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tick(),
 		m.spinner.Tick,
