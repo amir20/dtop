@@ -1,7 +1,10 @@
 package log
 
 import (
+	"fmt"
+
 	"github.com/amir20/dtop/internal/docker"
+	"github.com/amir20/dtop/internal/ui/styles"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -22,7 +25,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.content.Len() > 0 {
 			m.content.WriteString("\n")
 		}
-		m.content.WriteString(msg.Message)
+
+		// Format timestamp and add colored timestamp prefix
+		timestamp := msg.Timestamp.Format("15:04:05.000")
+		coloredTimestamp := styles.SelectedStyle.Render(timestamp)
+		m.content.WriteString(fmt.Sprintf("%s %s", coloredTimestamp, msg.Message))
+
 		m.viewport.SetContent(m.content.String())
 
 		if wasAtBottom {
