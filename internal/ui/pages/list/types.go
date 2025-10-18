@@ -69,7 +69,6 @@ type KeyMap struct {
 	ShowAll  key.Binding
 	Open     key.Binding
 	ViewLogs key.Binding
-	Quit     key.Binding
 	Sort     SortKeyMap
 }
 
@@ -79,13 +78,13 @@ type SortKeyMap struct {
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.ViewLogs, km.Sort.Name, km.Sort.Status, km.Quit}
+	return []key.Binding{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.ViewLogs, km.Sort.Name, km.Sort.Status}
 }
 
 // FullHelp implements the KeyMap interface.
 func (km KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.ViewLogs, km.Sort.Name, km.Sort.Status, km.Quit},
+		{km.LineUp, km.LineDown, km.ShowAll, km.Open, km.ViewLogs, km.Sort.Name, km.Sort.Status},
 		{},
 	}
 }
@@ -96,7 +95,6 @@ var defaultKeyMap = KeyMap{
 	ShowAll:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "Toggle all")),
 	Open:     key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "Open Dozzle")),
 	ViewLogs: key.NewBinding(key.WithKeys("right", "enter"), key.WithHelp("→/enter", "View logs")),
-	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "Quit")),
 	Sort: SortKeyMap{
 		Name:   key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "Sort by name")),
 		Status: key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "Sort by status")),

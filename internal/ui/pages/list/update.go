@@ -153,8 +153,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.LineDown):
 			m.table.MoveDown(1)
 			return m, nil
-		case key.Matches(msg, m.keyMap.Quit):
-			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Open):
 			r := m.table.Rows()[m.table.Cursor()]
 			browser.OpenURL(path.Join(r.container.Dozzle, "container", r.container.ID))
@@ -165,9 +163,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.table.Cursor() >= 0 && m.table.Cursor() < len(rows) {
 				selected := rows[m.table.Cursor()]
 				return m, func() tea.Msg {
-					return messages.NavigateToLogMsg{
-						ContainerID:   selected.container.ID,
-						ContainerName: selected.container.Name,
+					return messages.ShowContainerMsg{
+						Container: selected.container,
 					}
 				}
 			}

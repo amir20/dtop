@@ -1,7 +1,10 @@
 package messages
 
+import (
+	"github.com/amir20/dtop/internal/docker"
+)
+
 // NavigateToLogMsg is sent when user wants to view logs for a specific container
-type NavigateToLogMsg struct {
-	ContainerID   string
-	ContainerName string
+type ShowContainerMsg struct {
+	Container *docker.Container
 }
