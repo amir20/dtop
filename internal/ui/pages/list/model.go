@@ -185,12 +185,6 @@ func waitForContainerUpdate(ch <-chan []*docker.Container) tea.Cmd {
 	}
 }
 
-func waitForStatsUpdate(ch <-chan docker.ContainerStat) tea.Cmd {
-	return func() tea.Msg {
-		return <-ch
-	}
-}
-
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tick(),

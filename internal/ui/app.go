@@ -50,7 +50,6 @@ func NewApp(ctx context.Context, client *docker.Client, defaultSort config.SortF
 		client:      client,
 		currentPage: List,
 		listPage:    list.NewModel(ctx, client, defaultSort),
-		logPage:     logpage.NewModel(ctx, client, nil),
 		quitKey:     defaultQuitKey,
 		backKey:     defaultBackKey,
 	}
@@ -74,8 +73,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.ShowContainerMsg:
 		a.currentPage = Log
-		a.logPage = logpage.NewModel(a.ctx, a.client, msg.Container)
-		return a, a.logPage.Init()
+		a.logPage = logpage.NewModel(a.ctx, a.client, msg.Container, a.width, a.height-1)
+		return a, tea.Batch(a.logPage.Init())
 
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -93,6 +92,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, a.quitKey):
 			return a, tea.Quit
 		case key.Matches(msg, a.backKey) && a.currentPage == Log:
+			// Call Destroy if the current page implements it
+			if destroyable, ok := a.activePage().(Destroy); ok {
+				destroyable.Destroy()
+			}
+
 			// Handle ESC to go back to list from any page
 			a.currentPage = List
 			return a, nil

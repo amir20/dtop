@@ -7,3 +7,11 @@ type StatusBar interface {
 	// StatusBar returns the rendered status bar string
 	StatusBar() string
 }
+
+// Destroy is an interface for pages that need cleanup when navigating away.
+// Pages implementing this interface will have their Destroy method called
+// when the user navigates away from the page.
+type Destroy interface {
+	// Destroy performs cleanup operations
+	Destroy()
+}

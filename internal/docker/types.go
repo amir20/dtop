@@ -81,3 +81,10 @@ type ContainerStat struct {
 	TotalNetworkReceived    uint64    `json:"networkReceive"`
 	TotalNetworkTransmitted uint64    `json:"networkTransmitted"`
 }
+
+type LogEntry struct {
+	ContainerID string    `json:"containerId"`
+	Message     string    `json:"message"`
+	Timestamp   time.Time `json:"timestamp"`
+	Stream      string    `json:"stream"` // "stdout" or "stderr"
+}
