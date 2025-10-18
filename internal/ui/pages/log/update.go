@@ -16,7 +16,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Height = m.height
 
 	case docker.LogEntry:
-		m.viewport.SetContent(m.viewport.View() + "\n" + msg.Message)
+		// Check if we're at the bottom BEFORE adding new content
+		wasAtBottom := m.viewport.AtBottom()
+
+		if m.content.Len() > 0 {
+			m.content.WriteString("\n")
+		}
+		m.content.WriteString(msg.Message)
+		m.viewport.SetContent(m.content.String())
+
+		if wasAtBottom {
+			m.viewport.GotoBottom()
+		}
+
 		return m, waitForLogs(m.logChannel)
 	}
 
