@@ -17,4 +17,7 @@ Down
 Sleep 2s
 Down
 
+Enter
+Sleep 2s
+
 Sleep 8s
