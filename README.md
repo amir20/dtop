@@ -19,7 +19,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - [x] Sort containers by name and status
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
-- [ ] Created detailed view, but not to compete with Dozzle
+- [x] Implement log view streaming (basic)
 - [ ] Search or filter for containers
 - [ ] Support multiple certs for TLS
 - [ ] Configurable columns and saving preferences
