@@ -130,8 +130,8 @@ fn render_log_view(
         (Vec::new(), 0)
     };
 
-    // Calculate visible height (subtract 2 for borders)
-    let visible_height = size.height.saturating_sub(2) as usize;
+    // Calculate visible height (subtract 1 for top)
+    let visible_height = size.height.saturating_sub(1) as usize;
 
     // Calculate max scroll position
     let max_scroll = if num_lines > visible_height {
@@ -159,7 +159,6 @@ fn render_log_view(
     let log_widget = Paragraph::new(log_lines)
         .block(
             Block::default()
-                .borders(Borders::ALL)
                 .title(format!(
                     "Logs: {} ({}) - Press ESC to return {}",
                     container_name,
