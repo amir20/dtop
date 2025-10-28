@@ -1,0 +1,25 @@
+# Docker Monitor Configuration
+#
+# This file can be placed in one of the following locations (in priority order):
+# 1. ./config.yaml or ./config.yml (relative to current directory)
+# 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
+# 3. ~/.dtop.yaml or ~/.dtop.yml
+#
+# Command line arguments take precedence over config file values.
+
+# Docker host(s) to connect to
+# You can specify multiple hosts to monitor them simultaneously
+
+hosts:
+  # Basic host without additional fields
+  - host: local
+
+  # Host with optional Dozzle URL
+  # - host: ssh://root@146.190.3.114
+  #   dozzle: https://l.dozzle.dev/
+
+  # More examples:
+  # - host: ssh://user@server1
+  # - host: ssh://user@server2:2222
+  #   dozzle: https://dozzle.server2.com/
+  # - host: tcp://192.168.1.100:2375  # TCP connection (unencrypted)
