@@ -13,9 +13,9 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 ## Features
 
-- **Real-time monitoring** - Live updates of container status and metrics
-- **Lightweight** - Minimal resource footprint
-- **Hyperlinks** - Clickable links to container logs and stats using Dozzle
+- 💻 **Real-time monitoring** - Live updates of container status and metrics
+- ⚡ **Lightweight** - Minimal resource footprint using Rust
+- 🖱️**Hyperlinks** - Clickable links to container logs and stats using Dozzle
 
 ## Roadmap
 
@@ -47,15 +47,6 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -it amir20/dtop
 
 Currently, the image is available for amd64 and arm64 architectures.
 
-### Scoop (Windows)
-
-`dtop` supports prebuilt binaries for Windows. You can install it using [Scoop](https://scoop.sh/).
-
-```sh
-scoop bucket add amir20 https://github.com/amir20/scoop-dtop
-scoop install amir20/dtop
-```
-
 ### Install Script
 
 Downloads the latest release from GitHub.
@@ -64,12 +55,12 @@ Downloads the latest release from GitHub.
 curl -sSfL https://amir20.github.io/dtop/install.sh | bash
 ```
 
-### Install using Go
+### Install from Source
 
-Downloads the latest release from source with Go.
+`dtop` is written in Rust can be installed using Cargo.
 
 ```sh
-go install github.com/amir20/dtop@latest
+cargo install --git https://github.com/amir20/dtop
 ```
 
 ## Command Line Options
@@ -78,7 +69,6 @@ By default, `dtop` will connect to the local Docker daemon using `/var/run/docke
 
 - `--help` - Display help information.
 - `--hosts` - A comma separated list of hosts to connect. Defaults to `local`.
-- `--sort` - Sort containers by name, `status`, or `name`. Defaults to `status`.
 
 
 ## Configuration File
@@ -113,19 +103,8 @@ hosts:
 You can connect to multiple hosts by separating them with commas:
 
 ```bash
-dtop --hosts local,tcp://host2:2375,ssh://user@host
+dtop --host local --host tcp://host2:2375 --host ssh://user@host
 ```
-
-### TLS
-
-TLS is supported for TCP connections with `DOCKER_CERT_PATH` environment variable. This is the standard way to configure TLS for Docker clients. You can set the `DOCKER_CERT_PATH` environment variable to the path of your TLS certificate files.
-
-```bash
-DOCKER_CERT_PATH=/path/to/docker-certs dtop --host tcp://host2:2375
-```
-
-> [!Note]
-> Currently, multiple certs are not supported. `DOCKER_CERT_PATH` expects a directory with ca.pem, cert.pem, and key.pem files. These files are used to establish a secure connection to the Docker daemon. Supporting multiple certs is planned for future releases.
 
 ## Dozzle Integration
 
