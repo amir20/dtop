@@ -1,0 +1,215 @@
+name: PR Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Run 'dist plan' to determine what tasks we need to do
+  plan:
+    runs-on: "ubuntu-24.04"
+    outputs:
+      val: ${{ steps.plan.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install dist
+        shell: bash
+        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.30.0/cargo-dist-installer.sh | sh"
+      - name: Cache dist
+        uses: actions/upload-artifact@v5
+        with:
+          name: cargo-dist-cache
+          path: ~/.cargo/bin/dist
+      - id: plan
+        run: |
+          dist plan --output-format=json > plan-dist-manifest.json
+          echo "dist ran successfully"
+          cat plan-dist-manifest.json
+          echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: "Upload dist-manifest.json"
+        uses: actions/upload-artifact@v5
+        with:
+          name: artifacts-plan-dist-manifest
+          path: plan-dist-manifest.json
+
+  # Build and package all the platform-specific things
+  build-artifacts:
+    name: build-artifacts (${{ join(matrix.targets, ', ') }})
+    needs:
+      - plan
+    if: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix.include != null }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix }}
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container && matrix.container.image || null }}
+    env:
+      BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
+    steps:
+      - name: enable windows longpaths
+        run: |
+          git config --global core.longpaths true
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Rust non-interactively if not already installed
+        if: ${{ matrix.container }}
+        run: |
+          if ! command -v cargo > /dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          fi
+      - name: Install dist
+        run: ${{ matrix.install_dist.run }}
+      # Get the dist-manifest
+      - name: Fetch local artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: artifacts-*
+          path: target/distrib/
+          merge-multiple: true
+      - name: Install dependencies
+        run: |
+          ${{ matrix.packages_install }}
+      - name: Build artifacts
+        run: |
+          # Actually do builds and make zips and whatnot
+          dist build --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
+          echo "dist ran successfully"
+      - id: cargo-dist
+        name: Post-build
+        shell: bash
+        run: |
+          # Parse out what we just built and upload it to scratch storage
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          cp dist-manifest.json "$BUILD_MANIFEST_NAME"
+      - name: "Upload artifacts"
+        uses: actions/upload-artifact@v5
+        with:
+          name: artifacts-pr-${{ github.event.pull_request.number }}-${{ join(matrix.targets, '_') }}
+          path: |
+            ${{ steps.cargo-dist.outputs.paths }}
+            ${{ env.BUILD_MANIFEST_NAME }}
+          retention-days: 30
+
+  comment:
+    name: Comment on PR
+    needs:
+      - plan
+      - build-artifacts
+    runs-on: ubuntu-latest
+    if: ${{ always() && (needs.build-artifacts.result == 'success' || needs.build-artifacts.result == 'failure') }}
+
+    steps:
+      - name: Download all artifacts
+        if: needs.build-artifacts.result == 'success'
+        uses: actions/download-artifact@v6
+        with:
+          pattern: artifacts-pr-${{ github.event.pull_request.number }}-*
+          path: artifacts
+
+      - name: Comment on PR with download links
+        if: needs.build-artifacts.result == 'success'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runId = context.runId;
+            const repo = context.repo;
+
+            const comment = `## 🚀 PR Build Artifacts
+
+            Build completed successfully for PR #${{ github.event.pull_request.number }}
+
+            ### Download Binaries
+
+            You can download the pre-built binaries for all platforms from the artifacts:
+
+            [📦 View All Artifacts](https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId})
+
+            ### Available Builds
+            - ✅ Linux x86_64 (Intel/AMD)
+            - ✅ Linux ARM64
+            - ✅ macOS x86_64 (Intel)
+            - ✅ macOS ARM64 (Apple Silicon)
+            - ✅ Windows x86_64
+
+            ### How to Download
+            1. Click the link above
+            2. Scroll to the "Artifacts" section at the bottom
+            3. Download the artifact for your platform
+            4. Extract the archive
+
+            ### Install Example (Linux x86_64)
+            \`\`\`bash
+            tar xzf docker-monitor-*.tar.gz
+            chmod +x docker-monitor
+            ./docker-monitor
+            \`\`\`
+
+            ---
+            *Artifacts will be available for 30 days*
+            *Built with cargo-dist v0.30.0*`;
+
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: repo.owner,
+              repo: repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('PR Build Artifacts')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: repo.owner,
+                repo: repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: repo.owner,
+                repo: repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: Comment on build failure
+        if: needs.build-artifacts.result == 'failure'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runId = context.runId;
+            const repo = context.repo;
+
+            const comment = `## ❌ PR Build Failed
+
+            The build for PR #${{ github.event.pull_request.number }} has failed.
+
+            [View Build Logs](https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId})
+
+            Please check the logs and fix any build errors.`;
+
+            await github.rest.issues.createComment({
+              owner: repo.owner,
+              repo: repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });

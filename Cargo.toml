@@ -1,0 +1,47 @@
+[package]
+name = "docker-monitor"
+version = "0.1.9"
+edition = "2024"
+description = "A terminal-based Docker container monitoring tool with real-time CPU and memory metrics"
+license = "MIT"
+repository = "https://github.com/amir20/dtui"
+homepage = "https://github.com/amir20/dtui"
+documentation = "https://github.com/amir20/dtui"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.29"
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+bollard = {version= "0.19.3", features = ["ssh"]}
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+dirs = "6.0"
+chrono = "0.4"
+
+[dev-dependencies]
+insta = "1.43"
+mockall = "0.13"
+
+[profile.release]
+strip = true           # Strip all symbols for smallest binary size
+lto = true            # Link-time optimization for better performance
+codegen-units = 1     # Single codegen unit for maximum optimization
+opt-level = "z"       # Optimize for size
+
+[profile.release-with-debug]
+inherits = "release"
+strip = false
+debug = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+
+[package.metadata.release]
+publish = false
+push = true
+tag = true
