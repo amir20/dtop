@@ -1,12 +1,12 @@
 [package]
-name = "docker-monitor"
+name = "dtop"
 version = "0.1.9"
 edition = "2024"
 description = "A terminal-based Docker container monitoring tool with real-time CPU and memory metrics"
 license = "MIT"
-repository = "https://github.com/amir20/dtui"
-homepage = "https://github.com/amir20/dtui"
-documentation = "https://github.com/amir20/dtui"
+repository = "https://github.com/amir20/dtop"
+homepage = "https://github.com/amir20/dtop"
+documentation = "https://github.com/amir20/dtop"
 
 [dependencies]
 ratatui = "0.29"

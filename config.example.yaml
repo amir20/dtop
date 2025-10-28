@@ -2,8 +2,8 @@
 #
 # This file can be placed in one of the following locations (in priority order):
 # 1. ./config.yaml or ./config.yml (relative to current directory)
-# 2. ~/.config/dtui/config.yaml or ~/.config/dtui/config.yml
-# 3. ~/dtui.yaml or ~/dtui.yml
+# 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
+# 3. ~/.dtop.yaml or ~/.dtop.yml
 #
 # Command line arguments take precedence over config file values.
 

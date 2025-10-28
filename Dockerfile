@@ -1,4 +1,4 @@
-# Multi-stage build for docker-monitor (amd64/arm64)
+# Multi-stage build for dtop (amd64/arm64)
 FROM --platform=$BUILDPLATFORM rust:1.90-slim AS builder
 
 ARG TARGETPLATFORM
@@ -18,7 +18,7 @@ RUN if [ "$BUILDPLATFORM" != "$TARGETPLATFORM" ]; then \
 RUN RUST_TARGET=$([ "$TARGETPLATFORM" = "linux/amd64" ] && echo "x86_64-unknown-linux-musl" || echo "aarch64-unknown-linux-musl") && \
     rustup target add "$RUST_TARGET"
 
-WORKDIR /usr/src/docker-monitor
+WORKDIR /usr/src/dtop
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
@@ -31,11 +31,11 @@ RUN set -ex; \
     [ "$BUILDPLATFORM" != "$TARGETPLATFORM" ] && export CC=aarch64-linux-gnu-gcc CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc && STRIP="aarch64-linux-gnu-strip" || STRIP="strip"; \
     fi; \
     cargo build --release --target "$RUST_TARGET"; \
-    cp "target/$RUST_TARGET/release/docker-monitor" /usr/local/bin/docker-monitor; \
-    "$STRIP" /usr/local/bin/docker-monitor
+    cp "target/$RUST_TARGET/release/dtop" /usr/local/bin/dtop; \
+    "$STRIP" /usr/local/bin/dtop
 
 FROM scratch
-COPY --from=builder /usr/local/bin/docker-monitor /docker-monitor
+COPY --from=builder /usr/local/bin/dtop /dtop
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-ENTRYPOINT ["/docker-monitor"]
+ENTRYPOINT ["/dtop"]
 CMD ["--host", "local"]

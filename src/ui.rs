@@ -296,7 +296,7 @@ fn create_table<'a>(
             Block::default()
                 .borders(Borders::ALL)
                 .title(format!(
-                    "Docker Container CPU Monitor - {} containers (↑/↓ to navigate, 'q' to quit)",
+                    "dtop - {} containers (↑/↓ to navigate, 'q' to quit)",
                     container_count
                 ))
                 .style(styles.border),

@@ -26,8 +26,8 @@ pub struct Config {
 impl Config {
     /// Find and load config file from the following locations (in priority order):
     /// 1. ./config.yaml or ./config.yml (relative to current directory)
-    /// 2. ~/.config/dtui/config.yaml or ~/.config/dtui/config.yml
-    /// 3. ~/.dtui.yaml or ~/.dtui.yml
+    /// 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
+    /// 3. ~/.dtop.yaml or ~/.dtop.yml
     ///
     /// Returns None if no config file is found, or an error if a file exists but can't be parsed
     pub fn load() -> Result<Option<Self>, Box<dyn std::error::Error>> {
@@ -53,15 +53,15 @@ impl Config {
         paths.push(PathBuf::from("config.yaml"));
         paths.push(PathBuf::from("config.yml"));
 
-        // 2. ~/.config/dtui/config.{yaml,yml}
+        // 2. ~/.config/dtop/config.{yaml,yml}
         if let Some(home) = dirs::home_dir() {
-            let config_dir = home.join(".config").join("dtui");
+            let config_dir = home.join(".config").join("dtop");
             paths.push(config_dir.join("config.yaml"));
             paths.push(config_dir.join("config.yml"));
 
-            // 3. ~/.dtui.{yaml,yml}
-            paths.push(home.join(".dtui.yaml"));
-            paths.push(home.join(".dtui.yml"));
+            // 3. ~/.dtop.{yaml,yml}
+            paths.push(home.join(".dtop.yaml"));
+            paths.push(home.join(".dtop.yml"));
         }
 
         paths
