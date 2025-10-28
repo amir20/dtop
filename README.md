@@ -1,4 +1,7 @@
-# dtop
+# 🖥️ dtop
+
+> [!IMPORTANT]
+> This project is currently being rewritten in Rust on the `master` branch. The Go version is available on the `go` branch.
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
