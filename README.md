@@ -19,7 +19,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 ## Roadmap
 
-- [x] Sort containers by name and status
+- [ ] Sort containers by name and status
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
 - [x] Implement log view streaming (basic)
