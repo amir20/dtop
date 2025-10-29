@@ -2,7 +2,6 @@ use ratatui::{
     Frame,
     layout::Constraint,
     style::{Color, Modifier, Style},
-    text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
 };
 use std::collections::HashMap;
@@ -18,7 +17,6 @@ pub struct UiStyles {
     pub header: Style,
     pub border: Style,
     pub selected: Style,
-    pub timestamp: Style,
 }
 
 impl Default for UiStyles {
@@ -33,9 +31,6 @@ impl Default for UiStyles {
             border: Style::default().fg(Color::White),
             selected: Style::default()
                 .bg(Color::DarkGray)
-                .add_modifier(Modifier::BOLD),
-            timestamp: Style::default()
-                .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         }
     }
@@ -106,28 +101,16 @@ fn render_log_view(
         .map(|c| c.name.as_str())
         .unwrap_or("Unknown");
 
-    // Get logs for this container (only if it matches current_logs)
-    let (log_lines, num_lines) = if let Some((key, logs)) = &state.current_logs {
+    // Get number of log lines for this container (only if it matches current_log_container)
+    // Use the cached formatted lines instead of reformatting on every render
+    let num_lines = if let Some(key) = &state.current_log_container {
         if key == container_key {
-            // Format log entries into styled lines with colored timestamps
-            let lines: Vec<Line> = logs
-                .iter()
-                .map(|entry| {
-                    let timestamp_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-                    Line::from(vec![
-                        Span::styled(timestamp_str, styles.timestamp),
-                        Span::raw(" "),
-                        Span::raw(entry.message.clone()),
-                    ])
-                })
-                .collect();
-            let num_lines = lines.len();
-            (lines, num_lines)
+            state.formatted_log_lines.len()
         } else {
-            (Vec::new(), 0)
+            0
         }
     } else {
-        (Vec::new(), 0)
+        0
     };
 
     // Calculate visible height (subtract 1 for top)
@@ -155,8 +138,8 @@ fn render_log_view(
     // Update scroll offset to actual (for proper clamping)
     state.log_scroll_offset = actual_scroll;
 
-    // Create log widget with scrolling
-    let log_widget = Paragraph::new(log_lines)
+    // Create log widget with scrolling using cached formatted lines
+    let log_widget = Paragraph::new(state.formatted_log_lines.clone())
         .block(
             Block::default()
                 .title(format!(
