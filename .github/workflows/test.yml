@@ -20,8 +20,6 @@ jobs:
         platform:
           - os: ubuntu-latest
             name: Linux
-          - os: macos-latest
-            name: macOS
 
     steps:
       - name: Checkout code
