@@ -72,6 +72,8 @@ pub enum AppEvent {
     LogLine(ContainerKey, LogEntry),
     /// User pressed 'o' to open Dozzle
     OpenDozzle,
+    /// User pressed '?' to toggle help
+    ToggleHelp,
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

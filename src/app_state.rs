@@ -39,6 +39,8 @@ pub struct AppState {
     pub event_tx: mpsc::Sender<AppEvent>,
     /// Whether the app is running in an SSH session
     pub is_ssh_session: bool,
+    /// Whether the help popup is currently shown
+    pub show_help: bool,
 }
 
 impl AppState {
@@ -66,6 +68,7 @@ impl AppState {
             connected_hosts,
             event_tx,
             is_ssh_session,
+            show_help: false,
         }
     }
 
@@ -91,6 +94,7 @@ impl AppState {
             AppEvent::ScrollDown => self.handle_scroll_down(),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
+            AppEvent::ToggleHelp => self.handle_toggle_help(),
         }
     }
 
@@ -246,6 +250,12 @@ impl AppState {
     }
 
     fn handle_exit_log_view(&mut self) -> bool {
+        // If help is shown, close it first
+        if self.show_help {
+            self.show_help = false;
+            return true; // Force redraw
+        }
+
         // Only handle Escape when in log view
         if !matches!(self.view_state, ViewState::LogView(_)) {
             return false;
@@ -371,5 +381,10 @@ impl AppState {
         let _ = open::that(&full_url);
 
         false // No need to force draw
+    }
+
+    fn handle_toggle_help(&mut self) -> bool {
+        self.show_help = !self.show_help;
+        true // Force redraw to show/hide popup
     }
 }
