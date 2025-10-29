@@ -1,7 +1,10 @@
-name: Docker Build PR
+name: Docker Build
 
 on:
   pull_request:
+    branches:
+      - master
+  push:
     branches:
       - master
 
@@ -41,6 +44,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=pr
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -54,6 +59,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Comment PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v8
         with:
           script: |
