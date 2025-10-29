@@ -1,7 +1,7 @@
 # 🖥️ dtop
 
 > [!IMPORTANT]
-> This project is currently being rewritten in Rust on the `master` branch. The Go version is available on the `go` branch.
+> This project is currently being rewritten in Rust on the `master` branch. The Go version is available on the `v1` branch.
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
@@ -15,7 +15,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 - 💻 **Real-time monitoring** - Live updates of container status and metrics
 - ⚡ **Lightweight** - Minimal resource footprint using Rust
-- 🖱️**Hyperlinks** - Clickable links to container logs and stats using Dozzle
+- ⌨ **Dozzle** - Supports opening Dozzle links
 
 ## Roadmap
 
