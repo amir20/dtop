@@ -30,8 +30,6 @@ pub struct AppState {
     pub connected_hosts: HashMap<String, DockerHost>,
     /// Event sender for spawning log streams
     pub event_tx: mpsc::Sender<AppEvent>,
-    /// Dozzle URL mapping for each host
-    pub dozzle_urls: HashMap<String, String>,
     /// Whether the app is running in an SSH session
     pub is_ssh_session: bool,
 }
@@ -41,7 +39,6 @@ impl AppState {
     pub fn new(
         connected_hosts: HashMap<String, DockerHost>,
         event_tx: mpsc::Sender<AppEvent>,
-        dozzle_urls: HashMap<String, String>,
     ) -> Self {
         // Detect if running in SSH session
         let is_ssh_session = std::env::var("SSH_CLIENT").is_ok()
@@ -60,7 +57,6 @@ impl AppState {
             log_stream_handle: None,
             connected_hosts,
             event_tx,
-            dozzle_urls,
             is_ssh_session,
         }
     }
@@ -333,8 +329,12 @@ impl AppState {
             return false;
         };
 
-        // Get the Dozzle URL for this host
-        let Some(dozzle_url) = self.dozzle_urls.get(&container_key.host_id) else {
+        // Get the container and its Dozzle URL
+        let Some(container) = self.containers.get(container_key) else {
+            return false;
+        };
+
+        let Some(dozzle_url) = &container.dozzle_url else {
             return false;
         };
 
@@ -345,8 +345,8 @@ impl AppState {
             container_key.container_id
         );
 
-        // Open the URL using the 'open' command
-        let _ = std::process::Command::new("open").arg(&full_url).spawn();
+        // Open the URL using the 'open' crate (cross-platform)
+        let _ = open::that(&full_url);
 
         false // No need to force draw
     }

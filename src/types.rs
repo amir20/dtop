@@ -13,6 +13,7 @@ pub struct Container {
     pub status: String,
     pub stats: ContainerStats,
     pub host_id: HostId,
+    pub dozzle_url: Option<String>,
 }
 
 /// Container runtime statistics (updated frequently)
