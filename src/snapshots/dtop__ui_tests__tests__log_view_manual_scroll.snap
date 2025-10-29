@@ -1,0 +1,8 @@
+---
+source: src/ui_tests.rs
+expression: output
+---
+Logs: nginx (local) - Press ESC to return [AUTO]                                                                        
+2025-10-29T10:15:30Z Log line 1                                                                                         
+2025-10-29T10:15:31Z Log line 2                                                                                         
+2025-10-29T10:15:32Z Log line 3

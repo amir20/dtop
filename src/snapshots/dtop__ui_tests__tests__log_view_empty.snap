@@ -1,0 +1,5 @@
+---
+source: src/ui_tests.rs
+expression: output
+---
+Logs: nginx (local) - Press ESC to return [AUTO]

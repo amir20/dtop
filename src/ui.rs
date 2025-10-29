@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use crate::app_state::AppState;
 use crate::types::{Container, ContainerKey, ViewState};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Pre-allocated styles to avoid recreation every frame
 pub struct UiStyles {
     pub high: Style,
@@ -279,8 +281,8 @@ fn create_table<'a>(
             Block::default()
                 .borders(Borders::ALL)
                 .title(format!(
-                    "dtop - {} containers (↑/↓ to navigate, 'q' to quit)",
-                    container_count
+                    "dtop v{} - {} containers (↑/↓ to navigate, 'q' to quit)",
+                    VERSION, container_count
                 ))
                 .style(styles.border),
         )
