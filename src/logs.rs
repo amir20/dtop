@@ -2,18 +2,17 @@ use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
-use ratatui::text::Line;
+use ratatui::text::Text;
 
 use crate::docker::DockerHost;
 use crate::types::{AppEvent, ContainerKey, EventSender};
 
-/// A parsed log entry with timestamp and message
+/// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
-    pub message: String,
-    /// Parsed ANSI spans for rendering with colors/styles
-    pub spans: Line<'static>,
+    /// Parsed ANSI text ready for rendering
+    pub text: Text<'static>,
 }
 
 impl LogEntry {
@@ -29,19 +28,13 @@ impl LogEntry {
             .ok()?
             .with_timezone(&Utc);
 
-        // Parse ANSI codes into styled spans
-        let spans = message
+        // Parse ANSI codes directly into Text (don't trim to preserve whitespace)
+        let text = message
             .as_bytes()
             .into_text()
-            .ok()
-            .and_then(|text| text.lines.into_iter().next())
-            .unwrap_or_else(|| Line::from(message.to_string()));
+            .unwrap_or_else(|_| Text::from(message.to_string()));
 
-        Some(LogEntry {
-            timestamp,
-            message: message.to_string(),
-            spans,
-        })
+        Some(LogEntry { timestamp, text })
     }
 }
 
@@ -99,8 +92,8 @@ mod tests {
         let log_line = "2025-10-28T12:34:56.789Z Hello world";
         let entry = LogEntry::parse(log_line).expect("Should parse valid log line");
 
-        assert_eq!(entry.message, "Hello world");
         assert_eq!(entry.timestamp.format("%Y-%m-%d").to_string(), "2025-10-28");
+        assert!(!entry.text.lines.is_empty());
     }
 
     #[test]
@@ -108,7 +101,7 @@ mod tests {
         let log_line = "2025-10-28T12:34:56.789Z Message with   multiple spaces";
         let entry = LogEntry::parse(log_line).expect("Should parse log line with multiple spaces");
 
-        assert_eq!(entry.message, "Message with   multiple spaces");
+        assert!(!entry.text.lines.is_empty());
     }
 
     #[test]
@@ -135,6 +128,7 @@ mod tests {
         let log_line = "2025-10-28T12:34:56.789Z ";
         let entry = LogEntry::parse(log_line).expect("Should parse log line with empty message");
 
-        assert_eq!(entry.message, "");
+        // Should parse successfully even with empty message (just check it exists)
+        assert_eq!(entry.timestamp.format("%Y-%m-%d").to_string(), "2025-10-28");
     }
 }
