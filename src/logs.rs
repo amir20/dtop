@@ -1,6 +1,8 @@
+use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
+use ratatui::text::Line;
 
 use crate::docker::DockerHost;
 use crate::types::{AppEvent, ContainerKey, EventSender};
@@ -10,6 +12,8 @@ use crate::types::{AppEvent, ContainerKey, EventSender};
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
     pub message: String,
+    /// Parsed ANSI spans for rendering with colors/styles
+    pub spans: Line<'static>,
 }
 
 impl LogEntry {
@@ -25,9 +29,18 @@ impl LogEntry {
             .ok()?
             .with_timezone(&Utc);
 
+        // Parse ANSI codes into styled spans
+        let spans = message
+            .as_bytes()
+            .into_text()
+            .ok()
+            .and_then(|text| text.lines.into_iter().next())
+            .unwrap_or_else(|| Line::from(message.to_string()));
+
         Some(LogEntry {
             timestamp,
-            message: message.trim().to_string(),
+            message: message.to_string(),
+            spans,
         })
     }
 }

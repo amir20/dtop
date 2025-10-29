@@ -307,11 +307,15 @@ impl AppState {
         {
             // Format the new log entry and add to cached lines
             let timestamp_str = log_entry.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-            let formatted_line = Line::from(vec![
+
+            // Use the parsed ANSI spans from log_entry instead of raw text
+            let mut spans = vec![
                 ratatui::text::Span::styled(timestamp_str, TIMESTAMP_STYLE),
                 ratatui::text::Span::raw(" "),
-                ratatui::text::Span::raw(log_entry.message),
-            ]);
+            ];
+            spans.extend(log_entry.spans.spans);
+
+            let formatted_line = Line::from(spans);
             self.formatted_log_lines.push(formatted_line);
 
             // Only auto-scroll if user is at the bottom
