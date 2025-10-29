@@ -102,10 +102,10 @@ fn render_log_view(
         .unwrap_or("Unknown");
 
     // Get number of log lines for this container (only if it matches current_log_container)
-    // Use the cached formatted lines instead of reformatting on every render
+    // Use the cached formatted text instead of reformatting on every render
     let num_lines = if let Some(key) = &state.current_log_container {
         if key == container_key {
-            state.formatted_log_lines.len()
+            state.formatted_log_text.lines.len()
         } else {
             0
         }
@@ -138,8 +138,9 @@ fn render_log_view(
     // Update scroll offset to actual (for proper clamping)
     state.log_scroll_offset = actual_scroll;
 
-    // Create log widget with scrolling using cached formatted lines
-    let log_widget = Paragraph::new(state.formatted_log_lines.clone())
+    // Create log widget with scrolling using cached formatted text
+    // We clone here, but this is still more efficient than creating individual spans
+    let log_widget = Paragraph::new(state.formatted_log_text.clone())
         .block(
             Block::default()
                 .title(format!(

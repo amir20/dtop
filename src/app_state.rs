@@ -1,5 +1,5 @@
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -25,8 +25,8 @@ pub struct AppState {
     pub view_state: ViewState,
     /// Currently viewed container key (for log view)
     pub current_log_container: Option<ContainerKey>,
-    /// Cached formatted log lines (to avoid reformatting on every render)
-    pub formatted_log_lines: Vec<Line<'static>>,
+    /// Cached formatted log text (to avoid reformatting on every render)
+    pub formatted_log_text: Text<'static>,
     /// Current scroll position (number of lines scrolled from top)
     pub log_scroll_offset: usize,
     /// Whether the user is at the bottom of the logs (for auto-scroll behavior)
@@ -59,7 +59,7 @@ impl AppState {
             table_state: TableState::default(),
             view_state: ViewState::ContainerList,
             current_log_container: None,
-            formatted_log_lines: Vec::new(),
+            formatted_log_text: Text::default(),
             log_scroll_offset: 0,
             is_at_bottom: true,
             log_stream_handle: None,
@@ -216,9 +216,9 @@ impl AppState {
         // Switch to log view
         self.view_state = ViewState::LogView(container_key.clone());
 
-        // Set the current log container and clear cached lines
+        // Set the current log container and clear cached text
         self.current_log_container = Some(container_key.clone());
-        self.formatted_log_lines.clear();
+        self.formatted_log_text = Text::default();
 
         // Reset scroll state - start at bottom
         self.log_scroll_offset = 0;
@@ -256,9 +256,9 @@ impl AppState {
             handle.abort();
         }
 
-        // Clear current log container and formatted lines
+        // Clear current log container and formatted text
         self.current_log_container = None;
-        self.formatted_log_lines.clear();
+        self.formatted_log_text = Text::default();
 
         // Switch back to container list view
         self.view_state = ViewState::ContainerList;
@@ -305,14 +305,19 @@ impl AppState {
         if let Some(current_key) = &self.current_log_container
             && current_key == &key
         {
-            // Format the new log entry and add to cached lines
+            // Format the new log entry with timestamp and append to cached text
             let timestamp_str = log_entry.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-            let formatted_line = Line::from(vec![
-                ratatui::text::Span::styled(timestamp_str, TIMESTAMP_STYLE),
-                ratatui::text::Span::raw(" "),
-                ratatui::text::Span::raw(log_entry.message),
-            ]);
-            self.formatted_log_lines.push(formatted_line);
+
+            // Create a line with timestamp + ANSI-parsed content
+            let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
+
+            // Append all spans from the ANSI-parsed text (should be a single line)
+            if let Some(text_line) = log_entry.text.lines.first() {
+                line_spans.extend(text_line.spans.iter().cloned());
+            }
+
+            // Add the formatted line to our cached text
+            self.formatted_log_text.lines.push(Line::from(line_spans));
 
             // Only auto-scroll if user is at the bottom
             if self.is_at_bottom {
