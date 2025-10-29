@@ -12,11 +12,16 @@ use crate::types::{AppEvent, Container, ContainerKey, ContainerStats, EventSende
 pub struct DockerHost {
     pub host_id: HostId,
     pub docker: Docker,
+    pub dozzle_url: Option<String>,
 }
 
 impl DockerHost {
-    pub fn new(host_id: HostId, docker: Docker) -> Self {
-        Self { host_id, docker }
+    pub fn new(host_id: HostId, docker: Docker, dozzle_url: Option<String>) -> Self {
+        Self {
+            host_id,
+            docker,
+            dozzle_url,
+        }
     }
 }
 
@@ -61,6 +66,7 @@ async fn fetch_initial_containers(
                 status: status.clone(),
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
+                dozzle_url: host.dozzle_url.clone(),
             };
 
             initial_containers.push(container_info);
@@ -187,6 +193,7 @@ async fn handle_container_start(
                 status: status.clone(),
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
+                dozzle_url: host.dozzle_url.clone(),
             };
 
             let _ = tx.send(AppEvent::ContainerCreated(container)).await;

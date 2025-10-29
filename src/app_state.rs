@@ -30,6 +30,8 @@ pub struct AppState {
     pub connected_hosts: HashMap<String, DockerHost>,
     /// Event sender for spawning log streams
     pub event_tx: mpsc::Sender<AppEvent>,
+    /// Whether the app is running in an SSH session
+    pub is_ssh_session: bool,
 }
 
 impl AppState {
@@ -38,6 +40,11 @@ impl AppState {
         connected_hosts: HashMap<String, DockerHost>,
         event_tx: mpsc::Sender<AppEvent>,
     ) -> Self {
+        // Detect if running in SSH session
+        let is_ssh_session = std::env::var("SSH_CLIENT").is_ok()
+            || std::env::var("SSH_TTY").is_ok()
+            || std::env::var("SSH_CONNECTION").is_ok();
+
         Self {
             containers: HashMap::new(),
             sorted_container_keys: Vec::new(),
@@ -50,6 +57,7 @@ impl AppState {
             log_stream_handle: None,
             connected_hosts,
             event_tx,
+            is_ssh_session,
         }
     }
 
@@ -74,6 +82,7 @@ impl AppState {
             AppEvent::ScrollUp => self.handle_scroll_up(),
             AppEvent::ScrollDown => self.handle_scroll_down(),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
+            AppEvent::OpenDozzle => self.handle_open_dozzle(),
         }
     }
 
@@ -298,5 +307,47 @@ impl AppState {
 
         // Ignore log lines for containers we're not viewing
         false
+    }
+
+    fn handle_open_dozzle(&mut self) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Don't open URLs in SSH sessions
+        if self.is_ssh_session {
+            return false;
+        }
+
+        // Get the selected container
+        let Some(selected_idx) = self.table_state.selected() else {
+            return false;
+        };
+
+        let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
+            return false;
+        };
+
+        // Get the container and its Dozzle URL
+        let Some(container) = self.containers.get(container_key) else {
+            return false;
+        };
+
+        let Some(dozzle_url) = &container.dozzle_url else {
+            return false;
+        };
+
+        // Build the full URL: {dozzle}/container/{containerId}
+        let full_url = format!(
+            "{}/container/{}",
+            dozzle_url.trim_end_matches('/'),
+            container_key.container_id
+        );
+
+        // Open the URL using the 'open' crate (cross-platform)
+        let _ = open::that(&full_url);
+
+        false // No need to force draw
     }
 }

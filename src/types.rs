@@ -13,6 +13,7 @@ pub struct Container {
     pub status: String,
     pub stats: ContainerStats,
     pub host_id: HostId,
+    pub dozzle_url: Option<String>,
 }
 
 /// Container runtime statistics (updated frequently)
@@ -69,6 +70,8 @@ pub enum AppEvent {
     ScrollDown,
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
+    /// User pressed 'o' to open Dozzle
+    OpenDozzle,
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

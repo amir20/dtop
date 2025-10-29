@@ -88,12 +88,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut connected_hosts: HashMap<String, DockerHost> = HashMap::new();
 
     // Connect to all hosts and spawn container managers
-    for host_spec in hosts {
-        match connect_docker(&host_spec) {
+    for (idx, host_spec) in hosts.iter().enumerate() {
+        match connect_docker(host_spec) {
             Ok(docker) => {
                 // Create a unique host ID from the host spec
-                let host_id = create_host_id(&host_spec);
-                let docker_host = DockerHost::new(host_id.clone(), docker);
+                let host_id = create_host_id(host_spec);
+
+                // Get Dozzle URL if configured for this host
+                let dozzle_url = merged_config.hosts.get(idx).and_then(|h| h.dozzle.clone());
+
+                let docker_host = DockerHost::new(host_id.clone(), docker, dozzle_url);
 
                 // Store the DockerHost for log streaming
                 connected_hosts.insert(host_id.clone(), docker_host.clone());
