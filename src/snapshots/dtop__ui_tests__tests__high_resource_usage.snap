@@ -2,7 +2,7 @@
 source: src/ui_tests.rs
 expression: output
 ---
-┌dtop v0.2.0 - 3 containers (↑/↓ to navigate, 'q' to quit)─────────────────────────────────────────────────────────────┐
+┌dtop v0.2.0 - 3 containers (↑/↓ to navigate, '?' for help, 'q' to quit)───────────────────────────────────────────────┐
 │ID           Name  CPU %                        Memory %                     Net TX       Net RX       Status         │
 │                                                                                                                      │
 │low12345678  low-u ███░░░░░░░░░░░░░░░░░  15.0%  ████░░░░░░░░░░░░░░░░  20.0%  100B/s       200B/s       running        │
