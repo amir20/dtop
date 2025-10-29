@@ -346,36 +346,22 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  o           Open container in Dozzle (if configured)"),
         Line::from("  ?           Toggle this help screen"),
         Line::from("  q           Quit dtop"),
-        Line::from("  Ctrl+C      Quit dtop"),
         Line::from(""),
+        // Colors
         Line::from(vec![Span::styled(
-            "Features",
+            "Resource Usage Colors",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  • Real-time CPU, memory, and network stats"),
-        Line::from("  • Multi-host Docker monitoring"),
-        Line::from("  • Live log streaming with auto-scroll"),
-        Line::from("  • Color-coded resource usage:"),
         Line::from(vec![
-            Span::raw("    "),
-            Span::styled("Green", styles.low),
+            Span::styled("  Green", styles.low),
             Span::raw(" (0-50%)  "),
             Span::styled("Yellow", styles.medium),
             Span::raw(" (50-80%)  "),
             Span::styled("Red", styles.high),
             Span::raw(" (>80%)"),
         ]),
-        Line::from(""),
-        Line::from(vec![Span::styled(
-            "Configuration",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )]),
-        Line::from("  Config file: ~/.config/dtop/config.yaml"),
-        Line::from("  See config.example.yaml for details"),
     ];
 
     // Calculate inner area (inside the border)
