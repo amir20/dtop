@@ -61,6 +61,11 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
             render_log_view(f, &container_key, state, styles);
         }
     }
+
+    // Render help popup on top if shown
+    if state.show_help {
+        render_help_popup(f, styles);
+    }
 }
 
 /// Renders the container list view
@@ -281,12 +286,97 @@ fn create_table<'a>(
             Block::default()
                 .borders(Borders::ALL)
                 .title(format!(
-                    "dtop v{} - {} containers (↑/↓ to navigate, 'q' to quit)",
+                    "dtop v{} - {} containers (↑/↓ to navigate, '?' for help, 'q' to quit)",
                     VERSION, container_count
                 ))
                 .style(styles.border),
         )
         .row_highlight_style(styles.selected)
+}
+
+/// Renders a centered help popup
+fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
+    use ratatui::layout::{Alignment, Rect};
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::Clear;
+
+    let area = f.area();
+
+    // Create a centered popup (60% width, 70% height)
+    let popup_width = (area.width as f32 * 0.6) as u16;
+    let popup_height = (area.height as f32 * 0.7) as u16;
+
+    let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+    let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+    let popup_area = Rect::new(popup_x, popup_y, popup_width, popup_height);
+
+    // Clear the background area first to prevent bleed-through
+    f.render_widget(Clear, popup_area);
+
+    // Render the popup block
+    let block = Block::default()
+        .title(" Help - Press ? or ESC to close ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(styles.header)
+        .style(Style::default().bg(Color::Black));
+
+    f.render_widget(block, popup_area);
+
+    // Create help content
+    let help_text = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Navigation",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  ↑/↓         Navigate containers or scroll logs"),
+        Line::from("  Enter       View logs for selected container"),
+        Line::from("  Esc         Exit log view or close help"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Actions",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  o           Open container in Dozzle (if configured)"),
+        Line::from("  ?           Toggle this help screen"),
+        Line::from("  q           Quit dtop"),
+        Line::from(""),
+        // Colors
+        Line::from(vec![Span::styled(
+            "Resource Usage Colors",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(vec![
+            Span::styled("  Green", styles.low),
+            Span::raw(" (0-50%)  "),
+            Span::styled("Yellow", styles.medium),
+            Span::raw(" (50-80%)  "),
+            Span::styled("Red", styles.high),
+            Span::raw(" (>80%)"),
+        ]),
+    ];
+
+    // Calculate inner area (inside the border)
+    let inner_area = Rect::new(
+        popup_area.x + 2,
+        popup_area.y + 2,
+        popup_area.width.saturating_sub(4),
+        popup_area.height.saturating_sub(3),
+    );
+
+    let paragraph = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::White))
+        .wrap(Wrap { trim: false });
+
+    f.render_widget(paragraph, inner_area);
 }
 
 #[cfg(test)]

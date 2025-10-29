@@ -42,6 +42,9 @@ pub fn keyboard_worker(tx: EventSender) {
                     KeyCode::Char('o') => {
                         let _ = tx.blocking_send(AppEvent::OpenDozzle);
                     }
+                    KeyCode::Char('?') => {
+                        let _ = tx.blocking_send(AppEvent::ToggleHelp);
+                    }
                     _ => {}
                 },
                 Event::Resize(_, _) => {
