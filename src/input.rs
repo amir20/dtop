@@ -39,6 +39,9 @@ pub fn keyboard_worker(tx: EventSender) {
                     KeyCode::Esc => {
                         let _ = tx.blocking_send(AppEvent::ExitLogView);
                     }
+                    KeyCode::Char('o') => {
+                        let _ = tx.blocking_send(AppEvent::OpenDozzle);
+                    }
                     _ => {}
                 },
                 Event::Resize(_, _) => {

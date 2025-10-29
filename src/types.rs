@@ -69,6 +69,8 @@ pub enum AppEvent {
     ScrollDown,
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
+    /// User pressed 'o' to open Dozzle
+    OpenDozzle,
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

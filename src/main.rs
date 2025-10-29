@@ -87,16 +87,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Store DockerHost instances for log streaming
     let mut connected_hosts: HashMap<String, DockerHost> = HashMap::new();
 
+    // Store Dozzle URLs for each host
+    let mut dozzle_urls: HashMap<String, String> = HashMap::new();
+
     // Connect to all hosts and spawn container managers
-    for host_spec in hosts {
-        match connect_docker(&host_spec) {
+    for (idx, host_spec) in hosts.iter().enumerate() {
+        match connect_docker(host_spec) {
             Ok(docker) => {
                 // Create a unique host ID from the host spec
-                let host_id = create_host_id(&host_spec);
+                let host_id = create_host_id(host_spec);
                 let docker_host = DockerHost::new(host_id.clone(), docker);
 
                 // Store the DockerHost for log streaming
                 connected_hosts.insert(host_id.clone(), docker_host.clone());
+
+                // Store Dozzle URL if configured for this host
+                if let Some(host_config) = merged_config.hosts.get(idx)
+                    && let Some(dozzle_url) = &host_config.dozzle
+                {
+                    dozzle_urls.insert(host_id.clone(), dozzle_url.clone());
+                }
 
                 // Spawn container manager for this host
                 spawn_container_manager(docker_host, tx.clone());
@@ -112,7 +122,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     spawn_keyboard_worker(tx.clone());
 
     // Run main event loop
-    run_event_loop(&mut terminal, &mut rx, tx.clone(), connected_hosts).await?;
+    run_event_loop(
+        &mut terminal,
+        &mut rx,
+        tx.clone(),
+        connected_hosts,
+        dozzle_urls,
+    )
+    .await?;
 
     // Restore terminal
     cleanup_terminal(&mut terminal)?;
@@ -211,8 +228,9 @@ async fn run_event_loop(
     rx: &mut mpsc::Receiver<AppEvent>,
     tx: mpsc::Sender<AppEvent>,
     connected_hosts: HashMap<String, DockerHost>,
+    dozzle_urls: HashMap<String, String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = AppState::new(connected_hosts, tx);
+    let mut state = AppState::new(connected_hosts, tx, dozzle_urls);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 
