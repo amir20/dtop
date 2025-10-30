@@ -45,7 +45,7 @@ Currently, the image is available for amd64 and arm64 architectures.
 Downloads the latest release from GitHub.
 
 ```sh
-curl -sSfL https://amir20.github.io/dtop/install.sh | bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh
 ```
 
 ### Install from Source
