@@ -6,7 +6,9 @@ use tokio::sync::mpsc;
 
 use crate::docker::DockerHost;
 use crate::logs::{LogEntry, stream_container_logs};
-use crate::types::{AppEvent, Container, ContainerKey, SortDirection, SortField, ViewState};
+use crate::types::{
+    AppEvent, Container, ContainerKey, SortDirection, SortField, SortState, ViewState,
+};
 
 /// Style for log timestamps (yellow + bold)
 const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
@@ -41,10 +43,8 @@ pub struct AppState {
     pub is_ssh_session: bool,
     /// Whether the help popup is currently shown
     pub show_help: bool,
-    /// Current sort field for container list
-    pub sort_field: SortField,
-    /// Current sort direction
-    pub sort_direction: SortDirection,
+    /// Current sort state (field + direction)
+    pub sort_state: SortState,
 }
 
 impl AppState {
@@ -73,8 +73,7 @@ impl AppState {
             event_tx,
             is_ssh_session,
             show_help: false,
-            sort_field: SortField::Uptime, // Default to sorting by uptime
-            sort_direction: SortField::Uptime.default_direction(), // Default direction for uptime
+            sort_state: SortState::default(), // Default to Uptime descending
         }
     }
 
@@ -386,11 +385,8 @@ impl AppState {
             return false;
         }
 
-        // Cycle to next sort field
-        self.sort_field = self.sort_field.next();
-
-        // Set default direction for the new field
-        self.sort_direction = self.sort_field.default_direction();
+        // Cycle to next sort field with default direction
+        self.sort_state = SortState::new(self.sort_state.field.next());
 
         // Re-sort the container list
         self.sort_containers();
@@ -405,11 +401,10 @@ impl AppState {
         }
 
         // If same field, toggle direction; otherwise use default direction
-        if self.sort_field == field {
-            self.sort_direction = self.sort_direction.toggle();
+        if self.sort_state.field == field {
+            self.sort_state.direction = self.sort_state.direction.toggle();
         } else {
-            self.sort_field = field;
-            self.sort_direction = field.default_direction();
+            self.sort_state = SortState::new(field);
         }
 
         // Re-sort the container list
@@ -420,9 +415,9 @@ impl AppState {
 
     /// Sorts the container keys based on the current sort field and direction
     fn sort_containers(&mut self) {
-        let direction = self.sort_direction;
+        let direction = self.sort_state.direction;
 
-        match self.sort_field {
+        match self.sort_state.field {
             SortField::Uptime => {
                 self.sorted_container_keys.sort_by(|a, b| {
                     let container_a = self.containers.get(a).unwrap();

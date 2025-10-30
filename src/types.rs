@@ -117,6 +117,29 @@ impl SortDirection {
     }
 }
 
+/// Combined sort state (field + direction)
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SortState {
+    pub field: SortField,
+    pub direction: SortDirection,
+}
+
+impl SortState {
+    /// Creates a new SortState with the default direction for the field
+    pub fn new(field: SortField) -> Self {
+        Self {
+            field,
+            direction: field.default_direction(),
+        }
+    }
+}
+
+impl Default for SortState {
+    fn default() -> Self {
+        Self::new(SortField::Uptime)
+    }
+}
+
 /// Sort field for container list
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SortField {
