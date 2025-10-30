@@ -30,19 +30,12 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
 
-### Homebrew (macOS and Linux)
-
-This is recommended for macOS and Linux users. Automatic updates are handled by Homebrew.
-
-```sh
-brew install --cask amir20/homebrew-dtop/dtop
-```
 
 ### Docker
-`dtop` is released as a [Docker image](https://hub.docker.com/r/amir20/dtop). You can pull it from Docker Hub.
+`dtop` is released as a docker image. You can pull it from Github.
 
 ```sh
-docker run -v /var/run/docker.sock:/var/run/docker.sock -it amir20/dtop
+docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop
 ```
 
 Currently, the image is available for amd64 and arm64 architectures.
@@ -67,9 +60,23 @@ cargo install --git https://github.com/amir20/dtop
 
 By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
 
-- `--help` - Display help information.
-- `--hosts` - A comma separated list of hosts to connect. Defaults to `local`.
+A terminal-based Docker container monitoring tool with real-time CPU and memory metrics
 
+    Usage: dtop [OPTIONS]
+
+    Options:
+      -H, --host <HOST>
+              Docker host(s) to connect to. Can be specified multiple times.
+
+              Examples: --host local                    (Connect to local Docker daemon) --host ssh://user@host          (Connect via SSH) --host ssh://user@host:2222     (Connect via SSH with custom port) --host tcp://host:2375          (Connect via TCP to remote Docker daemon) --host local --host ssh://user@server1 --host tcp://server2:2375  (Multiple hosts)
+
+              If not specified, will use config file or default to "local"
+
+      -h, --help
+              Print help (see a summary with '-h')
+
+      -V, --version
+              Print version
 
 ## Configuration File
 
@@ -94,6 +101,8 @@ hosts:
     dozzle: http://host:8080/
 ```
 
+See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.example.yaml) for more examples.
+
 ## Supported Connections
 
 - **Local Docker** - Monitor containers running on the local Docker daemon using `--hosts local`
@@ -105,11 +114,6 @@ You can connect to multiple hosts by separating them with commas:
 ```bash
 dtop --host local --host tcp://host2:2375 --host ssh://user@host
 ```
-
-## Dozzle Integration
-
-`dtop` supports linking to container logs using Dozzle. To enable this feature, specify the Dozzle URL in the configuration file or command line flags. Once enabled, `dtop` will automatically open the Dozzle UI when you click on a container. `dtop` leverages [OSC8](https://github.com/Alhadis/OSC8-Adoption/) to send the URL to the terminal. iTerm, Ghostty and a few other terminals supports this with `cmd+click` or `ctrl+click` on the container name. For tmux, you need to have `tmux` version 3.4 or higher installed with `hyperlinks` enabled. This is usually enabled with `set -as terminal-features ",*:hyperlinks"`.
-
 > [!Note]
 > Currently, Dozzle url can only be configured in the configuration file. There is no way to provide it directly in the command line flags.
 
