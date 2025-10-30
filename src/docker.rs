@@ -1,5 +1,6 @@
 use bollard::Docker;
 use bollard::query_parameters::{EventsOptions, InspectContainerOptions, ListContainersOptions};
+use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -58,12 +59,16 @@ async fn fetch_initial_containers(
                 .as_ref()
                 .and_then(|n| n.first().map(|s| s.trim_start_matches('/').to_string()))
                 .unwrap_or_default();
-            let status = container.status.clone().unwrap_or_default();
+
+            // Parse created timestamp from Unix timestamp
+            let created = container
+                .created
+                .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0));
 
             let container_info = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
-                status: status.clone(),
+                created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
                 dozzle_url: host.dozzle_url.clone(),
@@ -178,19 +183,19 @@ async fn handle_container_start(
             .map(|n| n.trim_start_matches('/').to_string())
             .unwrap_or_default();
 
-        let status = inspect
-            .state
-            .as_ref()
-            .and_then(|s| s.status.as_ref())
-            .map(|s| format!("{:?}", s))
-            .unwrap_or_else(|| "running".to_string());
+        // Parse created timestamp from RFC3339 string
+        let created = inspect.created.as_ref().and_then(|created_str| {
+            DateTime::parse_from_rfc3339(created_str)
+                .ok()
+                .map(|dt| dt.with_timezone(&Utc))
+        });
 
         // Start monitoring the new container
         if !active_containers.contains_key(&truncated_id) {
             let container = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
-                status: status.clone(),
+                created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
                 dozzle_url: host.dozzle_url.clone(),

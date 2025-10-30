@@ -43,10 +43,15 @@ mod tests {
         net_tx: f64,
         net_rx: f64,
     ) -> Container {
+        use chrono::Utc;
+
+        // Create a test timestamp (e.g., 2 hours ago)
+        let created = Some(Utc::now() - chrono::Duration::hours(2));
+
         Container {
             id: id.to_string(),
             name: name.to_string(),
-            status: "running".to_string(),
+            created,
             stats: ContainerStats {
                 cpu,
                 memory,
