@@ -75,6 +75,10 @@ pub enum AppEvent {
     OpenDozzle,
     /// User pressed '?' to toggle help
     ToggleHelp,
+    /// User pressed 's' to cycle sort field
+    CycleSortField,
+    /// User pressed a key to set a specific sort field
+    SetSortField(SortField),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
@@ -86,4 +90,87 @@ pub enum ViewState {
     ContainerList,
     /// Viewing logs for a specific container
     LogView(ContainerKey),
+}
+
+/// Sort direction
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+impl SortDirection {
+    /// Toggles the sort direction
+    pub fn toggle(self) -> Self {
+        match self {
+            SortDirection::Ascending => SortDirection::Descending,
+            SortDirection::Descending => SortDirection::Ascending,
+        }
+    }
+
+    /// Returns the display symbol for this direction
+    pub fn symbol(self) -> &'static str {
+        match self {
+            SortDirection::Ascending => "▲",
+            SortDirection::Descending => "▼",
+        }
+    }
+}
+
+/// Combined sort state (field + direction)
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SortState {
+    pub field: SortField,
+    pub direction: SortDirection,
+}
+
+impl SortState {
+    /// Creates a new SortState with the default direction for the field
+    pub fn new(field: SortField) -> Self {
+        Self {
+            field,
+            direction: field.default_direction(),
+        }
+    }
+}
+
+impl Default for SortState {
+    fn default() -> Self {
+        Self::new(SortField::Uptime)
+    }
+}
+
+/// Sort field for container list
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SortField {
+    /// Sort by creation time (uptime)
+    Uptime,
+    /// Sort by container name
+    Name,
+    /// Sort by CPU usage
+    Cpu,
+    /// Sort by memory usage
+    Memory,
+}
+
+impl SortField {
+    /// Cycles to the next sort field
+    pub fn next(self) -> Self {
+        match self {
+            SortField::Uptime => SortField::Name,
+            SortField::Name => SortField::Cpu,
+            SortField::Cpu => SortField::Memory,
+            SortField::Memory => SortField::Uptime,
+        }
+    }
+
+    /// Returns the default sort direction for this field
+    pub fn default_direction(self) -> SortDirection {
+        match self {
+            SortField::Name => SortDirection::Ascending,
+            SortField::Uptime => SortDirection::Descending, // Newest first
+            SortField::Cpu => SortDirection::Descending,    // Highest first
+            SortField::Memory => SortDirection::Descending, // Highest first
+        }
+    }
 }

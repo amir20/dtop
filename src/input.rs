@@ -45,6 +45,25 @@ pub fn keyboard_worker(tx: EventSender) {
                     KeyCode::Char('?') => {
                         let _ = tx.blocking_send(AppEvent::ToggleHelp);
                     }
+                    KeyCode::Char('s') => {
+                        let _ = tx.blocking_send(AppEvent::CycleSortField);
+                    }
+                    KeyCode::Char('u') | KeyCode::Char('U') => {
+                        let _ = tx
+                            .blocking_send(AppEvent::SetSortField(crate::types::SortField::Uptime));
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') => {
+                        let _ =
+                            tx.blocking_send(AppEvent::SetSortField(crate::types::SortField::Name));
+                    }
+                    KeyCode::Char('c') | KeyCode::Char('C') => {
+                        let _ =
+                            tx.blocking_send(AppEvent::SetSortField(crate::types::SortField::Cpu));
+                    }
+                    KeyCode::Char('m') | KeyCode::Char('M') => {
+                        let _ = tx
+                            .blocking_send(AppEvent::SetSortField(crate::types::SortField::Memory));
+                    }
                     _ => {}
                 },
                 Event::Resize(_, _) => {
