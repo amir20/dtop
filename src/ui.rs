@@ -1,3 +1,4 @@
+use chrono::Utc;
 use ratatui::{
     Frame,
     layout::Constraint,
@@ -5,6 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
 };
 use std::collections::HashMap;
+use timeago::Formatter;
 
 use crate::app_state::AppState;
 use crate::types::{Container, ContainerKey, ViewState};
@@ -168,6 +170,18 @@ fn render_log_view(
     f.render_widget(log_widget, size);
 }
 
+/// Formats the time elapsed since container creation
+fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
+    match created {
+        Some(created_time) => {
+            let formatter = Formatter::new();
+            let now = Utc::now();
+            formatter.convert_chrono(*created_time, now)
+        }
+        None => "Unknown".to_string(),
+    }
+}
+
 /// Creates a table row for a single container
 fn create_container_row<'a>(
     container: &'a Container,
@@ -183,6 +197,9 @@ fn create_container_row<'a>(
     let network_tx = format_bytes_per_sec(container.stats.network_tx_bytes_per_sec);
     let network_rx = format_bytes_per_sec(container.stats.network_rx_bytes_per_sec);
 
+    // Format time elapsed since creation
+    let time_elapsed = format_time_elapsed(container.created.as_ref());
+
     let mut cells = vec![
         Cell::from(container.id.as_str()),
         Cell::from(container.name.as_str()),
@@ -197,7 +214,7 @@ fn create_container_row<'a>(
         Cell::from(memory_bar).style(memory_style),
         Cell::from(network_tx),
         Cell::from(network_rx),
-        Cell::from(container.status.as_str()),
+        Cell::from(time_elapsed),
     ]);
 
     Row::new(cells)
@@ -250,7 +267,7 @@ fn create_header_row(styles: &UiStyles, show_host_column: bool) -> Row<'static> 
         headers.push("Host");
     }
 
-    headers.extend(vec!["CPU %", "Memory %", "Net TX", "Net RX", "Status"]);
+    headers.extend(vec!["CPU %", "Memory %", "Net TX", "Net RX", "Uptime"]);
 
     Row::new(headers).style(styles.header).bottom_margin(1)
 }

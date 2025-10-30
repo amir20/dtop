@@ -21,6 +21,7 @@ dirs = "6.0"
 chrono = "0.4"
 open = "5.3"
 ansi-to-tui = "7.0"
+timeago = "0.5"
 
 [dev-dependencies]
 insta = "1.43"

@@ -3,11 +3,11 @@ source: src/ui_tests.rs
 expression: output
 ---
 ┌dtop v0.2.0 - 3 containers (↑/↓ to navigate, '?' for help, 'q' to quit)───────────────────────────────────────────────────────────────────┐
-│ID           Name Host                 CPU %                        Memory %                     Net TX       Net RX       Status         │
+│ID           Name Host                 CPU %                        Memory %                     Net TX       Net RX       Uptime         │
 │                                                                                                                                          │
-│abc123456789 ngin local                █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░  45.2%  1.0KB/s      2.0KB/s      running        │
-│def987654321 post user@server1         █████████████░░░░░░░  65.8%  ████████████████░░░░  78.3%  5.0KB/s      10.0KB/s     running        │
-│ghi111222333 redi 192.168.1.100:2375   ███░░░░░░░░░░░░░░░░░  15.2%  ██████░░░░░░░░░░░░░░  30.5%  512B/s       1.0KB/s      running        │
+│abc123456789 ngin local                █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░  45.2%  1.0KB/s      2.0KB/s      2 hours ago    │
+│def987654321 post user@server1         █████████████░░░░░░░  65.8%  ████████████████░░░░  78.3%  5.0KB/s      10.0KB/s     2 hours ago    │
+│ghi111222333 redi 192.168.1.100:2375   ███░░░░░░░░░░░░░░░░░  15.2%  ██████░░░░░░░░░░░░░░  30.5%  512B/s       1.0KB/s      2 hours ago    │
 │                                                                                                                                          │
 │                                                                                                                                          │
 │                                                                                                                                          │

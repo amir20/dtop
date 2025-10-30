@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
 
 use crate::logs::LogEntry;
@@ -10,7 +11,7 @@ pub type HostId = String;
 pub struct Container {
     pub id: String,
     pub name: String,
-    pub status: String,
+    pub created: Option<DateTime<Utc>>, // When the container was created
     pub stats: ContainerStats,
     pub host_id: HostId,
     pub dozzle_url: Option<String>,
