@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use timeago::Formatter;
 
 use crate::app_state::AppState;
-use crate::types::{Container, ContainerKey, ViewState};
+use crate::types::{Container, ContainerKey, SortDirection, SortField, ViewState};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -56,6 +56,8 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 styles,
                 &mut state.table_state,
                 show_host_column,
+                state.sort_field,
+                state.sort_direction,
             );
         }
         ViewState::LogView(container_key) => {
@@ -78,6 +80,8 @@ fn render_container_list(
     styles: &UiStyles,
     table_state: &mut TableState,
     show_host_column: bool,
+    sort_field: SortField,
+    sort_direction: SortDirection,
 ) {
     let size = f.area();
 
@@ -88,8 +92,16 @@ fn render_container_list(
         .map(|c| create_container_row(c, styles, show_host_column))
         .collect();
 
-    let header = create_header_row(styles, show_host_column);
-    let table = create_table(rows, header, containers.len(), styles, show_host_column);
+    let header = create_header_row(styles, show_host_column, sort_field, sort_direction);
+    let table = create_table(
+        rows,
+        header,
+        containers.len(),
+        styles,
+        show_host_column,
+        sort_field,
+        sort_direction,
+    );
 
     f.render_stateful_widget(table, size, table_state);
 }
@@ -260,14 +272,45 @@ pub fn get_percentage_style(value: f64, styles: &UiStyles) -> Style {
 }
 
 /// Creates the table header row
-fn create_header_row(styles: &UiStyles, show_host_column: bool) -> Row<'static> {
-    let mut headers = vec!["ID", "Name"];
+fn create_header_row(
+    styles: &UiStyles,
+    show_host_column: bool,
+    sort_field: SortField,
+    sort_direction: SortDirection,
+) -> Row<'static> {
+    let sort_symbol = sort_direction.symbol();
+    let mut headers = vec![
+        "ID".to_string(),
+        if sort_field == SortField::Name {
+            format!("Name {}", sort_symbol)
+        } else {
+            "Name".to_string()
+        },
+    ];
 
     if show_host_column {
-        headers.push("Host");
+        headers.push("Host".to_string());
     }
 
-    headers.extend(vec!["CPU %", "Memory %", "Net TX", "Net RX", "Uptime"]);
+    headers.extend(vec![
+        if sort_field == SortField::Cpu {
+            format!("CPU % {}", sort_symbol)
+        } else {
+            "CPU %".to_string()
+        },
+        if sort_field == SortField::Memory {
+            format!("Memory % {}", sort_symbol)
+        } else {
+            "Memory %".to_string()
+        },
+        "Net TX".to_string(),
+        "Net RX".to_string(),
+        if sort_field == SortField::Uptime {
+            format!("Uptime {}", sort_symbol)
+        } else {
+            "Uptime".to_string()
+        },
+    ]);
 
     Row::new(headers).style(styles.header).bottom_margin(1)
 }
@@ -279,6 +322,8 @@ fn create_table<'a>(
     container_count: usize,
     styles: &UiStyles,
     show_host_column: bool,
+    sort_field: SortField,
+    sort_direction: SortDirection,
 ) -> Table<'a> {
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
@@ -303,8 +348,8 @@ fn create_table<'a>(
             Block::default()
                 .borders(Borders::ALL)
                 .title(format!(
-                    "dtop v{} - {} containers (↑/↓ to navigate, '?' for help, 'q' to quit)",
-                    VERSION, container_count
+                    "dtop v{} - {} containers - Sort: {} {} (u/n/c/m: sort, s: cycle, '?' help, 'q' quit)",
+                    VERSION, container_count, sort_field.display_name(), sort_direction.symbol()
                 ))
                 .style(styles.border),
         )
@@ -353,6 +398,18 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  ↑/↓         Navigate containers or scroll logs"),
         Line::from("  Enter       View logs for selected container"),
         Line::from("  Esc         Exit log view or close help"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Sorting",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  u/U         Sort by Uptime (press again to toggle asc/desc)"),
+        Line::from("  n/N         Sort by Name (press again to toggle asc/desc)"),
+        Line::from("  c/C         Sort by CPU usage (press again to toggle asc/desc)"),
+        Line::from("  m/M         Sort by Memory usage (press again to toggle asc/desc)"),
+        Line::from("  s           Cycle through sort fields"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Actions",

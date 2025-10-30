@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::docker::DockerHost;
 use crate::logs::{LogEntry, stream_container_logs};
-use crate::types::{AppEvent, Container, ContainerKey, ViewState};
+use crate::types::{AppEvent, Container, ContainerKey, SortDirection, SortField, ViewState};
 
 /// Style for log timestamps (yellow + bold)
 const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
@@ -41,6 +41,10 @@ pub struct AppState {
     pub is_ssh_session: bool,
     /// Whether the help popup is currently shown
     pub show_help: bool,
+    /// Current sort field for container list
+    pub sort_field: SortField,
+    /// Current sort direction
+    pub sort_direction: SortDirection,
 }
 
 impl AppState {
@@ -69,6 +73,8 @@ impl AppState {
             event_tx,
             is_ssh_session,
             show_help: false,
+            sort_field: SortField::Uptime, // Default to sorting by uptime
+            sort_direction: SortField::Uptime.default_direction(), // Default direction for uptime
         }
     }
 
@@ -95,6 +101,8 @@ impl AppState {
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
+            AppEvent::CycleSortField => self.handle_cycle_sort_field(),
+            AppEvent::SetSortField(field) => self.handle_set_sort_field(field),
         }
     }
 
@@ -109,16 +117,8 @@ impl AppState {
             self.sorted_container_keys.push(key);
         }
 
-        // Sort by host_id first, then by container name
-        self.sorted_container_keys.sort_by(|a, b| {
-            let container_a = self.containers.get(a).unwrap();
-            let container_b = self.containers.get(b).unwrap();
-
-            match container_a.host_id.cmp(&container_b.host_id) {
-                std::cmp::Ordering::Equal => container_a.name.cmp(&container_b.name),
-                other => other,
-            }
-        });
+        // Sort using current sort field
+        self.sort_containers();
 
         // Select first row if we have containers
         if !self.containers.is_empty() {
@@ -130,19 +130,11 @@ impl AppState {
 
     fn handle_container_created(&mut self, container: Container) -> bool {
         let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
-        let sort_key = (container.host_id.clone(), container.name.clone());
         self.containers.insert(key.clone(), container);
+        self.sorted_container_keys.push(key);
 
-        // Insert into sorted position
-        let insert_pos = self
-            .sorted_container_keys
-            .binary_search_by(|probe_key| {
-                let probe_container = self.containers.get(probe_key).unwrap();
-                let probe_sort_key = (&probe_container.host_id, &probe_container.name);
-                probe_sort_key.cmp(&(&sort_key.0, &sort_key.1))
-            })
-            .unwrap_or_else(|pos| pos);
-        self.sorted_container_keys.insert(insert_pos, key);
+        // Re-sort the entire list with current sort field
+        self.sort_containers();
 
         // Select first row if this is the first container
         if self.containers.len() == 1 {
@@ -386,5 +378,145 @@ impl AppState {
     fn handle_toggle_help(&mut self) -> bool {
         self.show_help = !self.show_help;
         true // Force redraw to show/hide popup
+    }
+
+    fn handle_cycle_sort_field(&mut self) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Cycle to next sort field
+        self.sort_field = self.sort_field.next();
+
+        // Set default direction for the new field
+        self.sort_direction = self.sort_field.default_direction();
+
+        // Re-sort the container list
+        self.sort_containers();
+
+        true // Force redraw - sort order changed
+    }
+
+    fn handle_set_sort_field(&mut self, field: SortField) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // If same field, toggle direction; otherwise use default direction
+        if self.sort_field == field {
+            self.sort_direction = self.sort_direction.toggle();
+        } else {
+            self.sort_field = field;
+            self.sort_direction = field.default_direction();
+        }
+
+        // Re-sort the container list
+        self.sort_containers();
+
+        true // Force redraw - sort order changed
+    }
+
+    /// Sorts the container keys based on the current sort field and direction
+    fn sort_containers(&mut self) {
+        let direction = self.sort_direction;
+
+        match self.sort_field {
+            SortField::Uptime => {
+                self.sorted_container_keys.sort_by(|a, b| {
+                    let container_a = self.containers.get(a).unwrap();
+                    let container_b = self.containers.get(b).unwrap();
+
+                    // First by host_id
+                    match container_a.host_id.cmp(&container_b.host_id) {
+                        std::cmp::Ordering::Equal => {
+                            // Then by creation time
+                            let ord = match (&container_a.created, &container_b.created) {
+                                (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
+                                (Some(_), None) => std::cmp::Ordering::Greater,
+                                (None, Some(_)) => std::cmp::Ordering::Less,
+                                (None, None) => std::cmp::Ordering::Equal,
+                            };
+                            // Reverse if descending
+                            if direction == SortDirection::Descending {
+                                ord.reverse()
+                            } else {
+                                ord
+                            }
+                        }
+                        other => other,
+                    }
+                });
+            }
+            SortField::Name => {
+                self.sorted_container_keys.sort_by(|a, b| {
+                    let container_a = self.containers.get(a).unwrap();
+                    let container_b = self.containers.get(b).unwrap();
+
+                    // First by host_id
+                    match container_a.host_id.cmp(&container_b.host_id) {
+                        std::cmp::Ordering::Equal => {
+                            let ord = container_a.name.cmp(&container_b.name);
+                            // Reverse if descending
+                            if direction == SortDirection::Descending {
+                                ord.reverse()
+                            } else {
+                                ord
+                            }
+                        }
+                        other => other,
+                    }
+                });
+            }
+            SortField::Cpu => {
+                self.sorted_container_keys.sort_by(|a, b| {
+                    let container_a = self.containers.get(a).unwrap();
+                    let container_b = self.containers.get(b).unwrap();
+
+                    // First by host_id
+                    match container_a.host_id.cmp(&container_b.host_id) {
+                        std::cmp::Ordering::Equal => {
+                            let ord = container_a
+                                .stats
+                                .cpu
+                                .partial_cmp(&container_b.stats.cpu)
+                                .unwrap_or(std::cmp::Ordering::Equal);
+                            // Reverse if descending
+                            if direction == SortDirection::Descending {
+                                ord.reverse()
+                            } else {
+                                ord
+                            }
+                        }
+                        other => other,
+                    }
+                });
+            }
+            SortField::Memory => {
+                self.sorted_container_keys.sort_by(|a, b| {
+                    let container_a = self.containers.get(a).unwrap();
+                    let container_b = self.containers.get(b).unwrap();
+
+                    // First by host_id
+                    match container_a.host_id.cmp(&container_b.host_id) {
+                        std::cmp::Ordering::Equal => {
+                            let ord = container_a
+                                .stats
+                                .memory
+                                .partial_cmp(&container_b.stats.memory)
+                                .unwrap_or(std::cmp::Ordering::Equal);
+                            // Reverse if descending
+                            if direction == SortDirection::Descending {
+                                ord.reverse()
+                            } else {
+                                ord
+                            }
+                        }
+                        other => other,
+                    }
+                });
+            }
+        }
     }
 }
