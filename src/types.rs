@@ -141,16 +141,6 @@ impl SortField {
         }
     }
 
-    /// Returns a display string for this sort field
-    pub fn display_name(self) -> &'static str {
-        match self {
-            SortField::Uptime => "Uptime",
-            SortField::Name => "Name",
-            SortField::Cpu => "CPU",
-            SortField::Memory => "Memory",
-        }
-    }
-
     /// Returns the default sort direction for this field
     pub fn default_direction(self) -> SortDirection {
         match self {

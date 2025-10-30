@@ -93,15 +93,7 @@ fn render_container_list(
         .collect();
 
     let header = create_header_row(styles, show_host_column, sort_field, sort_direction);
-    let table = create_table(
-        rows,
-        header,
-        containers.len(),
-        styles,
-        show_host_column,
-        sort_field,
-        sort_direction,
-    );
+    let table = create_table(rows, header, containers.len(), styles, show_host_column);
 
     f.render_stateful_widget(table, size, table_state);
 }
@@ -322,8 +314,6 @@ fn create_table<'a>(
     container_count: usize,
     styles: &UiStyles,
     show_host_column: bool,
-    sort_field: SortField,
-    sort_direction: SortDirection,
 ) -> Table<'a> {
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
@@ -348,8 +338,8 @@ fn create_table<'a>(
             Block::default()
                 .borders(Borders::ALL)
                 .title(format!(
-                    "dtop v{} - {} containers - Sort: {} {} (u/n/c/m: sort, s: cycle, '?' help, 'q' quit)",
-                    VERSION, container_count, sort_field.display_name(), sort_direction.symbol()
+                    "dtop v{} - {} containers ('?' for help, 'q' to quit)",
+                    VERSION, container_count
                 ))
                 .style(styles.border),
         )

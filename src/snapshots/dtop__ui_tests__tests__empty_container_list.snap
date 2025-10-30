@@ -2,7 +2,7 @@
 source: src/ui_tests.rs
 expression: output
 ---
-┌dtop v0.2.0 - 0 containers - Sort: Uptime ▼ (u/n/c/m: sort, s: cycle, '?' help, 'q' quit)─────────┐
+┌dtop v0.2.0 - 0 containers ('?' for help, 'q' to quit)────────────────────────────────────────────┐
 │  CPU %                       Memory %                   Net TX       Net RX       Uptime ▼       │
 │                                                                                                  │
 │                                                                                                  │
