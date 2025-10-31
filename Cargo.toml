@@ -24,7 +24,7 @@ ansi-to-tui = "7.0"
 timeago = "0.5"
 
 [dev-dependencies]
-insta = "1.43"
+insta = { version = "1.43", features = ["filters"] }
 mockall = "0.13"
 
 [profile.release]
