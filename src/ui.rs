@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use timeago::Formatter;
 
 use crate::app_state::AppState;
-use crate::types::{Container, ContainerKey, SortField, SortState, ViewState};
+use crate::types::{Container, ContainerKey, ContainerState, SortField, SortState, ViewState};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -184,6 +184,20 @@ fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
     }
 }
 
+/// Returns the status icon and color based on container state
+fn get_status_icon(state: &ContainerState) -> (String, Style) {
+    match state {
+        ContainerState::Running => ("▶".to_string(), Style::default().fg(Color::Green)),
+        ContainerState::Paused => ("⏸".to_string(), Style::default().fg(Color::Yellow)),
+        ContainerState::Restarting => ("↻".to_string(), Style::default().fg(Color::Yellow)),
+        ContainerState::Removing => ("↻".to_string(), Style::default().fg(Color::Yellow)),
+        ContainerState::Exited => ("■".to_string(), Style::default().fg(Color::Red)),
+        ContainerState::Dead => ("✖".to_string(), Style::default().fg(Color::Red)),
+        ContainerState::Created => ("◆".to_string(), Style::default().fg(Color::Cyan)),
+        ContainerState::Unknown => ("?".to_string(), Style::default().fg(Color::Gray)),
+    }
+}
+
 /// Creates a table row for a single container
 fn create_container_row<'a>(
     container: &'a Container,
@@ -202,8 +216,12 @@ fn create_container_row<'a>(
     // Format time elapsed since creation
     let time_elapsed = format_time_elapsed(container.created.as_ref());
 
+    // Get status icon and color
+    let (icon, icon_style) = get_status_icon(&container.state);
+
     let mut cells = vec![
         Cell::from(container.id.as_str()),
+        Cell::from(icon).style(icon_style),
         Cell::from(container.name.as_str()),
     ];
 
@@ -272,6 +290,7 @@ fn create_header_row(
 
     let mut headers = vec![
         "ID".to_string(),
+        "".to_string(), // Status icon column (no header text)
         if sort_field == SortField::Name {
             format!("Name {}", sort_symbol)
         } else {
@@ -316,6 +335,7 @@ fn create_table<'a>(
 ) -> Table<'a> {
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
+        Constraint::Length(1),  // Status icon
         Constraint::Fill(1),    // Name (flexible)
     ];
 
@@ -328,7 +348,7 @@ fn create_table<'a>(
         Constraint::Length(28), // Memory progress bar (20 chars + " 100.0%")
         Constraint::Length(12), // Network TX (1.23MB/s)
         Constraint::Length(12), // Network RX (4.56MB/s)
-        Constraint::Length(15), // Status
+        Constraint::Length(15), // Uptime
     ]);
 
     Table::new(rows, constraints)

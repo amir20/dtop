@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::stats::stream_container_stats;
-use crate::types::{AppEvent, Container, ContainerKey, ContainerStats, EventSender, HostId};
+use crate::types::{
+    AppEvent, Container, ContainerKey, ContainerState, ContainerStats, EventSender, HostId,
+};
 
 /// Represents a Docker host connection with its identifier
 #[derive(Clone)]
@@ -59,6 +61,11 @@ async fn fetch_initial_containers(
                 .as_ref()
                 .and_then(|n| n.first().map(|s| s.trim_start_matches('/').to_string()))
                 .unwrap_or_default();
+            let state = container
+                .state
+                .as_ref()
+                .and_then(|s| format!("{:?}", s).parse().ok())
+                .unwrap_or(ContainerState::Unknown);
 
             // Parse created timestamp from Unix timestamp
             let created = container
@@ -68,6 +75,7 @@ async fn fetch_initial_containers(
             let container_info = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
+                state,
                 created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
@@ -183,6 +191,13 @@ async fn handle_container_start(
             .map(|n| n.trim_start_matches('/').to_string())
             .unwrap_or_default();
 
+        let state = inspect
+            .state
+            .as_ref()
+            .and_then(|s| s.status.as_ref())
+            .and_then(|s| format!("{:?}", s).parse().ok())
+            .unwrap_or(ContainerState::Unknown);
+
         // Parse created timestamp from RFC3339 string
         let created = inspect.created.as_ref().and_then(|created_str| {
             DateTime::parse_from_rfc3339(created_str)
@@ -195,6 +210,7 @@ async fn handle_container_start(
             let container = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
+                state,
                 created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::app_state::AppState;
-    use crate::types::{Container, ContainerKey, ContainerStats, ViewState};
+    use crate::types::{Container, ContainerKey, ContainerState, ContainerStats, ViewState};
     use crate::ui::{UiStyles, render_ui};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -62,6 +62,7 @@ mod tests {
         Container {
             id: id.to_string(),
             name: name.to_string(),
+            state: ContainerState::Running,
             created,
             stats: ContainerStats {
                 cpu,
