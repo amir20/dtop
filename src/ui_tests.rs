@@ -31,7 +31,7 @@ mod tests {
     macro_rules! assert_snapshot_with_redaction {
         ($value:expr) => {{
             let mut settings = insta::Settings::clone_current();
-            settings.add_filter(r"v\d+\.\d+\.\d+", "[VERSION]");
+            settings.add_filter(r"v\d+\.\d+\.\d+", "vX.X.X");
             settings.bind(|| {
                 insta::assert_snapshot!($value);
             });

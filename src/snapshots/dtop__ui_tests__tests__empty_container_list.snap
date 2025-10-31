@@ -2,7 +2,7 @@
 source: src/ui_tests.rs
 expression: output
 ---
-┌dtop [VERSION] - 0 containers ('?' for help, 'q' to quit)─────────────────────────────────────────┐
+┌dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)────────────────────────────────────────────┐
 │  CPU %                       Memory %                   Net TX       Net RX       Uptime ▼       │
 │                                                                                                  │
 │                                                                                                  │
