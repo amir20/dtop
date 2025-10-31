@@ -14,18 +14,21 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 ## Features
 
 - 💻 **Real-time monitoring** - Live updates of container status and metrics
-- ⚡ **Lightweight** - Minimal resource footprint using Rust
-- ⌨ **Dozzle** - Supports opening Dozzle links
+- ⚡ **Lightweight** - Insanely fast and lightweight using Rust
+- 🌍 **Multi-host support** - Monitor containers across multiple hosts
+- 🔍 **Dozzle** - Supports opening Dozzle links via keyboard shortcuts
+- 📝 **Log streaming** - View container logs in real-time
 
 ## Roadmap
 
 - [x] Sort containers by name and status
+- [x] Implement log view streaming (basic)
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
-- [x] Implement log view streaming (basic)
 - [ ] Search or filter for containers
 - [ ] Support multiple certs for TLS
 - [ ] Configurable columns and saving preferences
+- [ ] Support simple JSON parsing and formatting
 
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
