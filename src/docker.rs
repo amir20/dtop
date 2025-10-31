@@ -72,8 +72,11 @@ async fn fetch_initial_containers(
                 .created
                 .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0));
 
-            // Note: ContainerSummary doesn't include health status, we'll get it from inspect
-            let health = None;
+            // Try to parse health status from Status field
+            let health = container
+                .status
+                .as_ref()
+                .and_then(|status| status.parse().ok());
 
             let container_info = Container {
                 id: truncated_id.clone(),
