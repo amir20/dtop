@@ -27,6 +27,17 @@ mod tests {
         output
     }
 
+    /// Helper macro to assert snapshots with version redaction
+    macro_rules! assert_snapshot_with_redaction {
+        ($value:expr) => {{
+            let mut settings = insta::Settings::clone_current();
+            settings.add_filter(r"v\d+\.\d+\.\d+", "[VERSION]");
+            settings.bind(|| {
+                insta::assert_snapshot!($value);
+            });
+        }};
+    }
+
     /// Helper function to create a mock AppState for testing
     fn create_test_app_state() -> AppState {
         let (tx, _rx) = mpsc::channel(100);
@@ -79,7 +90,7 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 
     #[test]
@@ -122,7 +133,7 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 
     #[test]
@@ -173,7 +184,7 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 
     #[test]
@@ -229,7 +240,7 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 
     #[test]
@@ -259,7 +270,7 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 
     #[test]
@@ -370,6 +381,6 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
-        insta::assert_snapshot!(output);
+        assert_snapshot_with_redaction!(output);
     }
 }
