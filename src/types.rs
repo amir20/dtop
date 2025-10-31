@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use std::str::FromStr;
 use tokio::sync::mpsc;
 
 use crate::logs::LogEntry;
@@ -6,11 +7,51 @@ use crate::logs::LogEntry;
 /// Host identifier for tracking which Docker host a container belongs to
 pub type HostId = String;
 
+/// Container state as reported by Docker
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ContainerState {
+    Running,
+    Paused,
+    Restarting,
+    Removing,
+    Exited,
+    Dead,
+    Created,
+    Unknown,
+}
+
+impl FromStr for ContainerState {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        let state = if s_lower.contains("running") {
+            ContainerState::Running
+        } else if s_lower.contains("paused") {
+            ContainerState::Paused
+        } else if s_lower.contains("restarting") {
+            ContainerState::Restarting
+        } else if s_lower.contains("removing") {
+            ContainerState::Removing
+        } else if s_lower.contains("exited") {
+            ContainerState::Exited
+        } else if s_lower.contains("dead") {
+            ContainerState::Dead
+        } else if s_lower.contains("created") {
+            ContainerState::Created
+        } else {
+            ContainerState::Unknown
+        };
+        Ok(state)
+    }
+}
+
 /// Container metadata (static information)
 #[derive(Clone, Debug)]
 pub struct Container {
     pub id: String,
     pub name: String,
+    pub state: ContainerState,
     pub created: Option<DateTime<Utc>>, // When the container was created
     pub stats: ContainerStats,
     pub host_id: HostId,
