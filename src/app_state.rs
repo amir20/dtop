@@ -86,6 +86,9 @@ impl AppState {
             AppEvent::ContainerCreated(container) => self.handle_container_created(container),
             AppEvent::ContainerDestroyed(key) => self.handle_container_destroyed(key),
             AppEvent::ContainerStat(key, stats) => self.handle_container_stat(key, stats),
+            AppEvent::ContainerHealthChanged(key, health) => {
+                self.handle_container_health_changed(key, health)
+            }
             AppEvent::Resize => true, // Always redraw on resize
             AppEvent::Quit => {
                 self.should_quit = true;
@@ -169,6 +172,17 @@ impl AppState {
             container.stats = stats;
         }
         false // No force draw - just stats update
+    }
+
+    fn handle_container_health_changed(
+        &mut self,
+        key: ContainerKey,
+        health: crate::types::HealthStatus,
+    ) -> bool {
+        if let Some(container) = self.containers.get_mut(&key) {
+            container.health = Some(health);
+        }
+        true // Force draw - health status changed (visible in UI)
     }
 
     fn handle_select_previous(&mut self) -> bool {

@@ -63,6 +63,7 @@ mod tests {
             id: id.to_string(),
             name: name.to_string(),
             state: ContainerState::Running,
+            health: None,
             created,
             stats: ContainerStats {
                 cpu,

@@ -20,6 +20,14 @@ pub enum ContainerState {
     Unknown,
 }
 
+/// Container health status from Docker health checks
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HealthStatus {
+    Healthy,
+    Unhealthy,
+    Starting,
+}
+
 impl FromStr for ContainerState {
     type Err = ();
 
@@ -46,12 +54,30 @@ impl FromStr for ContainerState {
     }
 }
 
+impl FromStr for HealthStatus {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s_lower = s.to_lowercase();
+        if s_lower.contains("healthy") && !s_lower.contains("unhealthy") {
+            Ok(HealthStatus::Healthy)
+        } else if s_lower.contains("unhealthy") {
+            Ok(HealthStatus::Unhealthy)
+        } else if s_lower.contains("starting") {
+            Ok(HealthStatus::Starting)
+        } else {
+            Err(()) // Return error for unknown/no health status
+        }
+    }
+}
+
 /// Container metadata (static information)
 #[derive(Clone, Debug)]
 pub struct Container {
     pub id: String,
     pub name: String,
     pub state: ContainerState,
+    pub health: Option<HealthStatus>, // None if container has no health check configured
     pub created: Option<DateTime<Utc>>, // When the container was created
     pub stats: ContainerStats,
     pub host_id: HostId,
@@ -94,6 +120,8 @@ pub enum AppEvent {
     ContainerDestroyed(ContainerKey),
     /// Stats update for an existing container on a specific host
     ContainerStat(ContainerKey, ContainerStats),
+    /// Health status changed for a container
+    ContainerHealthChanged(ContainerKey, HealthStatus),
     /// User requested to quit
     Quit,
     /// Terminal was resized
