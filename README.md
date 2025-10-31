@@ -1,7 +1,7 @@
 # 🖥️ dtop
 
 > [!IMPORTANT]
-> This project is currently being rewritten in Rust on the `master` branch. The Go version is available on the `v1` branch.
+> `dtop` has been rewritten in Rust on the `master` branch. The Go version is available on the `v1` branch. Version v0.3.x is the first release of the Rust version. There are some breaking changes compared to the previous version.
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
