@@ -72,10 +72,14 @@ async fn fetch_initial_containers(
                 .created
                 .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0));
 
+            // Note: ContainerSummary doesn't include health status, we'll get it from inspect
+            let health = None;
+
             let container_info = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
                 state,
+                health,
                 created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
@@ -109,7 +113,12 @@ async fn monitor_docker_events(
     filters.insert("type".to_string(), vec!["container".to_string()]);
     filters.insert(
         "event".to_string(),
-        vec!["start".to_string(), "die".to_string(), "stop".to_string()],
+        vec![
+            "start".to_string(),
+            "die".to_string(),
+            "stop".to_string(),
+            "health_status".to_string(),
+        ],
     );
 
     let events_options = EventsOptions {
@@ -123,7 +132,7 @@ async fn monitor_docker_events(
         match event_result {
             Ok(event) => {
                 if let Some(actor) = event.actor {
-                    let container_id = actor.id.unwrap_or_default();
+                    let container_id = actor.id.clone().unwrap_or_default();
                     let action = event.action.unwrap_or_default();
 
                     match action.as_str() {
@@ -133,6 +142,9 @@ async fn monitor_docker_events(
                         }
                         "die" | "stop" => {
                             handle_container_stop(host, &container_id, tx, active_containers).await;
+                        }
+                        "health_status" | "health_status: healthy" | "health_status: unhealthy" => {
+                            handle_health_status_change(host, &container_id, &actor, tx).await;
                         }
                         _ => {}
                     }
@@ -198,6 +210,14 @@ async fn handle_container_start(
             .and_then(|s| format!("{:?}", s).parse().ok())
             .unwrap_or(ContainerState::Unknown);
 
+        // Parse health status from state (None if no health check configured)
+        let health = inspect
+            .state
+            .as_ref()
+            .and_then(|s| s.health.as_ref())
+            .and_then(|h| h.status.as_ref())
+            .and_then(|status| format!("{:?}", status).parse().ok());
+
         // Parse created timestamp from RFC3339 string
         let created = inspect.created.as_ref().and_then(|created_str| {
             DateTime::parse_from_rfc3339(created_str)
@@ -211,6 +231,7 @@ async fn handle_container_start(
                 id: truncated_id.clone(),
                 name: name.clone(),
                 state,
+                health,
                 created,
                 stats: ContainerStats::default(),
                 host_id: host.host_id.clone(),
@@ -238,5 +259,47 @@ async fn handle_container_stop(
         handle.abort();
         let key = ContainerKey::new(host.host_id.clone(), truncated_id);
         let _ = tx.send(AppEvent::ContainerDestroyed(key)).await;
+    }
+}
+
+/// Handles a health_status event
+async fn handle_health_status_change(
+    host: &DockerHost,
+    container_id: &str,
+    actor: &bollard::models::EventActor,
+    tx: &EventSender,
+) {
+    let truncated_id = container_id[..12.min(container_id.len())].to_string();
+
+    // Try to get health status from actor attributes
+    let health = if let Some(attributes) = &actor.attributes {
+        attributes
+            .get("health_status")
+            .or_else(|| attributes.get("HealthStatus"))
+            .and_then(|status| status.parse().ok())
+    } else {
+        // Fallback: inspect the container to get current health status
+        if let Ok(inspect) = host
+            .docker
+            .inspect_container(container_id, None::<InspectContainerOptions>)
+            .await
+        {
+            inspect
+                .state
+                .as_ref()
+                .and_then(|s| s.health.as_ref())
+                .and_then(|h| h.status.as_ref())
+                .and_then(|status| format!("{:?}", status).parse().ok())
+        } else {
+            None
+        }
+    };
+
+    // Only send event if we have a valid health status
+    if let Some(health_status) = health {
+        let key = ContainerKey::new(host.host_id.clone(), truncated_id);
+        let _ = tx
+            .send(AppEvent::ContainerHealthChanged(key, health_status))
+            .await;
     }
 }

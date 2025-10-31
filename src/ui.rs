@@ -9,7 +9,9 @@ use std::collections::HashMap;
 use timeago::Formatter;
 
 use crate::app_state::AppState;
-use crate::types::{Container, ContainerKey, ContainerState, SortField, SortState, ViewState};
+use crate::types::{
+    Container, ContainerKey, ContainerState, HealthStatus, SortField, SortState, ViewState,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -184,8 +186,18 @@ fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
     }
 }
 
-/// Returns the status icon and color based on container state
-fn get_status_icon(state: &ContainerState) -> (String, Style) {
+/// Returns the status icon and color based on container health (if available) or state
+fn get_status_icon(state: &ContainerState, health: &Option<HealthStatus>) -> (String, Style) {
+    // Prioritize health status if container has health checks configured
+    if let Some(health_status) = health {
+        return match health_status {
+            HealthStatus::Healthy => ("✓".to_string(), Style::default().fg(Color::Green)),
+            HealthStatus::Unhealthy => ("✖".to_string(), Style::default().fg(Color::Red)),
+            HealthStatus::Starting => ("◐".to_string(), Style::default().fg(Color::Yellow)),
+        };
+    }
+
+    // Use state-based icon if no health check is configured
     match state {
         ContainerState::Running => ("▶".to_string(), Style::default().fg(Color::Green)),
         ContainerState::Paused => ("⏸".to_string(), Style::default().fg(Color::Yellow)),
@@ -216,8 +228,8 @@ fn create_container_row<'a>(
     // Format time elapsed since creation
     let time_elapsed = format_time_elapsed(container.created.as_ref());
 
-    // Get status icon and color
-    let (icon, icon_style) = get_status_icon(&container.state);
+    // Get status icon and color (health takes priority over state)
+    let (icon, icon_style) = get_status_icon(&container.state, &container.health);
 
     let mut cells = vec![
         Cell::from(container.id.as_str()),
