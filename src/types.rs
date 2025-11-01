@@ -148,6 +148,8 @@ pub enum AppEvent {
     CycleSortField,
     /// User pressed a key to set a specific sort field
     SetSortField(SortField),
+    /// User pressed 'a' to toggle showing all containers (including stopped)
+    ToggleShowAll,
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

@@ -46,7 +46,7 @@ async fn fetch_initial_containers(
     active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
 ) {
     let list_options = Some(ListContainersOptions {
-        all: false,
+        all: true, // Fetch all containers (including stopped ones)
         ..Default::default()
     });
 
