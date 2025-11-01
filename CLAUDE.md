@@ -18,6 +18,9 @@ cargo run -- --host local --host ssh://user@host1 --host tcp://host2:2375  # Mul
 # Testing
 cargo test                                   # Run all tests
 cargo test -- --nocapture                    # Run tests with output
+cargo insta test                             # Run tests with snapshot review
+cargo insta accept                           # Accept all pending snapshots
+cargo insta reject                           # Reject all pending snapshots
 
 # Production build
 cargo build --release                        # The binary will be at target/release/dtop
@@ -94,7 +97,9 @@ The application follows an **event-driven architecture** with multiple async/thr
    - Streams logs from a container in real-time
    - Fetches last 100 lines on startup, then follows new logs
    - Parses timestamps (RFC3339 format) and messages
-   - Sends each log line as `AppEvent::LogLine` event
+   - Uses `ansi-to-tui` to parse ANSI escape codes for colored output
+   - Preserves whitespace and formatting from original logs
+   - Sends each log line as `AppEvent::LogLine` event with pre-parsed Text
 
 6. **Keyboard Worker** (`input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms
@@ -125,6 +130,7 @@ Container-related events use structured types to identify containers across host
 - `ContainerCreated(Container)` - New container started (host_id is in the Container struct)
 - `ContainerDestroyed(ContainerKey)` - Container stopped/died (identified by host_id + container_id)
 - `ContainerStat(ContainerKey, ContainerStats)` - Stats update (identified by host_id + container_id)
+- `ContainerHealthChanged(ContainerKey, HealthStatus)` - Health status changed for a container
 - `Quit` - User pressed 'q' or Ctrl-C
 - `Resize` - Terminal was resized
 - `SelectPrevious` - Move selection up (Up arrow in container list)
@@ -134,6 +140,11 @@ Container-related events use structured types to identify containers across host
 - `ScrollUp` - Scroll up in log view (Up arrow)
 - `ScrollDown` - Scroll down in log view (Down arrow)
 - `LogLine(ContainerKey, LogEntry)` - New log line received from streaming logs
+- `OpenDozzle` - User pressed 'o' to open Dozzle for selected container
+- `ToggleHelp` - User pressed '?' to toggle help popup
+- `CycleSortField` - User pressed 's' to cycle through sort fields
+- `SetSortField(SortField)` - User pressed a specific key to set sort field (u/n/c/m)
+- `ToggleShowAll` - User pressed 'a' to toggle showing all containers (including stopped)
 
 ### View States (`types.rs::ViewState`)
 
@@ -141,14 +152,37 @@ The application has two view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 
+### Container Data Model (`types.rs::Container`)
+
+The `Container` struct holds both static metadata and runtime statistics:
+
+```rust
+pub struct Container {
+    pub id: String,                         // Truncated container ID (12 chars)
+    pub name: String,                       // Container name
+    pub state: ContainerState,              // Running, Paused, Exited, etc.
+    pub health: Option<HealthStatus>,       // Healthy, Unhealthy, Starting (None if no health check)
+    pub created: Option<DateTime<Utc>>,     // Container creation timestamp
+    pub stats: ContainerStats,              // CPU, memory, network stats (updated in real-time)
+    pub host_id: HostId,                    // Which Docker host this container belongs to
+    pub dozzle_url: Option<String>,         // Dozzle URL for this container's host
+}
+```
+
+**Container Identification:**
+- Containers are uniquely identified by `ContainerKey { host_id, container_id }`
+- This allows tracking the same container ID across different hosts
+- Container IDs are truncated to 12 characters (Docker API accepts partial IDs)
+
 ### Docker Host Abstraction
 
-The `DockerHost` struct (`docker.rs`) encapsulates a Docker connection with its identifier:
+The `DockerHost` struct (`docker.rs`) encapsulates a Docker connection with its identifier and optional Dozzle URL:
 
 ```rust
 pub struct DockerHost {
     pub host_id: HostId,
     pub docker: Docker,
+    pub dozzle_url: Option<String>,
 }
 ```
 
@@ -156,6 +190,12 @@ Host IDs are derived from the host specification:
 - `"local"` → host_id = `"local"`
 - `"ssh://user@host"` → host_id = `"user@host"`
 - `"ssh://user@host:2222"` → host_id = `"user@host"` (port stripped)
+
+**Dozzle Integration:**
+- Dozzle URLs can be configured per-host in the config file
+- Press 'o' in container list view to open Dozzle for the selected container
+- Opens in browser at `{dozzle_url}/container/{container_id}` format
+- Only works when not in an SSH session (detected via SSH_CLIENT/SSH_TTY/SSH_CONNECTION env vars)
 
 ### Configuration Loading
 
@@ -219,25 +259,47 @@ The UI (`ui.rs`) uses pre-allocated styles to avoid per-frame allocations.
 - Yellow: 50.1-80%
 - Red: >80%
 
-**Sorting:** Containers are sorted first by `host_id`, then by container name within each host.
+**Sorting:** Containers can be sorted by multiple fields:
+- Default sort: Uptime (newest first, descending)
+- Sort fields: Uptime, Name, CPU, Memory
+- Containers are always sorted by `host_id` first, then by the selected field within each host
+- Press 's' to cycle through sort fields
+- Press 'u'/'n'/'c'/'m' to sort by specific field (Uptime/Name/CPU/Memory)
+- Pressing the same field key toggles sort direction (ascending/descending)
+- Each field has a default direction: Name (ascending), Uptime/CPU/Memory (descending)
+- Sort state is tracked in `SortState` with field and direction
+
+**Container Filtering:**
+- By default, only running containers are shown
+- Press 'a' to toggle showing all containers (including stopped/exited containers)
+- Filter state is tracked in `AppState::show_all_containers`
+
+**Health Status:**
+- Containers with health checks display their status: Healthy, Unhealthy, Starting
+- Health status is parsed from Docker's health check information
+- Status changes trigger UI updates via `ContainerHealthChanged` event
 
 ## CI/CD Workflows
 
+The project uses `cargo-dist` for building and releasing binaries across multiple platforms.
+
 ### Release Workflow (`.github/workflows/release.yml`)
 - Triggers on version tags (e.g., `v0.1.0`)
-- Builds for 4 platforms using matrix strategy:
-  - Linux x86_64 (native cargo)
-  - Linux ARM64 (cross tool)
-  - macOS x86_64 (native cargo on macOS runner)
-  - macOS ARM64 (native cargo on macOS runner)
-- Uses `softprops/action-gh-release@v2` to create GitHub releases
+- Uses `cargo-dist` for cross-platform builds
+- Builds for multiple platforms: Linux (x86_64, ARM64), macOS (x86_64, ARM64)
+- Automatically creates GitHub releases with generated changelogs
+- Produces installers, archives, and checksums
+- Three main jobs:
+  - `plan`: Determines what needs to be built
+  - `build-local-artifacts`: Builds platform-specific binaries
+  - `build-global-artifacts`: Creates installers and checksums
+  - `host`: Uploads artifacts and creates GitHub release
 
-### PR Build Workflow (`.github/workflows/pr-build.yml`)
-- Same build matrix as release workflow
-- Posts comment on PR with artifact download links
-- Updates existing comment on subsequent pushes
-
-**Note**: `cross` is only used for Linux ARM64. macOS builds require native runners because Docker can't containerize macOS.
+### Other Workflows
+- `.github/workflows/pr-build.yml` - Builds on pull requests
+- `.github/workflows/docker-build.yml` - Builds Docker images for testing
+- `.github/workflows/docker-release.yml` - Publishes Docker images on release
+- `.github/workflows/test.yml` - Runs test suite
 
 ## Key Dependencies
 
@@ -250,9 +312,12 @@ The UI (`ui.rs`) uses pre-allocated styles to avoid per-frame allocations.
 - **Dirs**: Cross-platform home directory detection
 - **Chrono**: Date and time handling for log timestamps
 - **Futures-util**: Stream utilities for async operations
+- **Open**: Cross-platform URL opener for Dozzle integration
+- **Ansi-to-tui**: ANSI escape code parsing for colored log output
+- **Timeago**: Human-readable time formatting for container uptime
 
 ### Dev Dependencies
-- **Insta**: Snapshot testing
+- **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)
 - **Mockall**: Mock generation for testing
 
 ## Performance Considerations
@@ -268,6 +333,8 @@ The UI (`ui.rs`) uses pre-allocated styles to avoid per-frame allocations.
 - Exponential smoothing (alpha=0.3) reduces noise in stats without heavy computation
 - Failed host connections are logged but don't prevent other hosts from being monitored
 - Log streaming is only active when viewing a container's logs (stopped when exiting log view)
+- Log text is formatted once when received and cached in `AppState::formatted_log_text` to avoid re-parsing ANSI codes on every frame
+- ANSI parsing happens at log arrival time, not render time
 
 ## User Interactions
 
@@ -275,10 +342,19 @@ The UI (`ui.rs`) uses pre-allocated styles to avoid per-frame allocations.
 - `↑/↓` - Navigate between containers
 - `Enter` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application
+- `o` - Open Dozzle for selected container (if configured and not in SSH session)
+- `?` - Toggle help popup
+- `s` - Cycle through sort fields (Uptime → Name → CPU → Memory → Uptime)
+- `u` - Sort by Uptime (toggle direction if already sorting by Uptime)
+- `n` - Sort by Name (toggle direction if already sorting by Name)
+- `c` - Sort by CPU (toggle direction if already sorting by CPU)
+- `m` - Sort by Memory (toggle direction if already sorting by Memory)
+- `a` - Toggle showing all containers (including stopped containers)
 
 **Log View:**
 - `↑/↓` - Scroll through logs manually
 - `Esc` - Return to container list
+- `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)
 
 ## Testing Strategy
