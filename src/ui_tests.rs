@@ -385,4 +385,78 @@ mod tests {
         let output = buffer_to_string(&buffer);
         assert_snapshot_with_redaction!(output);
     }
+
+    #[test]
+    fn test_container_list_with_stopped_containers() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        use chrono::Utc;
+
+        // Add running containers
+        let running_containers = vec![
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0),
+            create_test_container(
+                "def987654321",
+                "postgres",
+                "local",
+                65.8,
+                78.3,
+                5120.0,
+                10240.0,
+            ),
+        ];
+
+        for container in running_containers {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+
+        // Add stopped containers
+        let stopped_containers = vec![
+            Container {
+                id: "stop12345678".to_string(),
+                name: "old-redis".to_string(),
+                state: ContainerState::Exited,
+                health: None,
+                created: Some(Utc::now() - chrono::Duration::days(1)),
+                stats: ContainerStats::default(), // Stats should not be shown
+                host_id: "local".to_string(),
+                dozzle_url: None,
+            },
+            Container {
+                id: "dead12345678".to_string(),
+                name: "failed-app".to_string(),
+                state: ContainerState::Dead,
+                health: None,
+                created: Some(Utc::now() - chrono::Duration::hours(3)),
+                stats: ContainerStats::default(), // Stats should not be shown
+                host_id: "local".to_string(),
+                dozzle_url: None,
+            },
+        ];
+
+        for container in stopped_containers {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+
+        // Select the first container
+        state.table_state.select(Some(0));
+
+        let backend = TestBackend::new(120, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+        assert_snapshot_with_redaction!(output);
+    }
 }
