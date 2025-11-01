@@ -78,6 +78,9 @@ async fn fetch_initial_containers(
                 .as_ref()
                 .and_then(|status| status.parse().ok());
 
+            // Check if container is running before moving state
+            let is_running = state == ContainerState::Running;
+
             let container_info = Container {
                 id: truncated_id.clone(),
                 name: name.clone(),
@@ -91,7 +94,10 @@ async fn fetch_initial_containers(
 
             initial_containers.push(container_info);
 
-            start_container_monitoring(host, &truncated_id, tx, active_containers);
+            // Only start monitoring for running containers
+            if is_running {
+                start_container_monitoring(host, &truncated_id, tx, active_containers);
+            }
         }
 
         // Send all initial containers in one event
