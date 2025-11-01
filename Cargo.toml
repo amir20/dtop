@@ -28,7 +28,7 @@ insta = { version = "1.43", features = ["filters"] }
 mockall = "0.13"
 
 [profile.release]
-strip = true           # Strip all symbols for smallest binary size
+strip = true          # Strip all symbols for smallest binary size
 lto = true            # Link-time optimization for better performance
 codegen-units = 1     # Single codegen unit for maximum optimization
 opt-level = "z"       # Optimize for size

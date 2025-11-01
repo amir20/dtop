@@ -420,6 +420,7 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  Enter       View logs for selected container"),
         Line::from("  Esc         Exit log view or close help"),
         Line::from("  o           Open container in Dozzle (if configured)"),
+        Line::from("  a/A         Toggle showing all containers (including stopped)"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Sorting",

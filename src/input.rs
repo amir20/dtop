@@ -64,6 +64,9 @@ pub fn keyboard_worker(tx: EventSender) {
                         let _ = tx
                             .blocking_send(AppEvent::SetSortField(crate::types::SortField::Memory));
                     }
+                    KeyCode::Char('a') | KeyCode::Char('A') => {
+                        let _ = tx.blocking_send(AppEvent::ToggleShowAll);
+                    }
                     _ => {}
                 },
                 Event::Resize(_, _) => {

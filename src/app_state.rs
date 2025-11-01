@@ -45,6 +45,8 @@ pub struct AppState {
     pub show_help: bool,
     /// Current sort state (field + direction)
     pub sort_state: SortState,
+    /// Whether to show all containers (including stopped ones)
+    pub show_all_containers: bool,
 }
 
 impl AppState {
@@ -74,6 +76,7 @@ impl AppState {
             is_ssh_session,
             show_help: false,
             sort_state: SortState::default(), // Default to Uptime descending
+            show_all_containers: false,       // Default to showing only running containers
         }
     }
 
@@ -105,6 +108,7 @@ impl AppState {
             AppEvent::ToggleHelp => self.handle_toggle_help(),
             AppEvent::CycleSortField => self.handle_cycle_sort_field(),
             AppEvent::SetSortField(field) => self.handle_set_sort_field(field),
+            AppEvent::ToggleShowAll => self.handle_toggle_show_all(),
         }
     }
 
@@ -427,8 +431,53 @@ impl AppState {
         true // Force redraw - sort order changed
     }
 
+    fn handle_toggle_show_all(&mut self) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Toggle the show_all_containers flag
+        self.show_all_containers = !self.show_all_containers;
+
+        // Re-sort/filter the container list
+        self.sort_containers();
+
+        // Adjust selection if needed after filtering
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            self.table_state.select(Some(container_count - 1));
+        }
+
+        true // Force redraw - visibility changed
+    }
+
     /// Sorts the container keys based on the current sort field and direction
     fn sort_containers(&mut self) {
+        use crate::types::ContainerState;
+
+        // Rebuild sorted_container_keys from containers, filtering by running state if needed
+        self.sorted_container_keys = self
+            .containers
+            .keys()
+            .filter(|key| {
+                if self.show_all_containers {
+                    true // Show all containers
+                } else {
+                    // Only show running containers
+                    self.containers
+                        .get(key)
+                        .map(|c| c.state == ContainerState::Running)
+                        .unwrap_or(false)
+                }
+            })
+            .cloned()
+            .collect();
+
         let direction = self.sort_state.direction;
 
         match self.sort_state.field {
