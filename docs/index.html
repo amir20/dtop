@@ -4,6 +4,13 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>dtop - Docker Container Monitoring for Your Terminal</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
             tailwind.config = {
@@ -18,14 +25,18 @@
                                 cyan: "#06b6d4",
                             },
                         },
+                        fontFamily: {
+                            sans: ["Inter", "sans-serif"],
+                            mono: ["JetBrains Mono", "monospace"],
+                        },
                     },
                 },
             };
         </script>
     </head>
-    <body class="bg-black min-h-screen">
+    <body class="bg-gray-900 min-h-screen">
         <!-- Header -->
-        <nav class="border-b border-gray-800">
+        <nav class="border-b border-gray-700">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center h-16">
                     <div class="flex items-center space-x-3">
@@ -34,7 +45,7 @@
                     <div class="flex items-center space-x-6">
                         <a
                             href="https://github.com/amir20/dtop"
-                            class="text-gray-400 hover:text-white transition-colors text-sm font-medium"
+                            class="text-gray-300 hover:text-white transition-colors text-sm font-medium"
                         >
                             GitHub
                         </a>
@@ -60,12 +71,12 @@
                         In Your Terminal
                     </span>
                 </h1>
-                <p class="text-xl text-gray-200 max-w-2xl mx-auto mb-4">
+                <p class="text-xl text-gray-100 max-w-2xl mx-auto mb-4">
                     A powerful TUI for monitoring Docker containers across
                     multiple hosts with real-time CPU, memory, and network
                     metrics.
                 </p>
-                <p class="text-lg text-gray-400 max-w-2xl mx-auto">
+                <p class="text-lg text-gray-300 max-w-2xl mx-auto">
                     Built with Rust for blazing-fast performance and minimal
                     resource usage.
                 </p>
@@ -86,39 +97,39 @@
             <!-- Features Grid -->
             <div class="grid md:grid-cols-3 gap-6 mb-16">
                 <div
-                    class="bg-gray-950 border-l-4 border-terminal-green p-6 hover:bg-gray-900 transition-all group"
+                    class="bg-gray-800 border-l-4 border-terminal-green p-6 hover:bg-gray-700 transition-all group"
                 >
                     <div class="text-terminal-green text-3xl mb-4">🚀</div>
                     <h3 class="text-lg font-semibold text-white mb-3">
                         Multi-Host Support
                     </h3>
-                    <p class="text-gray-400 text-sm leading-relaxed">
+                    <p class="text-gray-300 text-sm leading-relaxed">
                         Monitor containers across local, SSH, and TCP
                         connections simultaneously
                     </p>
                 </div>
 
                 <div
-                    class="bg-gray-950 border-l-4 border-terminal-blue p-6 hover:bg-gray-900 transition-all group"
+                    class="bg-gray-800 border-l-4 border-terminal-blue p-6 hover:bg-gray-700 transition-all group"
                 >
                     <div class="text-terminal-blue text-3xl mb-4">📊</div>
                     <h3 class="text-lg font-semibold text-white mb-3">
                         Real-Time Metrics
                     </h3>
-                    <p class="text-gray-400 text-sm leading-relaxed">
+                    <p class="text-gray-300 text-sm leading-relaxed">
                         Track CPU, memory, and network I/O with smooth
                         exponential moving averages
                     </p>
                 </div>
 
                 <div
-                    class="bg-gray-950 border-l-4 border-terminal-purple p-6 hover:bg-gray-900 transition-all group"
+                    class="bg-gray-800 border-l-4 border-terminal-purple p-6 hover:bg-gray-700 transition-all group"
                 >
                     <div class="text-terminal-purple text-3xl mb-4">⚡</div>
                     <h3 class="text-lg font-semibold text-white mb-3">
                         Fast & Lightweight
                     </h3>
-                    <p class="text-gray-400 text-sm leading-relaxed">
+                    <p class="text-gray-300 text-sm leading-relaxed">
                         Built with Rust for minimal CPU and memory footprint
                     </p>
                 </div>
@@ -127,7 +138,7 @@
             <!-- Installation Section -->
             <div
                 id="install"
-                class="bg-gray-950 border border-gray-800 p-8 sm:p-12 mb-16"
+                class="bg-gray-800 border border-gray-700 p-8 sm:p-12 mb-16"
             >
                 <h2 class="text-3xl font-bold text-white mb-8 text-center">
                     Installation
@@ -147,7 +158,7 @@
                             </h3>
                         </div>
                         <div
-                            class="bg-black border-l-2 border-terminal-green p-4 font-mono text-sm text-gray-300"
+                            class="bg-gray-950 border-l-2 border-terminal-green p-4 font-mono text-sm text-gray-200"
                         >
                             <code>cargo install dtop</code>
                         </div>
@@ -160,13 +171,13 @@
                                 >$</span
                             >
                             <h3
-                                class="text-sm font-semibold text-gray-400 uppercase tracking-wide"
+                                class="text-sm font-semibold text-gray-300 uppercase tracking-wide"
                             >
                                 Shell Script
                             </h3>
                         </div>
                         <div
-                            class="bg-black border-l-2 border-terminal-blue p-4 font-mono text-sm text-gray-300"
+                            class="bg-gray-950 border-l-2 border-terminal-blue p-4 font-mono text-sm text-gray-200"
                         >
                             <code
                                 >curl --proto '=https' --tlsv1.2 -LsSf
@@ -183,13 +194,13 @@
                                 >$</span
                             >
                             <h3
-                                class="text-sm font-semibold text-gray-400 uppercase tracking-wide"
+                                class="text-sm font-semibold text-gray-300 uppercase tracking-wide"
                             >
                                 Docker
                             </h3>
                         </div>
                         <div
-                            class="bg-black border-l-2 border-terminal-purple p-4 font-mono text-sm text-gray-300"
+                            class="bg-gray-950 border-l-2 border-terminal-purple p-4 font-mono text-sm text-gray-200"
                         >
                             <code>
                                 docker run -v
@@ -202,9 +213,9 @@
 
                 <!-- Run dtop -->
                 <div class="mt-10 text-center">
-                    <p class="text-gray-400 mb-3 text-sm">Then simply run:</p>
+                    <p class="text-gray-300 mb-3 text-sm">Then simply run:</p>
                     <div
-                        class="bg-black border-l-2 border-terminal-cyan p-4 font-mono text-lg text-white max-w-xs mx-auto"
+                        class="bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-lg text-white max-w-xs mx-auto"
                     >
                         <code>$ dtop</code>
                     </div>
@@ -212,7 +223,7 @@
             </div>
 
             <!-- Usage Hints -->
-            <div class="bg-gray-950 border-l-4 border-terminal-cyan p-8 mb-16">
+            <div class="bg-gray-800 border-l-4 border-terminal-cyan p-8 mb-16">
                 <h3 class="text-xl font-semibold text-white mb-6">Usage</h3>
                 <ul class="space-y-4 text-gray-300">
                     <li class="flex items-start">
@@ -263,28 +274,28 @@
         </main>
 
         <!-- Footer -->
-        <footer class="border-t border-gray-900">
+        <footer class="border-t border-gray-800">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div
                     class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0"
                 >
-                    <div class="text-gray-500 text-sm">Built with Rust</div>
+                    <div class="text-gray-400 text-sm">Built with Rust</div>
                     <div class="flex items-center space-x-8 text-sm">
                         <a
                             href="https://github.com/amir20/dtop"
-                            class="text-gray-500 hover:text-white transition-colors"
+                            class="text-gray-400 hover:text-white transition-colors"
                         >
                             GitHub
                         </a>
                         <a
                             href="https://github.com/amir20/dtop/releases"
-                            class="text-gray-500 hover:text-white transition-colors"
+                            class="text-gray-400 hover:text-white transition-colors"
                         >
                             Releases
                         </a>
                         <a
                             href="https://github.com/amir20/dtop/issues"
-                            class="text-gray-500 hover:text-white transition-colors"
+                            class="text-gray-400 hover:text-white transition-colors"
                         >
                             Issues
                         </a>
