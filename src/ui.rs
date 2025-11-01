@@ -93,7 +93,13 @@ fn render_container_list(
         .collect();
 
     let header = create_header_row(styles, show_host_column, sort_state);
-    let table = create_table(rows, header, containers.len(), styles, show_host_column);
+    let table = create_table(
+        rows,
+        header,
+        sorted_container_keys.len(),
+        styles,
+        show_host_column,
+    );
 
     f.render_stateful_widget(table, size, table_state);
 }
