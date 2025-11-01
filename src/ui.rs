@@ -216,17 +216,46 @@ fn create_container_row<'a>(
     styles: &UiStyles,
     show_host_column: bool,
 ) -> Row<'a> {
-    let cpu_bar = create_progress_bar(container.stats.cpu, 20);
-    let cpu_style = get_percentage_style(container.stats.cpu, styles);
+    // Check if container is running
+    let is_running = container.state == ContainerState::Running;
 
-    let memory_bar = create_progress_bar(container.stats.memory, 20);
-    let memory_style = get_percentage_style(container.stats.memory, styles);
+    // Only show stats for running containers
+    let (cpu_bar, cpu_style) = if is_running {
+        (
+            create_progress_bar(container.stats.cpu, 20),
+            get_percentage_style(container.stats.cpu, styles),
+        )
+    } else {
+        (String::new(), Style::default())
+    };
 
-    let network_tx = format_bytes_per_sec(container.stats.network_tx_bytes_per_sec);
-    let network_rx = format_bytes_per_sec(container.stats.network_rx_bytes_per_sec);
+    let (memory_bar, memory_style) = if is_running {
+        (
+            create_progress_bar(container.stats.memory, 20),
+            get_percentage_style(container.stats.memory, styles),
+        )
+    } else {
+        (String::new(), Style::default())
+    };
 
-    // Format time elapsed since creation
-    let time_elapsed = format_time_elapsed(container.created.as_ref());
+    let network_tx = if is_running {
+        format_bytes_per_sec(container.stats.network_tx_bytes_per_sec)
+    } else {
+        String::new()
+    };
+
+    let network_rx = if is_running {
+        format_bytes_per_sec(container.stats.network_rx_bytes_per_sec)
+    } else {
+        String::new()
+    };
+
+    // Format time elapsed since creation - show "N/A" for non-running containers
+    let time_elapsed = if is_running {
+        format_time_elapsed(container.created.as_ref())
+    } else {
+        "N/A".to_string()
+    };
 
     // Get status icon and color (health takes priority over state)
     let (icon, icon_style) = get_status_icon(&container.state, &container.health);
