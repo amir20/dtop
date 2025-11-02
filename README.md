@@ -65,7 +65,11 @@ By default, `dtop` will connect to the local Docker daemon using `/var/run/docke
 
 A terminal-based Docker container monitoring tool with real-time CPU and memory metrics
 
-    Usage: dtop [OPTIONS]
+    Usage: dtop [OPTIONS] [COMMAND]
+
+    Commands:
+      update  Update dtop to the latest version
+      help    Print this message or the help of the given subcommand(s)
 
     Options:
       -H, --host <HOST>

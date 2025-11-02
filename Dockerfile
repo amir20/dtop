@@ -30,7 +30,7 @@ RUN set -ex; \
     else \
     [ "$BUILDPLATFORM" != "$TARGETPLATFORM" ] && export CC=aarch64-linux-gnu-gcc CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc && STRIP="aarch64-linux-gnu-strip" || STRIP="strip"; \
     fi; \
-    cargo build --release --target "$RUST_TARGET"; \
+    cargo build --release --target "$RUST_TARGET" --no-default-features; \
     cp "target/$RUST_TARGET/release/dtop" /usr/local/bin/dtop; \
     "$STRIP" /usr/local/bin/dtop
 
