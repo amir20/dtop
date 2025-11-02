@@ -53,3 +53,10 @@ lto = "thin"
 [package.metadata.release]
 push = true
 tag = true
+pre-release-replacements = [
+  { file = "CHANGELOG.md", search = "## \\[unreleased\\]", replace = "## [unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
+]
+
+# git-cliff configuration for cargo-dist integration
+[package.metadata.dist]
+changelog = "CHANGELOG.md"

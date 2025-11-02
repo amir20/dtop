@@ -30,6 +30,12 @@ cargo insta reject                           # Reject all pending snapshots
 cargo build --release                        # The binary will be at target/release/dtop (includes self-update)
 cargo build --release --no-default-features  # Build without self-update feature (smaller binary)
 
+# Changelog generation
+git-cliff --latest                           # Generate changelog for the latest tag
+git-cliff --unreleased                       # Generate changelog for unreleased changes
+git-cliff --tag v0.3.0..v0.3.6              # Generate changelog for a version range
+git-cliff -o CHANGELOG.md                    # Write changelog to file
+
 # Docker build
 docker build -t dtop .
 docker run -v /var/run/docker.sock:/var/run/docker.sock -it dtop
@@ -328,6 +334,88 @@ cargo build --release --no-default-features  # Binary: ~1.9MB
 **Docker Configuration:**
 The Dockerfile builds with `--no-default-features` to create minimal Docker images (~2.5MB vs ~4.7MB).
 Since Docker containers are typically updated by pulling new images, the self-update feature isn't needed.
+## Changelog Management
+
+The project uses `git-cliff` for automated changelog generation based on conventional commits.
+
+### Configuration
+
+The changelog is configured in `cliff.toml` with the following settings:
+- Follows conventional commit format (feat, fix, docs, chore, etc.)
+- Groups commits by type (Features, Bug Fixes, Documentation, etc.)
+- Filters out dependency update commits and release preparation commits
+- Supports semantic versioning tags (v[0-9]+\.[0-9]+\.[0-9]+)
+- Sorts commits within sections by oldest first
+
+### Conventional Commit Format
+
+Commits should follow this format:
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Common types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `perf`: Performance improvements
+- `refactor`: Code refactoring
+- `style`: Code style changes
+- `test`: Test changes
+- `chore`: Maintenance tasks (builds, CI, etc.)
+
+**Examples:**
+```
+feat(update): add self-update command
+fix(stats): correct CPU calculation for multi-core systems
+docs: update installation instructions
+chore(deps): update rust crate bollard to v0.19.4
+```
+
+### Generating Changelogs
+
+```bash
+# View latest release changelog
+git-cliff --latest
+
+# View unreleased changes
+git-cliff --unreleased
+
+# Generate changelog for a version range
+git-cliff --tag v0.3.0..v0.3.6
+
+# Write full changelog to file
+git-cliff -o CHANGELOG.md
+
+# Generate changelog and update for next version
+git-cliff --unreleased --tag v0.4.0 -o CHANGELOG.md
+```
+
+### Integration with Cargo
+
+The project integrates git-cliff with both `cargo-release` and `cargo-dist`:
+
+**cargo-dist integration (`dist-workspace.toml`):**
+- `generate-changelog = true` - Automatically generates changelogs during releases
+- `changelog-backend = "git-cliff"` - Uses git-cliff for changelog generation
+- The GitHub release workflow will automatically include the generated changelog
+
+**cargo-release integration (`Cargo.toml`):**
+- `pre-release-replacements` - Automatically updates CHANGELOG.md during `cargo release`
+- Adds new version entry when creating a release
+
+**Release Workflow:**
+1. Make changes and commit using conventional commit format
+2. Run `cargo release <version>` to create a new release
+3. CHANGELOG.md is automatically updated with the new version
+4. Tag is created and pushed to GitHub
+5. GitHub Actions (via cargo-dist) builds binaries and creates a release with the changelog
+
+The `CHANGELOG.md` file is automatically maintained and should be committed to the repository.
 
 ## Key Dependencies
 
