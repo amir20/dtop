@@ -46,6 +46,5 @@ lto = "thin"
 
 
 [package.metadata.release]
-publish = false
 push = true
 tag = true
