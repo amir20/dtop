@@ -461,7 +461,7 @@ checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
 
 [[package]]
 name = "dtop"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "ansi-to-tui",
  "bollard",
