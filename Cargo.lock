@@ -478,6 +478,7 @@ dependencies = [
  "serde_yaml",
  "timeago",
  "tokio",
+ "url",
 ]
 
 [[package]]

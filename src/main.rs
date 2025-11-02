@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::io;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use url::Url;
 
 use app_state::AppState;
 use config::Config;
@@ -128,21 +129,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn create_host_id(host_spec: &str) -> String {
     if host_spec == "local" {
         "local".to_string()
-    } else if host_spec.starts_with("ssh://") {
-        // Extract user@host from ssh://user@host[:port]
-        host_spec
-            .strip_prefix("ssh://")
-            .unwrap_or(host_spec)
-            .split(':')
-            .next()
-            .unwrap_or(host_spec)
-            .to_string()
-    } else if host_spec.starts_with("tcp://") {
-        // Extract host:port from tcp://host:port
-        host_spec
-            .strip_prefix("tcp://")
-            .unwrap_or(host_spec)
-            .to_string()
+    } else if let Ok(url) = Url::parse(host_spec) {
+        // Extract just the domain/host from the URL
+        url.host_str().unwrap_or(host_spec).to_string()
     } else {
         host_spec.to_string()
     }
