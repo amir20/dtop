@@ -56,7 +56,7 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/la
 `dtop` is written in Rust can be installed using Cargo.
 
 ```sh
-cargo install --git https://github.com/amir20/dtop
+cargo install dtop
 ```
 
 ## Command Line Options
