@@ -6,6 +6,7 @@ mod logs;
 mod stats;
 mod types;
 mod ui;
+mod update;
 
 use bollard::{API_DEFAULT_VERSION, Docker};
 use clap::Parser;
@@ -31,6 +32,9 @@ use ui::{UiStyles, render_ui};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Docker host(s) to connect to. Can be specified multiple times.
     ///
     /// Examples:
@@ -45,11 +49,31 @@ struct Args {
     host: Vec<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Update dtop to the latest version
+    Update,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
 
+    // Handle subcommands before initializing Tokio runtime
+    if let Some(command) = args.command {
+        match command {
+            Command::Update => {
+                return update::run_update();
+            }
+        }
+    }
+
+    // Run the main TUI in async context
+    run_async(args)
+}
+
+#[tokio::main]
+async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Load config file if it exists
     let config = Config::load()?.unwrap_or_default();
 

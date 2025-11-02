@@ -15,6 +15,10 @@ cargo run -- --host ssh://user@host         # Run with remote Docker host via SS
 cargo run -- --host tcp://host:2375         # Run with remote Docker host via TCP
 cargo run -- --host local --host ssh://user@host1 --host tcp://host2:2375  # Multiple hosts
 
+# Self-update
+cargo run -- update                          # Update dtop to the latest version
+dtop update                                  # (or use the installed binary)
+
 # Testing
 cargo test                                   # Run all tests
 cargo test -- --nocapture                    # Run tests with output
