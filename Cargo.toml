@@ -23,7 +23,7 @@ open = "5.3"
 ansi-to-tui = "7.0"
 timeago = "0.5"
 url = "2.5"
-self_update = { version = "0.41", features = ["archive-tar", "compression-flate2"] }
+self_update = { version = "0.41", features = ["archive-tar", "compression-flate2", "rustls"], default-features = false }
 
 [dev-dependencies]
 insta = { version = "1.43", features = ["filters"] }
