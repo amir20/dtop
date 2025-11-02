@@ -8,12 +8,16 @@ repository = "https://github.com/amir20/dtop"
 homepage = "https://github.com/amir20/dtop"
 documentation = "https://github.com/amir20/dtop"
 
+[features]
+default = ["self-update"]
+self-update = ["dep:self_update"]
+
 [dependencies]
 ratatui = "0.29"
 crossterm = "0.29"
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
-bollard = {version= "0.19.3", features = ["ssh"]}
+bollard = {version= "0.19.4", features = ["ssh"]}
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
@@ -23,7 +27,7 @@ open = "5.3"
 ansi-to-tui = "7.0"
 timeago = "0.5"
 url = "2.5"
-self_update = { version = "0.41", features = ["archive-tar", "compression-flate2", "rustls"], default-features = false }
+self_update = { version = "0.41", default-features = false, features = ["archive-tar", "compression-flate2", "rustls"], optional = true }
 
 [dev-dependencies]
 insta = { version = "1.43", features = ["filters"] }

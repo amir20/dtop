@@ -27,7 +27,8 @@ cargo insta accept                           # Accept all pending snapshots
 cargo insta reject                           # Reject all pending snapshots
 
 # Production build
-cargo build --release                        # The binary will be at target/release/dtop
+cargo build --release                        # The binary will be at target/release/dtop (includes self-update)
+cargo build --release --no-default-features  # Build without self-update feature (smaller binary)
 
 # Docker build
 docker build -t dtop .
@@ -304,6 +305,29 @@ The project uses `cargo-dist` for building and releasing binaries across multipl
 - `.github/workflows/docker-build.yml` - Builds Docker images for testing
 - `.github/workflows/docker-release.yml` - Publishes Docker images on release
 - `.github/workflows/test.yml` - Runs test suite
+
+## Build Features
+
+The project supports optional features to control binary size and dependencies:
+
+### `self-update` Feature (enabled by default)
+- Adds the `dtop update` subcommand for self-updating the binary
+- Depends on `self_update` crate with rustls (adds ~1.9MB to binary size)
+- **Included in**: Release binaries, cargo-dist builds, regular cargo builds
+- **Excluded from**: Docker images (to minimize image size)
+
+**Usage:**
+```bash
+# Build with self-update (default)
+cargo build --release                        # Binary: ~3.8MB
+
+# Build without self-update (smaller)
+cargo build --release --no-default-features  # Binary: ~1.9MB
+```
+
+**Docker Configuration:**
+The Dockerfile builds with `--no-default-features` to create minimal Docker images (~2.5MB vs ~4.7MB).
+Since Docker containers are typically updated by pulling new images, the self-update feature isn't needed.
 
 ## Key Dependencies
 

@@ -6,6 +6,7 @@ mod logs;
 mod stats;
 mod types;
 mod ui;
+#[cfg(feature = "self-update")]
 mod update;
 
 use bollard::{API_DEFAULT_VERSION, Docker};
@@ -52,6 +53,7 @@ struct Args {
 #[derive(clap::Subcommand, Debug)]
 enum Command {
     /// Update dtop to the latest version
+    #[cfg(feature = "self-update")]
     Update,
 }
 
@@ -62,6 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Handle subcommands before initializing Tokio runtime
     if let Some(command) = args.command {
         match command {
+            #[cfg(feature = "self-update")]
             Command::Update => {
                 return update::run_update();
             }
