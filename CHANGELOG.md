@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [unreleased]
 
+## [0.3.7] - 2025-11-02
+
 ## [0.3.6] - 2025-11-02
 
 ### Miscellaneous Tasks
