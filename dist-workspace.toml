@@ -19,3 +19,5 @@ install-updater = false
 generate-changelog = true
 # Use git-cliff for changelog generation
 changelog-backend = "git-cliff"
+# Use tar.gz instead of tar.xz for compatibility with self_update crate
+unix-archive = ".tar.gz"
