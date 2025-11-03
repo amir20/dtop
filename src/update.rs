@@ -14,7 +14,7 @@ pub fn run_update() -> Result<(), Box<dyn Error>> {
         .bin_name("dtop")
         .show_download_progress(true)
         .current_version(cargo_crate_version!())
-        .target(&target)
+        .target(target)
         .bin_path_in_archive("{{ bin }}-{{ target }}/{{ bin }}")
         .build()?
         .update()?;
