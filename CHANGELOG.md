@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.9] - 2025-11-03
+
+### Bug Fixes
+
+- Fixes self update (#82)
+
 ## [0.3.8] - 2025-11-03
 
 ### Features
@@ -12,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 - Fixes git cliff
 - Fixes git cliff
+- Release dtop version 0.3.8
 
 ## [0.3.7] - 2025-11-02
 
