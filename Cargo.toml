@@ -53,12 +53,7 @@ lto = "thin"
 [package.metadata.release]
 push = true
 tag = true
-pre-release-replacements = [
-  {file="CHANGELOG.md", search="Unreleased", replace="{{version}}", min=1},
-  {file="CHANGELOG.md", search="ReleaseDate", replace="{{date}}", min=1},
-  {file="CHANGELOG.md", search="<!-- next-header -->", replace="<!-- next-header -->\n## [Unreleased] - ReleaseDate\n", exactly=1},
-]
-pre-release-hook = ["git-cliff", "-o", "CHANGELOG.md", "--tag", "{{version}}"]
+pre-release-hook = ["git-cliff", "v0.3.0..", "-o", "CHANGELOG.md", "--tag", "{{version}}"]
 
 # git-cliff configuration for cargo-dist integration
 [package.metadata.dist]
