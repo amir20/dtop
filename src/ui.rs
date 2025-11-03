@@ -451,7 +451,7 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  ↑/↓         Navigate containers or scroll logs"),
+        Line::from("  ↑/↓ or j/k  Navigate containers or scroll logs"),
         Line::from("  Enter       View logs for selected container"),
         Line::from("  Esc         Exit log view or close help"),
         Line::from("  o           Open container in Dozzle (if configured)"),

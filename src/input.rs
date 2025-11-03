@@ -23,12 +23,12 @@ pub fn keyboard_worker(tx: EventSender) {
                         let _ = tx.blocking_send(AppEvent::Quit);
                         break;
                     }
-                    KeyCode::Up => {
+                    KeyCode::Up | KeyCode::Char('k') => {
                         // Send both events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::SelectPrevious);
                         let _ = tx.blocking_send(AppEvent::ScrollUp);
                     }
-                    KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('j') => {
                         // Send both events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::SelectNext);
                         let _ = tx.blocking_send(AppEvent::ScrollDown);
