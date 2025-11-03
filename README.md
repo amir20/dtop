@@ -59,6 +59,22 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/la
 cargo install dtop
 ```
 
+## Self-Update
+
+`dtop` includes a built-in self-update feature to easily upgrade to the latest version:
+
+```sh
+dtop update
+```
+
+This command will:
+- Check GitHub releases for the latest version
+- Download and install the update if a newer version is available
+- Automatically replace the current binary with the new version
+
+> [!Note]
+> The self-update feature is only available in binaries installed via the install script or downloaded from GitHub releases. Docker images should be updated by pulling the latest image, and cargo installations should use `cargo install dtop --force`.
+
 ## Command Line Options
 
 By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
