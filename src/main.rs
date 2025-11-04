@@ -50,7 +50,7 @@ struct Args {
     ///   key.pem, cert.pem, and ca.pem
     ///
     /// If not specified, will use config file or default to "local"
-    #[arg(short = 'H', long)]
+    #[arg(short = 'H', long, verbatim_doc_comment)]
     host: Vec<String>,
 }
 
