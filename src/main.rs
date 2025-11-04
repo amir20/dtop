@@ -81,11 +81,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    // Load config file if it exists
-    let config = Config::load()?.unwrap_or_default();
-
     // Determine if CLI hosts were explicitly provided
     let cli_provided = !args.host.is_empty();
+
+    // Load config file only if CLI hosts not provided
+    let (config, config_path) = if cli_provided {
+        // User explicitly provided --host, don't load config for hosts
+        (Config::default(), None)
+    } else {
+        // Load config file if it exists
+        Config::load_with_path()?
+    };
 
     // Merge config with CLI args (CLI takes precedence)
     let merged_config = if cli_provided {
@@ -93,6 +99,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         config.merge_with_cli_hosts(args.host.clone(), false)
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
+        if let Some(path) = config_path {
+            eprintln!("Loaded config from: {}", path.display());
+        }
         config
     } else {
         // Neither CLI nor config provided hosts, use default "local"
@@ -109,9 +118,6 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             .map(|s| s.to_string())
             .collect()
     };
-
-    // Setup terminal
-    let mut terminal = setup_terminal()?;
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
@@ -144,8 +150,16 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Check if at least one host connected successfully
+    if connected_hosts.is_empty() {
+        return Err("Failed to connect to any Docker hosts. Please check your configuration and connection settings.".into());
+    }
+
     // Spawn keyboard worker in blocking thread
     spawn_keyboard_worker(tx.clone());
+
+    // Setup terminal
+    let mut terminal = setup_terminal()?;
 
     // Run main event loop
     run_event_loop(&mut terminal, &mut rx, tx.clone(), connected_hosts).await?;
