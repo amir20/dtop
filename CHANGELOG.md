@@ -2,11 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.10] - 2025-11-04
+
+### Features
+
+- Supports TLS (#84)
+- Make cpu and mem responsive (#88)
+- Supports mouse wheel (#89)
+
+### Documentation
+
+- Updates docs
+
+### Miscellaneous Tasks
+
+- Updates dist package
+
+### Chore
+
+- Fixes pr release  (#86)
+
 ## [0.3.9] - 2025-11-03
 
 ### Bug Fixes
 
 - Fixes self update (#82)
+
+### Miscellaneous Tasks
+
+- Release dtop version 0.3.9
 
 ## [0.3.8] - 2025-11-03
 
