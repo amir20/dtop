@@ -43,10 +43,10 @@ struct Args {
     ///   --host ssh://user@host          (Connect via SSH)
     ///   --host ssh://user@host:2222     (Connect via SSH with custom port)
     ///   --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
-    ///   --host https://host:2376        (Connect via HTTPS with TLS)
-    ///   --host local --host ssh://user@server1 --host https://server2:2376  (Multiple hosts)
+    ///   --host tls://host:2376          (Connect via TLS)
+    ///   --host local --host ssh://user@server1 --host tls://server2:2376  (Multiple hosts)
     ///
-    /// For HTTPS connections, set DOCKER_CERT_PATH to a directory containing:
+    /// For TLS connections, set DOCKER_CERT_PATH to a directory containing:
     ///   key.pem, cert.pem, and ca.pem
     ///
     /// If not specified, will use config file or default to "local"
@@ -180,8 +180,8 @@ fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
             120, // timeout in seconds
             API_DEFAULT_VERSION,
         )?)
-    } else if host.starts_with("https://") {
-        // Connect via HTTPS with TLS using environment variables for certificates
+    } else if host.starts_with("tls://") {
+        // Connect via TLS using environment variables for certificates
         // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files
         Ok(Docker::connect_with_ssl_defaults()?)
     } else if host.starts_with("tcp://") {
@@ -193,7 +193,7 @@ fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
         )?)
     } else {
         Err(format!(
-            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', 'tcp://host:port', or 'https://host:port'",
+            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
             host
         )
         .into())
