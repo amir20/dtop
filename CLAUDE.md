@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cargo run                                    # Run with local Docker daemon (or config file)
 cargo run -- --host ssh://user@host         # Run with remote Docker host via SSH
 cargo run -- --host tcp://host:2375         # Run with remote Docker host via TCP
+cargo run -- --host tls://host:2376         # Run with remote Docker host via TLS
 cargo run -- --host local --host ssh://user@host1 --host tcp://host2:2375  # Multiple hosts
 
 # Self-update
@@ -232,14 +233,15 @@ The merge logic:
 
 ### Docker Connection
 
-The `connect_docker()` function in `main.rs` handles three connection modes:
+The `connect_docker()` function in `main.rs` handles four connection modes:
 - `--host local`: Uses local Docker socket
 - `--host ssh://user@host[:port]`: Connects via SSH (requires Bollard SSH feature)
-- `--host tcp://host:port`: Connects via TCP to remote Docker daemon
+- `--host tcp://host:port`: Connects via TCP to remote Docker daemon (unencrypted)
+- `--host tls://host:port`: Connects via TLS to remote Docker daemon (encrypted, requires DOCKER_CERT_PATH)
 
 Multiple `--host` arguments can be provided to monitor multiple Docker hosts simultaneously.
 
-**Note:** TCP connections are unencrypted. Only use on trusted networks or with proper firewall rules.
+**Note:** TCP connections are unencrypted. Only use on trusted networks or with proper firewall rules. For encrypted connections, use TLS with certificates.
 
 ### Stats Calculation
 

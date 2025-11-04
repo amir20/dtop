@@ -43,10 +43,14 @@ struct Args {
     ///   --host ssh://user@host          (Connect via SSH)
     ///   --host ssh://user@host:2222     (Connect via SSH with custom port)
     ///   --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
-    ///   --host local --host ssh://user@server1 --host tcp://server2:2375  (Multiple hosts)
+    ///   --host tls://host:2376          (Connect via TLS)
+    ///   --host local --host ssh://user@server1 --host tls://server2:2376  (Multiple hosts)
+    ///
+    /// For TLS connections, set DOCKER_CERT_PATH to a directory containing:
+    ///   key.pem, cert.pem, and ca.pem
     ///
     /// If not specified, will use config file or default to "local"
-    #[arg(short = 'H', long)]
+    #[arg(short = 'H', long, verbatim_doc_comment)]
     host: Vec<String>,
 }
 
@@ -77,11 +81,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::main]
 async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    // Load config file if it exists
-    let config = Config::load()?.unwrap_or_default();
-
     // Determine if CLI hosts were explicitly provided
     let cli_provided = !args.host.is_empty();
+
+    // Load config file only if CLI hosts not provided
+    let (config, config_path) = if cli_provided {
+        // User explicitly provided --host, don't load config for hosts
+        (Config::default(), None)
+    } else {
+        // Load config file if it exists
+        Config::load_with_path()?
+    };
 
     // Merge config with CLI args (CLI takes precedence)
     let merged_config = if cli_provided {
@@ -89,6 +99,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         config.merge_with_cli_hosts(args.host.clone(), false)
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
+        if let Some(path) = config_path {
+            eprintln!("Loaded config from: {}", path.display());
+        }
         config
     } else {
         // Neither CLI nor config provided hosts, use default "local"
@@ -105,9 +118,6 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             .map(|s| s.to_string())
             .collect()
     };
-
-    // Setup terminal
-    let mut terminal = setup_terminal()?;
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
@@ -140,8 +150,16 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Check if at least one host connected successfully
+    if connected_hosts.is_empty() {
+        return Err("Failed to connect to any Docker hosts. Please check your configuration and connection settings.".into());
+    }
+
     // Spawn keyboard worker in blocking thread
     spawn_keyboard_worker(tx.clone());
+
+    // Setup terminal
+    let mut terminal = setup_terminal()?;
 
     // Run main event loop
     run_event_loop(&mut terminal, &mut rx, tx.clone(), connected_hosts).await?;
@@ -176,6 +194,28 @@ fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
             120, // timeout in seconds
             API_DEFAULT_VERSION,
         )?)
+    } else if host.starts_with("tls://") {
+        // Connect via TLS using environment variables for certificates
+        // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files
+        let cert_path = std::env::var("DOCKER_CERT_PATH")
+            .unwrap_or_else(|_| format!("{}/.docker", std::env::var("HOME").unwrap_or_default()));
+
+        let cert_dir = std::path::Path::new(&cert_path);
+        let key_path = cert_dir.join("key.pem");
+        let cert_path = cert_dir.join("cert.pem");
+        let ca_path = cert_dir.join("ca.pem");
+
+        // Convert tls:// to tcp:// for Bollard
+        let tcp_host = host.replace("tls://", "tcp://");
+
+        Ok(Docker::connect_with_ssl(
+            &tcp_host,
+            &key_path,
+            &cert_path,
+            &ca_path,
+            120, // timeout in seconds
+            API_DEFAULT_VERSION,
+        )?)
     } else if host.starts_with("tcp://") {
         // Connect via TCP (remote Docker daemon)
         Ok(Docker::connect_with_http(
@@ -185,7 +225,7 @@ fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
         )?)
     } else {
         Err(format!(
-            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', or 'tcp://host:port'",
+            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
             host
         )
         .into())

@@ -23,3 +23,4 @@ hosts:
   # - host: ssh://user@server2:2222
   #   dozzle: https://dozzle.server2.com/
   # - host: tcp://192.168.1.100:2375  # TCP connection (unencrypted)
+  # - host: tls://192.168.1.100:2376  # TLS connection (encrypted, requires DOCKER_CERT_PATH)

@@ -29,20 +29,19 @@ impl Config {
     /// 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
     /// 3. ~/.dtop.yaml or ~/.dtop.yml
     ///
-    /// Returns None if no config file is found, or an error if a file exists but can't be parsed
-    pub fn load() -> Result<Option<Self>, Box<dyn std::error::Error>> {
+    /// Returns (Config, Option<PathBuf>) where the PathBuf is Some if a config file was found
+    pub fn load_with_path() -> Result<(Self, Option<PathBuf>), Box<dyn std::error::Error>> {
         let config_paths = Self::get_config_paths();
 
         for path in config_paths {
             if path.exists() {
                 let contents = std::fs::read_to_string(&path)?;
                 let config: Config = serde_yaml::from_str(&contents)?;
-                eprintln!("Loaded config from: {}", path.display());
-                return Ok(Some(config));
+                return Ok((config, Some(path)));
             }
         }
 
-        Ok(None)
+        Ok((Config::default(), None))
     }
 
     /// Get list of potential config file paths in priority order
