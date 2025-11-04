@@ -1,10 +1,10 @@
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use std::time::Duration;
 
 use crate::types::{AppEvent, EventSender};
 
 /// Polls for keyboard input and terminal events
-/// Sends events for various key presses and terminal resize
+/// Sends events for various key presses, mouse events, and terminal resize
 pub fn keyboard_worker(tx: EventSender) {
     loop {
         // Poll every 200ms - humans won't notice the difference
@@ -72,6 +72,19 @@ pub fn keyboard_worker(tx: EventSender) {
                 Event::Resize(_, _) => {
                     let _ = tx.blocking_send(AppEvent::Resize);
                 }
+                Event::Mouse(mouse) => match mouse.kind {
+                    MouseEventKind::ScrollUp => {
+                        // Send both events - handler will decide based on view state
+                        let _ = tx.blocking_send(AppEvent::SelectPrevious);
+                        let _ = tx.blocking_send(AppEvent::ScrollUp);
+                    }
+                    MouseEventKind::ScrollDown => {
+                        // Send both events - handler will decide based on view state
+                        let _ = tx.blocking_send(AppEvent::SelectNext);
+                        let _ = tx.blocking_send(AppEvent::ScrollDown);
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         }
