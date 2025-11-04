@@ -3,11 +3,11 @@ source: src/ui_tests.rs
 expression: output
 ---
 ┌dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)────────────────────────────────────────────────────────────────┐
-│ID             Nam CPU %                        Memory %                     Net TX       Net RX       Uptime ▼       │
+│ID             Name                                          CPU %   Memory  Net TX       Net RX       Uptime ▼       │
 │                                                                                                                      │
-│abc123456789 ▶ ngi █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░  45.2%  1.0KB/s      2.0KB/s      2 hours ago    │
-│def987654321 ▶ pos █████████████░░░░░░░  65.8%  ████████████████░░░░  78.3%  5.0KB/s      10.0KB/s     2 hours ago    │
-│ghi111222333 ▶ red ███░░░░░░░░░░░░░░░░░  15.2%  ██████░░░░░░░░░░░░░░  30.5%  512B/s       1.0KB/s      2 hours ago    │
+│abc123456789 ▶ nginx                                          25.5%   45.2%  1.0KB/s      2.0KB/s      2 hours ago    │
+│def987654321 ▶ postgres                                       65.8%   78.3%  5.0KB/s      10.0KB/s     2 hours ago    │
+│ghi111222333 ▶ redis                                          15.2%   30.5%  512B/s       1.0KB/s      2 hours ago    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

@@ -459,4 +459,39 @@ mod tests {
         let output = buffer_to_string(&buffer);
         assert_snapshot_with_redaction!(output);
     }
+
+    #[test]
+    fn test_wide_terminal_with_progress_bars() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add a container with stats
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 45.5, 62.3, 1024.0, 2048.0);
+
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key);
+
+        // Use a wide terminal (>= 128 chars) to trigger progress bar display
+        let backend = TestBackend::new(150, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify that progress bars are present (containing █ or ░ characters)
+        assert!(
+            output.contains('█') || output.contains('░'),
+            "Wide terminal (150 chars) should display progress bars"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
 }

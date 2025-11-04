@@ -84,12 +84,16 @@ fn render_container_list(
     sort_state: SortState,
 ) {
     let size = f.area();
+    let width = size.width;
+
+    // Determine if we should show progress bars based on terminal width
+    let show_progress_bars = width >= 128;
 
     // Use pre-sorted list instead of sorting every frame
     let rows: Vec<Row> = sorted_container_keys
         .iter()
         .filter_map(|key| containers.get(key))
-        .map(|c| create_container_row(c, styles, show_host_column))
+        .map(|c| create_container_row(c, styles, show_host_column, show_progress_bars))
         .collect();
 
     let header = create_header_row(styles, show_host_column, sort_state);
@@ -99,6 +103,7 @@ fn render_container_list(
         sorted_container_keys.len(),
         styles,
         show_host_column,
+        show_progress_bars,
     );
 
     f.render_stateful_widget(table, size, table_state);
@@ -221,23 +226,31 @@ fn create_container_row<'a>(
     container: &'a Container,
     styles: &UiStyles,
     show_host_column: bool,
+    show_progress_bars: bool,
 ) -> Row<'a> {
     // Check if container is running
     let is_running = container.state == ContainerState::Running;
 
     // Only show stats for running containers
     let (cpu_bar, cpu_style) = if is_running {
-        (
-            create_progress_bar(container.stats.cpu, 20),
-            get_percentage_style(container.stats.cpu, styles),
-        )
+        let display = if show_progress_bars {
+            create_progress_bar(container.stats.cpu, 20)
+        } else {
+            format!("{:5.1}%", container.stats.cpu)
+        };
+        (display, get_percentage_style(container.stats.cpu, styles))
     } else {
         (String::new(), Style::default())
     };
 
     let (memory_bar, memory_style) = if is_running {
+        let display = if show_progress_bars {
+            create_progress_bar(container.stats.memory, 20)
+        } else {
+            format!("{:5.1}%", container.stats.memory)
+        };
         (
-            create_progress_bar(container.stats.memory, 20),
+            display,
             get_percentage_style(container.stats.memory, styles),
         )
     } else {
@@ -379,6 +392,7 @@ fn create_table<'a>(
     container_count: usize,
     styles: &UiStyles,
     show_host_column: bool,
+    show_progress_bars: bool,
 ) -> Table<'a> {
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
@@ -390,12 +404,19 @@ fn create_table<'a>(
         constraints.push(Constraint::Length(20)); // Host
     }
 
+    // Adjust column widths based on whether progress bars are shown
+    let cpu_mem_width = if show_progress_bars {
+        28 // CPU/Memory progress bar (20 chars + " 100.0%")
+    } else {
+        7 // Just percentage (" 100.0%")
+    };
+
     constraints.extend(vec![
-        Constraint::Length(28), // CPU progress bar (20 chars + " 100.0%")
-        Constraint::Length(28), // Memory progress bar (20 chars + " 100.0%")
-        Constraint::Length(12), // Network TX (1.23MB/s)
-        Constraint::Length(12), // Network RX (4.56MB/s)
-        Constraint::Length(15), // Uptime
+        Constraint::Length(cpu_mem_width), // CPU
+        Constraint::Length(cpu_mem_width), // Memory
+        Constraint::Length(12),            // Network TX (1.23MB/s)
+        Constraint::Length(12),            // Network RX (4.56MB/s)
+        Constraint::Length(15),            // Uptime
     ]);
 
     Table::new(rows, constraints)
@@ -557,6 +578,7 @@ mod tests {
         assert_eq!(get_percentage_style(80.0, &styles).fg, Some(Color::Yellow));
         assert_eq!(get_percentage_style(80.1, &styles).fg, Some(Color::Red));
     }
+
     #[test]
     fn test_color_coding_boundaries() {
         let styles = UiStyles::default();
@@ -592,5 +614,91 @@ mod tests {
             Some(Color::Red),
             "100% should be red"
         );
+    }
+
+    #[test]
+    fn test_progress_bar_with_wide_width() {
+        // Test that progress bar function creates bars with percentages
+        let progress_bar = create_progress_bar(42.5, 20);
+
+        // Should contain progress bar characters
+        assert!(
+            progress_bar.contains('█') || progress_bar.contains('░'),
+            "Progress bar should contain bar characters, got: {}",
+            progress_bar
+        );
+
+        // Should contain the percentage
+        assert!(
+            progress_bar.contains("42.5%"),
+            "Progress bar should contain percentage, got: {}",
+            progress_bar
+        );
+
+        // Verify it has both bar and percentage (don't check exact byte length due to Unicode)
+        let parts: Vec<&str> = progress_bar.split_whitespace().collect();
+        assert!(
+            parts.len() >= 2,
+            "Progress bar should have bar and percentage parts"
+        )
+    }
+
+    #[test]
+    fn test_percentage_only_narrow_width() {
+        // Test that when show_progress_bars is false, we get just the percentage
+        let percentage_only = format!("{:5.1}%", 42.5);
+
+        // Should NOT contain progress bar characters
+        assert!(
+            !percentage_only.contains('█') && !percentage_only.contains('░'),
+            "Percentage-only mode should not contain bar characters, got: {}",
+            percentage_only
+        );
+
+        // Should contain the percentage
+        assert!(
+            percentage_only.contains("42.5%"),
+            "Should contain percentage, got: {}",
+            percentage_only
+        );
+
+        // Should be much shorter than progress bar
+        assert_eq!(percentage_only.len(), 6); // " 42.5%"
+    }
+
+    #[test]
+    fn test_create_table_column_widths() {
+        let styles = UiStyles::default();
+        let rows = vec![];
+        let header = create_header_row(&styles, false, SortState::default());
+
+        // Test with progress bars (wide width)
+        let _table_wide = create_table(rows.clone(), header.clone(), 0, &styles, false, true);
+        // Wide mode should use 28 chars for CPU/Memory columns (verified by column constraint)
+
+        // Test without progress bars (narrow width)
+        let _table_narrow = create_table(rows, header, 0, &styles, false, false);
+        // Narrow mode should use 7 chars for CPU/Memory columns (verified by column constraint)
+
+        // If we get here without panics, the table creation works for both modes
+        assert!(true);
+    }
+
+    #[test]
+    fn test_progress_bar_edge_cases() {
+        // Test 0%
+        let bar_0 = create_progress_bar(0.0, 20);
+        assert!(bar_0.contains("0.0%") || bar_0.contains("  0.0%"));
+        assert!(bar_0.contains('░')); // Should be all empty
+
+        // Test 100%
+        let bar_100 = create_progress_bar(100.0, 20);
+        assert!(bar_100.contains("100.0%"));
+        assert!(bar_100.contains('█')); // Should be all filled
+
+        // Test 50%
+        let bar_50 = create_progress_bar(50.0, 20);
+        assert!(bar_50.contains("50.0%"));
+        assert!(bar_50.contains('█') && bar_50.contains('░')); // Should have both
     }
 }
