@@ -197,7 +197,25 @@ fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
     } else if host.starts_with("tls://") {
         // Connect via TLS using environment variables for certificates
         // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files
-        Ok(Docker::connect_with_ssl_defaults()?)
+        let cert_path = std::env::var("DOCKER_CERT_PATH")
+            .unwrap_or_else(|_| format!("{}/.docker", std::env::var("HOME").unwrap_or_default()));
+
+        let cert_dir = std::path::Path::new(&cert_path);
+        let key_path = cert_dir.join("key.pem");
+        let cert_path = cert_dir.join("cert.pem");
+        let ca_path = cert_dir.join("ca.pem");
+
+        // Convert tls:// to tcp:// for Bollard
+        let tcp_host = host.replace("tls://", "tcp://");
+
+        Ok(Docker::connect_with_ssl(
+            &tcp_host,
+            &key_path,
+            &cert_path,
+            &ca_path,
+            120, // timeout in seconds
+            API_DEFAULT_VERSION,
+        )?)
     } else if host.starts_with("tcp://") {
         // Connect via TCP (remote Docker daemon)
         Ok(Docker::connect_with_http(
