@@ -3,11 +3,11 @@ source: src/ui_tests.rs
 expression: output
 ---
 ┌dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)────────────────────────────────────────────────────────────────┐
-│ID             Nam CPU %                        Memory %                     Net TX       Net RX       Uptime ▼       │
+│ID             Name                                          CPU %   Memory  Net TX       Net RX       Uptime ▼       │
 │                                                                                                                      │
-│low12345678  ▶ low ███░░░░░░░░░░░░░░░░░  15.0%  ████░░░░░░░░░░░░░░░░  20.0%  100B/s       200B/s       2 hours ago    │
-│med12345678  ▶ med ███████████░░░░░░░░░  55.0%  █████████████░░░░░░░  65.0%  1000.0KB/s   1.95MB/s     2 hours ago    │
-│high12345678 ▶ hig ███████████████████░  95.0%  ████████████████████  99.0%  100.00MB/s   200.00MB/s   2 hours ago    │
+│low12345678  ▶ low-usage                                      15.0%   20.0%  100B/s       200B/s       2 hours ago    │
+│med12345678  ▶ medium-usage                                   55.0%   65.0%  1000.0KB/s   1.95MB/s     2 hours ago    │
+│high12345678 ▶ high-usage                                     95.0%   99.0%  100.00MB/s   200.00MB/s   2 hours ago    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

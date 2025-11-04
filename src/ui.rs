@@ -84,12 +84,16 @@ fn render_container_list(
     sort_state: SortState,
 ) {
     let size = f.area();
+    let width = size.width;
+
+    // Determine if we should show progress bars based on terminal width
+    let show_progress_bars = width >= 128;
 
     // Use pre-sorted list instead of sorting every frame
     let rows: Vec<Row> = sorted_container_keys
         .iter()
         .filter_map(|key| containers.get(key))
-        .map(|c| create_container_row(c, styles, show_host_column))
+        .map(|c| create_container_row(c, styles, show_host_column, show_progress_bars))
         .collect();
 
     let header = create_header_row(styles, show_host_column, sort_state);
@@ -99,6 +103,7 @@ fn render_container_list(
         sorted_container_keys.len(),
         styles,
         show_host_column,
+        show_progress_bars,
     );
 
     f.render_stateful_widget(table, size, table_state);
@@ -221,23 +226,31 @@ fn create_container_row<'a>(
     container: &'a Container,
     styles: &UiStyles,
     show_host_column: bool,
+    show_progress_bars: bool,
 ) -> Row<'a> {
     // Check if container is running
     let is_running = container.state == ContainerState::Running;
 
     // Only show stats for running containers
     let (cpu_bar, cpu_style) = if is_running {
-        (
-            create_progress_bar(container.stats.cpu, 20),
-            get_percentage_style(container.stats.cpu, styles),
-        )
+        let display = if show_progress_bars {
+            create_progress_bar(container.stats.cpu, 20)
+        } else {
+            format!("{:5.1}%", container.stats.cpu)
+        };
+        (display, get_percentage_style(container.stats.cpu, styles))
     } else {
         (String::new(), Style::default())
     };
 
     let (memory_bar, memory_style) = if is_running {
+        let display = if show_progress_bars {
+            create_progress_bar(container.stats.memory, 20)
+        } else {
+            format!("{:5.1}%", container.stats.memory)
+        };
         (
-            create_progress_bar(container.stats.memory, 20),
+            display,
             get_percentage_style(container.stats.memory, styles),
         )
     } else {
@@ -379,6 +392,7 @@ fn create_table<'a>(
     container_count: usize,
     styles: &UiStyles,
     show_host_column: bool,
+    show_progress_bars: bool,
 ) -> Table<'a> {
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
@@ -390,12 +404,19 @@ fn create_table<'a>(
         constraints.push(Constraint::Length(20)); // Host
     }
 
+    // Adjust column widths based on whether progress bars are shown
+    let cpu_mem_width = if show_progress_bars {
+        28 // CPU/Memory progress bar (20 chars + " 100.0%")
+    } else {
+        7 // Just percentage (" 100.0%")
+    };
+
     constraints.extend(vec![
-        Constraint::Length(28), // CPU progress bar (20 chars + " 100.0%")
-        Constraint::Length(28), // Memory progress bar (20 chars + " 100.0%")
-        Constraint::Length(12), // Network TX (1.23MB/s)
-        Constraint::Length(12), // Network RX (4.56MB/s)
-        Constraint::Length(15), // Uptime
+        Constraint::Length(cpu_mem_width), // CPU
+        Constraint::Length(cpu_mem_width), // Memory
+        Constraint::Length(12),            // Network TX (1.23MB/s)
+        Constraint::Length(12),            // Network RX (4.56MB/s)
+        Constraint::Length(15),            // Uptime
     ]);
 
     Table::new(rows, constraints)
@@ -557,6 +578,7 @@ mod tests {
         assert_eq!(get_percentage_style(80.0, &styles).fg, Some(Color::Yellow));
         assert_eq!(get_percentage_style(80.1, &styles).fg, Some(Color::Red));
     }
+
     #[test]
     fn test_color_coding_boundaries() {
         let styles = UiStyles::default();

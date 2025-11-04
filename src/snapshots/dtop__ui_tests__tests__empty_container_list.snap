@@ -3,7 +3,7 @@ source: src/ui_tests.rs
 expression: output
 ---
 ┌dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)────────────────────────────────────────────┐
-│I    CPU %                     Memory %                  Net TX       Net RX       Uptime ▼       │
+│ID             Name                      CPU %   Memory  Net TX       Net RX       Uptime ▼       │
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
