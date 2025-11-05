@@ -51,6 +51,29 @@
                 localStorage.setItem("theme", isDark ? "dark" : "light");
             }
 
+            // Copy to clipboard functionality
+            async function copyToClipboard(text, button) {
+                try {
+                    await navigator.clipboard.writeText(text);
+
+                    // Get the SVG icon and checkmark
+                    const icon = button.querySelector(".copy-icon");
+                    const check = button.querySelector(".check-icon");
+
+                    // Show checkmark
+                    icon.classList.add("hidden");
+                    check.classList.remove("hidden");
+
+                    // Reset after 2 seconds
+                    setTimeout(() => {
+                        icon.classList.remove("hidden");
+                        check.classList.add("hidden");
+                    }, 2000);
+                } catch (err) {
+                    console.error("Failed to copy:", err);
+                }
+            }
+
             // Initialize theme before page loads
             initTheme();
         </script>
@@ -264,9 +287,42 @@
                             </h3>
                         </div>
                         <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-orange p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors"
+                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-orange p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors relative group"
                         >
                             <code>cargo install dtop</code>
+                            <button
+                                onclick="copyToClipboard('cargo install dtop', this)"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Copy to clipboard"
+                                title="Copy to clipboard"
+                            >
+                                <svg
+                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <svg
+                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M5 13l4 4L19 7"
+                                    ></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
@@ -283,13 +339,46 @@
                             </h3>
                         </div>
                         <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-blue p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden"
+                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-blue p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden relative group"
                         >
                             <code
                                 >curl --proto '=https' --tlsv1.2 -LsSf
                                 https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh
                                 | sh</code
                             >
+                            <button
+                                onclick="copyToClipboard('curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh', this)"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Copy to clipboard"
+                                title="Copy to clipboard"
+                            >
+                                <svg
+                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <svg
+                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M5 13l4 4L19 7"
+                                    ></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
 
@@ -306,13 +395,46 @@
                             </h3>
                         </div>
                         <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-purple p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden"
+                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-purple p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden relative group"
                         >
                             <code>
                                 docker run -v
                                 /var/run/docker.sock:/var/run/docker.sock -it
                                 ghcr.io/amir20/dtop:latest</code
                             >
+                            <button
+                                onclick="copyToClipboard('docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop:latest', this)"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Copy to clipboard"
+                                title="Copy to clipboard"
+                            >
+                                <svg
+                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <svg
+                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M5 13l4 4L19 7"
+                                    ></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -323,9 +445,42 @@
                         Then simply run:
                     </p>
                     <div
-                        class="bg-white dark:bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-lg text-gray-900 dark:text-white max-w-xs mx-auto transition-colors"
+                        class="bg-white dark:bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-lg text-gray-900 dark:text-white max-w-xs mx-auto transition-colors relative group"
                     >
                         <code>$ dtop</code>
+                        <button
+                            onclick="copyToClipboard('dtop', this)"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Copy to clipboard"
+                            title="Copy to clipboard"
+                        >
+                            <svg
+                                class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            <svg
+                                class="check-icon w-5 h-5 text-terminal-green hidden"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 13l4 4L19 7"
+                                ></path>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
