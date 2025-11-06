@@ -8,8 +8,8 @@ use ratatui::{
 use std::collections::HashMap;
 use timeago::Formatter;
 
-use crate::app_state::AppState;
-use crate::types::{
+use crate::core::app_state::AppState;
+use crate::core::types::{
     Container, ContainerKey, ContainerState, HealthStatus, SortField, SortState, ViewState,
 };
 

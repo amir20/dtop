@@ -1,7 +1,7 @@
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use std::time::Duration;
 
-use crate::types::{AppEvent, EventSender};
+use crate::core::types::{AppEvent, EventSender, SortField};
 
 /// Polls for keyboard input and terminal events
 /// Sends events for various key presses, mouse events, and terminal resize
@@ -49,20 +49,16 @@ pub fn keyboard_worker(tx: EventSender) {
                         let _ = tx.blocking_send(AppEvent::CycleSortField);
                     }
                     KeyCode::Char('u') | KeyCode::Char('U') => {
-                        let _ = tx
-                            .blocking_send(AppEvent::SetSortField(crate::types::SortField::Uptime));
+                        let _ = tx.blocking_send(AppEvent::SetSortField(SortField::Uptime));
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') => {
-                        let _ =
-                            tx.blocking_send(AppEvent::SetSortField(crate::types::SortField::Name));
+                        let _ = tx.blocking_send(AppEvent::SetSortField(SortField::Name));
                     }
                     KeyCode::Char('c') | KeyCode::Char('C') => {
-                        let _ =
-                            tx.blocking_send(AppEvent::SetSortField(crate::types::SortField::Cpu));
+                        let _ = tx.blocking_send(AppEvent::SetSortField(SortField::Cpu));
                     }
                     KeyCode::Char('m') | KeyCode::Char('M') => {
-                        let _ = tx
-                            .blocking_send(AppEvent::SetSortField(crate::types::SortField::Memory));
+                        let _ = tx.blocking_send(AppEvent::SetSortField(SortField::Memory));
                     }
                     KeyCode::Char('a') | KeyCode::Char('A') => {
                         let _ = tx.blocking_send(AppEvent::ToggleShowAll);

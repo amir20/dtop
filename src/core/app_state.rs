@@ -4,11 +4,12 @@ use ratatui::widgets::TableState;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::docker::DockerHost;
-use crate::logs::{LogEntry, stream_container_logs};
-use crate::types::{
-    AppEvent, Container, ContainerKey, SortDirection, SortField, SortState, ViewState,
+use crate::core::types::{
+    AppEvent, Container, ContainerKey, ContainerStats, HealthStatus, SortDirection, SortField,
+    SortState, ViewState,
 };
+use crate::docker::connection::DockerHost;
+use crate::docker::logs::{LogEntry, stream_container_logs};
 
 /// Style for log timestamps (yellow + bold)
 const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
@@ -167,22 +168,14 @@ impl AppState {
         true // Force draw - table structure changed
     }
 
-    fn handle_container_stat(
-        &mut self,
-        key: ContainerKey,
-        stats: crate::types::ContainerStats,
-    ) -> bool {
+    fn handle_container_stat(&mut self, key: ContainerKey, stats: ContainerStats) -> bool {
         if let Some(container) = self.containers.get_mut(&key) {
             container.stats = stats;
         }
         false // No force draw - just stats update
     }
 
-    fn handle_container_health_changed(
-        &mut self,
-        key: ContainerKey,
-        health: crate::types::HealthStatus,
-    ) -> bool {
+    fn handle_container_health_changed(&mut self, key: ContainerKey, health: HealthStatus) -> bool {
         if let Some(container) = self.containers.get_mut(&key) {
             container.health = Some(health);
         }
@@ -458,7 +451,7 @@ impl AppState {
 
     /// Sorts the container keys based on the current sort field and direction
     fn sort_containers(&mut self) {
-        use crate::types::ContainerState;
+        use crate::core::types::ContainerState;
 
         // Rebuild sorted_container_keys from containers, filtering by running state if needed
         self.sorted_container_keys = self

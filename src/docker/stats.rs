@@ -3,8 +3,8 @@ use bollard::query_parameters::StatsOptions;
 use futures_util::stream::StreamExt;
 use std::time::Instant;
 
-use crate::docker::DockerHost;
-use crate::types::{AppEvent, ContainerKey, ContainerStats, EventSender};
+use crate::core::types::{AppEvent, ContainerKey, ContainerStats, EventSender};
+use crate::docker::connection::DockerHost;
 
 /// Streams stats for a single container and sends updates via the event channel
 ///

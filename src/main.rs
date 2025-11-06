@@ -1,13 +1,7 @@
-mod app_state;
-mod config;
+mod cli;
+mod core;
 mod docker;
-mod input;
-mod logs;
-mod stats;
-mod types;
 mod ui;
-#[cfg(feature = "self-update")]
-mod update;
 
 use bollard::{API_DEFAULT_VERSION, Docker};
 use clap::Parser;
@@ -23,12 +17,12 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use url::Url;
 
-use app_state::AppState;
-use config::Config;
-use docker::{DockerHost, container_manager};
-use input::keyboard_worker;
-use types::AppEvent;
-use ui::{UiStyles, render_ui};
+use cli::config::Config;
+use core::app_state::AppState;
+use core::types::AppEvent;
+use docker::connection::{DockerHost, container_manager};
+use ui::input::keyboard_worker;
+use ui::render::{UiStyles, render_ui};
 
 /// Docker container monitoring TUI
 #[derive(Parser, Debug)]
@@ -71,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match command {
             #[cfg(feature = "self-update")]
             Command::Update => {
-                return update::run_update();
+                return cli::update::run_update();
             }
         }
     }
