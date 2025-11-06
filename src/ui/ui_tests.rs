@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::app_state::AppState;
-    use crate::types::{Container, ContainerKey, ContainerState, ContainerStats, ViewState};
-    use crate::ui::{UiStyles, render_ui};
+    use crate::core::app_state::AppState;
+    use crate::core::types::{Container, ContainerKey, ContainerState, ContainerStats, ViewState};
+    use crate::ui::render::{UiStyles, render_ui};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;

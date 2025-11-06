@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use ratatui::text::Text;
 
-use crate::docker::DockerHost;
-use crate::types::{AppEvent, ContainerKey, EventSender};
+use crate::core::types::{AppEvent, ContainerKey, EventSender};
+use crate::docker::connection::DockerHost;
 
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]

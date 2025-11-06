@@ -5,10 +5,10 @@ use futures_util::stream::StreamExt;
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::stats::stream_container_stats;
-use crate::types::{
+use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, EventSender, HostId,
 };
+use crate::docker::stats::stream_container_stats;
 
 /// Represents a Docker host connection with its identifier
 #[derive(Clone)]

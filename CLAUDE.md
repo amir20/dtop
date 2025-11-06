@@ -73,6 +73,34 @@ See `config.example.yaml` for a complete example.
 
 The application follows an **event-driven architecture** with multiple async/threaded components communicating via a single mpsc channel (`AppEvent`). The architecture supports **multi-host monitoring** by spawning independent container managers for each Docker host.
 
+### Source Code Organization
+
+The codebase is organized into logical modules:
+
+```
+src/
+├── cli/                   # CLI-related modules
+│   ├── config.rs         # Configuration file loading (YAML)
+│   └── update.rs         # Self-update functionality
+│
+├── core/                  # Core application logic
+│   ├── app_state.rs      # Central state manager
+│   └── types.rs          # Core types and events
+│
+├── docker/                # Docker-related functionality
+│   ├── connection.rs     # Container manager & Docker host abstraction
+│   ├── logs.rs           # Log streaming
+│   └── stats.rs          # Stats streaming and calculation
+│
+├── ui/                    # UI rendering and input handling
+│   ├── input.rs          # Keyboard worker
+│   ├── render.rs         # Ratatui UI rendering
+│   └── ui_tests.rs       # UI snapshot tests
+│
+├── lib.rs                # Library root with module declarations
+└── main.rs               # Binary entry point
+```
+
 ### Core Components
 
 1. **Main Event Loop** (`main.rs::run_event_loop`)
@@ -81,7 +109,7 @@ The application follows an **event-driven architecture** with multiple async/thr
    - Renders UI at 500ms intervals using Ratatui
    - Uses throttling to wait for events or timeout, then drains all pending events
 
-2. **AppState** (`app_state.rs::AppState`)
+2. **AppState** (`core/app_state.rs::AppState`)
    - Central state manager that handles all runtime data
    - Maintains container state in `HashMap<ContainerKey, Container>` where `ContainerKey` is `(host_id, container_id)`
    - Manages view state (container list vs log view)
@@ -89,7 +117,7 @@ The application follows an **event-driven architecture** with multiple async/thr
    - Pre-sorts containers by host_id and name for efficient rendering
    - Single source of truth for container data across all hosts
 
-3. **Container Manager** (`docker.rs::container_manager`) - **One per Docker host**
+3. **Container Manager** (`docker/connection.rs::container_manager`) - **One per Docker host**
    - Async task that manages Docker API interactions for a specific host
    - Each manager operates independently with its own `DockerHost` instance
    - Fetches initial container list on startup
@@ -98,14 +126,14 @@ The application follows an **event-driven architecture** with multiple async/thr
    - Each container gets its own async task running `stream_container_stats`
    - All events include the `host_id` to identify their source
 
-4. **Stats Streaming** (`stats.rs::stream_container_stats`)
+4. **Stats Streaming** (`docker/stats.rs::stream_container_stats`)
    - One async task per container that streams real-time stats
    - Uses **exponential moving average (alpha=0.3)** to smooth CPU, memory, and network stats
    - Calculates network TX/RX rates in bytes per second
    - CPU calculation: Delta between current and previous usage, normalized by system CPU delta and CPU count
    - Memory calculation: Current usage divided by limit, expressed as percentage
 
-5. **Log Streaming** (`logs.rs::stream_container_logs`)
+5. **Log Streaming** (`docker/logs.rs::stream_container_logs`)
    - Streams logs from a container in real-time
    - Fetches last 100 lines on startup, then follows new logs
    - Parses timestamps (RFC3339 format) and messages
@@ -113,7 +141,7 @@ The application follows an **event-driven architecture** with multiple async/thr
    - Preserves whitespace and formatting from original logs
    - Sends each log line as `AppEvent::LogLine` event with pre-parsed Text
 
-6. **Keyboard Worker** (`input.rs::keyboard_worker`)
+6. **Keyboard Worker** (`ui/input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms
    - Handles: 'q'/Ctrl-C (quit), Enter (view logs), Esc (exit log view), Up/Down (navigate/scroll)
    - Separate thread because crossterm's event polling is blocking
@@ -134,7 +162,7 @@ Keyboard          → keyboard_worker   → AppEvent::Quit → Main Loop → Exi
 - Containers are uniquely identified by `ContainerKey { host_id, container_id }`
 - The UI displays host information alongside container information
 
-### Event Types (`types.rs::AppEvent`)
+### Event Types (`core/types.rs::AppEvent`)
 
 Container-related events use structured types to identify containers across hosts:
 
@@ -158,13 +186,13 @@ Container-related events use structured types to identify containers across host
 - `SetSortField(SortField)` - User pressed a specific key to set sort field (u/n/c/m)
 - `ToggleShowAll` - User pressed 'a' to toggle showing all containers (including stopped)
 
-### View States (`types.rs::ViewState`)
+### View States (`core/types.rs::ViewState`)
 
 The application has two view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 
-### Container Data Model (`types.rs::Container`)
+### Container Data Model (`core/types.rs::Container`)
 
 The `Container` struct holds both static metadata and runtime statistics:
 
@@ -188,7 +216,7 @@ pub struct Container {
 
 ### Docker Host Abstraction
 
-The `DockerHost` struct (`docker.rs`) encapsulates a Docker connection with its identifier and optional Dozzle URL:
+The `DockerHost` struct (`docker/connection.rs`) encapsulates a Docker connection with its identifier and optional Dozzle URL:
 
 ```rust
 pub struct DockerHost {
@@ -211,7 +239,7 @@ Host IDs are derived from the host specification:
 
 ### Configuration Loading
 
-The `Config` struct (`config.rs`) handles YAML configuration file loading:
+The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:
 - Searches multiple locations in priority order (see Configuration section above)
 - Merges config file values with CLI arguments (CLI takes precedence)
 - Uses `serde_yaml` for deserialization
@@ -245,7 +273,7 @@ Multiple `--host` arguments can be provided to monitor multiple Docker hosts sim
 
 ### Stats Calculation
 
-Stats are calculated in `stats.rs` with exponential smoothing applied:
+Stats are calculated in `docker/stats.rs` with exponential smoothing applied:
 - **CPU**: Delta between current and previous CPU usage, normalized by system CPU delta and CPU count
 - **Memory**: Current usage divided by limit, expressed as percentage
 - **Network**: Calculates TX/RX rates by tracking byte deltas over time
@@ -253,7 +281,7 @@ Stats are calculated in `stats.rs` with exponential smoothing applied:
 
 ### UI Rendering
 
-The UI (`ui.rs`) uses pre-allocated styles to avoid per-frame allocations.
+The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations.
 
 **Two View Modes:**
 1. **Container List View** - Main table showing all containers
@@ -478,9 +506,10 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 ## Testing Strategy
 
 The codebase includes unit tests for:
-- Stats calculation logic (`stats.rs`): CPU percentage, memory percentage, edge cases
-- UI color coding (`ui.rs`): Threshold boundaries for green/yellow/red
-- Log parsing (`logs.rs`): Timestamp parsing, message extraction, edge cases
-- Config loading (`config.rs`): YAML deserialization, CLI merging, host configurations
+- Stats calculation logic (`docker/stats.rs`): CPU percentage, memory percentage, edge cases
+- UI color coding (`ui/render.rs`): Threshold boundaries for green/yellow/red
+- Log parsing (`docker/logs.rs`): Timestamp parsing, message extraction, edge cases
+- Config loading (`cli/config.rs`): YAML deserialization, CLI merging, host configurations
+- UI snapshot tests (`ui/ui_tests.rs`): Visual regression testing using insta
 
-Run tests with `cargo test`.
+Run tests with `cargo test` or `cargo insta test` for snapshot tests.

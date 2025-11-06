@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use std::str::FromStr;
 use tokio::sync::mpsc;
 
-use crate::logs::LogEntry;
+use crate::docker::logs::LogEntry;
 
 /// Host identifier for tracking which Docker host a container belongs to
 pub type HostId = String;
