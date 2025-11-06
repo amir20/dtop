@@ -126,6 +126,7 @@ async fn monitor_docker_events(
             "start".to_string(),
             "die".to_string(),
             "stop".to_string(),
+            "destroy".to_string(),
             "health_status".to_string(),
         ],
     );
@@ -151,6 +152,10 @@ async fn monitor_docker_events(
                         }
                         "die" | "stop" => {
                             handle_container_stop(host, &container_id, tx, active_containers).await;
+                        }
+                        "destroy" => {
+                            handle_container_destroy(host, &container_id, tx, active_containers)
+                                .await;
                         }
                         "health_status" | "health_status: healthy" | "health_status: unhealthy" => {
                             handle_health_status_change(host, &container_id, &actor, tx).await;
@@ -263,12 +268,34 @@ async fn handle_container_stop(
 ) {
     let truncated_id = container_id[..12.min(container_id.len())].to_string();
 
-    // Stop monitoring and notify removal
+    // Stop stats monitoring but keep the container in the list
     if let Some(handle) = active_containers.remove(&truncated_id) {
         handle.abort();
+
+        // Send state change event instead of destroying the container
         let key = ContainerKey::new(host.host_id.clone(), truncated_id);
-        let _ = tx.send(AppEvent::ContainerDestroyed(key)).await;
+        let _ = tx
+            .send(AppEvent::ContainerStateChanged(key, ContainerState::Exited))
+            .await;
     }
+}
+
+/// Handles a container destroy event (when container is actually removed)
+async fn handle_container_destroy(
+    host: &DockerHost,
+    container_id: &str,
+    tx: &EventSender,
+    active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
+) {
+    let truncated_id = container_id[..12.min(container_id.len())].to_string();
+
+    // Stop monitoring if still active and remove from UI
+    if let Some(handle) = active_containers.remove(&truncated_id) {
+        handle.abort();
+    }
+
+    let key = ContainerKey::new(host.host_id.clone(), truncated_id);
+    let _ = tx.send(AppEvent::ContainerDestroyed(key)).await;
 }
 
 /// Handles a health_status event
