@@ -6,6 +6,7 @@ pub mod core {
 
 // Docker-related modules
 pub mod docker {
+    pub mod actions;
     pub mod connection;
     pub mod logs;
     pub mod stats;
@@ -13,6 +14,7 @@ pub mod docker {
 
 // UI modules
 pub mod ui {
+    pub mod action_menu;
     pub mod container_list;
     pub mod help;
     pub mod input;
@@ -34,5 +36,5 @@ pub use cli::config::*;
 #[cfg(feature = "self-update")]
 pub use cli::update::*;
 pub use core::{app_state::AppState, types::*};
-pub use docker::{connection::*, logs::*, stats::*};
+pub use docker::{actions::*, connection::*, logs::*, stats::*};
 pub use ui::{input::*, render::*};

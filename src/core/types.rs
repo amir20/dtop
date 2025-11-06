@@ -118,6 +118,8 @@ pub enum AppEvent {
     ContainerCreated(Container),
     /// A container was stopped/destroyed on a specific host
     ContainerDestroyed(ContainerKey),
+    /// A container's state changed (e.g., from Running to Exited)
+    ContainerStateChanged(ContainerKey, ContainerState),
     /// Stats update for an existing container on a specific host
     ContainerStat(ContainerKey, ContainerStats),
     /// Health status changed for a container
@@ -150,6 +152,25 @@ pub enum AppEvent {
     SetSortField(SortField),
     /// User pressed 'a' to toggle showing all containers (including stopped)
     ToggleShowAll,
+    /// User pressed right arrow to show action menu
+    ShowActionMenu,
+    /// User pressed left arrow or Esc to cancel action menu
+    CancelActionMenu,
+    /// Navigate up in action menu
+    SelectActionUp,
+    /// Navigate down in action menu
+    SelectActionDown,
+    /// Execute the selected action
+    ExecuteAction,
+    /// Action is in progress
+    #[allow(dead_code)] // Will be used in Phase 2
+    ActionInProgress(ContainerKey, ContainerAction),
+    /// Action completed successfully
+    #[allow(dead_code)] // Will be used in Phase 2
+    ActionSuccess(ContainerKey, ContainerAction),
+    /// Action failed with error
+    #[allow(dead_code)] // Will be used in Phase 2
+    ActionError(ContainerKey, ContainerAction, String),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
@@ -161,6 +182,46 @@ pub enum ViewState {
     ContainerList,
     /// Viewing logs for a specific container
     LogView(ContainerKey),
+    /// Viewing action menu for a specific container
+    ActionMenu(ContainerKey),
+}
+
+/// Available actions for containers
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContainerAction {
+    Start,
+    Stop,
+    Restart,
+    Remove,
+}
+
+impl ContainerAction {
+    /// Returns the display name for this action
+    pub fn display_name(self) -> &'static str {
+        match self {
+            ContainerAction::Start => "Start",
+            ContainerAction::Stop => "Stop",
+            ContainerAction::Restart => "Restart",
+            ContainerAction::Remove => "Remove",
+        }
+    }
+
+    /// Returns all available actions for a given container state
+    pub fn available_for_state(state: &ContainerState) -> Vec<ContainerAction> {
+        match state {
+            ContainerState::Running => vec![
+                ContainerAction::Stop,
+                ContainerAction::Restart,
+                ContainerAction::Remove,
+            ],
+            ContainerState::Paused => vec![ContainerAction::Stop, ContainerAction::Remove],
+            ContainerState::Exited | ContainerState::Created | ContainerState::Dead => {
+                vec![ContainerAction::Start, ContainerAction::Remove]
+            }
+            ContainerState::Restarting | ContainerState::Removing => vec![],
+            ContainerState::Unknown => vec![],
+        }
+    }
 }
 
 /// Sort direction
