@@ -150,6 +150,8 @@ pub enum AppEvent {
     SetSortField(SortField),
     /// User pressed 'a' to toggle showing all containers (including stopped)
     ToggleShowAll,
+    /// User pressed 'h' to show host selection
+    ShowHostSelection,
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
@@ -161,6 +163,8 @@ pub enum ViewState {
     ContainerList,
     /// Viewing logs for a specific container
     LogView(ContainerKey),
+    /// Viewing host selection screen
+    HostSelection,
 }
 
 /// Sort direction

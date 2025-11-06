@@ -42,7 +42,7 @@ impl Default for UiStyles {
     }
 }
 
-/// Renders the main UI - either container list or log view
+/// Renders the main UI - either container list, log view, or host selection
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     match &state.view_state {
         ViewState::ContainerList => {
@@ -64,6 +64,9 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
         ViewState::LogView(container_key) => {
             let container_key = container_key.clone();
             render_log_view(f, &container_key, state, styles);
+        }
+        ViewState::HostSelection => {
+            render_host_selection(f, state, styles);
         }
     }
 
@@ -475,6 +478,7 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  ↑/↓ or j/k  Navigate containers or scroll logs"),
         Line::from("  Enter       View logs for selected container"),
         Line::from("  Esc         Exit log view or close help"),
+        Line::from("  h/H         Switch Docker host (multi-host mode)"),
         Line::from("  o           Open container in Dozzle (if configured)"),
         Line::from("  a/A         Toggle showing all containers (including stopped)"),
         Line::from(""),
@@ -550,6 +554,64 @@ fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         .wrap(Wrap { trim: false });
 
     f.render_widget(paragraph, inner_area);
+}
+
+/// Renders the host selection view
+fn render_host_selection(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
+    let size = f.area();
+
+    // Get sorted list of hosts
+    let mut hosts: Vec<(String, Option<String>)> = state
+        .connected_hosts
+        .values()
+        .map(|h| (h.host_id.clone(), h.name.clone()))
+        .collect();
+    hosts.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Build rows: "All Hosts" + individual hosts
+    let mut rows = vec![Row::new(vec![
+        Cell::from("All Hosts"),
+        Cell::from(format!("{} containers", state.containers.len())),
+    ])];
+
+    for (host_id, name) in &hosts {
+        // Count containers for this host
+        let container_count = state
+            .containers
+            .keys()
+            .filter(|k| &k.host_id == host_id)
+            .count();
+
+        // Use name if available, otherwise use host_id
+        let display_name = name.as_deref().unwrap_or(host_id);
+
+        rows.push(Row::new(vec![
+            Cell::from(display_name),
+            Cell::from(format!("{} containers", container_count)),
+        ]));
+    }
+
+    let header = Row::new(vec!["Host", "Containers"])
+        .style(styles.header)
+        .bottom_margin(1);
+
+    let table = Table::new(
+        rows,
+        vec![
+            Constraint::Fill(1),   // Host name
+            Constraint::Length(20), // Container count
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Select Host - Press Enter to filter, ESC to cancel")
+            .style(styles.border),
+    )
+    .row_highlight_style(styles.selected);
+
+    f.render_stateful_widget(table, size, &mut state.host_selection_state);
 }
 
 #[cfg(test)]

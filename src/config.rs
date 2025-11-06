@@ -7,12 +7,13 @@ pub struct HostConfig {
     /// Docker host connection string (e.g., "local", "ssh://user@host")
     pub host: String,
 
+    /// Optional friendly name for this host
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
     /// Optional Dozzle URL for this host
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dozzle: Option<String>,
-    // Future fields can be added here as optional fields
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub custom_name: Option<String>,
 }
 
 /// Configuration that can be loaded from a YAML file
@@ -71,10 +72,14 @@ impl Config {
     pub fn merge_with_cli_hosts(mut self, cli_hosts: Vec<String>, cli_default: bool) -> Self {
         // Use CLI hosts if explicitly provided, OR if config file is empty
         if !cli_default || self.hosts.is_empty() {
-            // Convert CLI strings to HostConfig structs (no dozzle URL from CLI)
+            // Convert CLI strings to HostConfig structs (no name or dozzle URL from CLI)
             self.hosts = cli_hosts
                 .into_iter()
-                .map(|host| HostConfig { host, dozzle: None })
+                .map(|host| HostConfig {
+                    host,
+                    name: None,
+                    dozzle: None,
+                })
                 .collect();
         }
         self
@@ -101,6 +106,7 @@ mod tests {
         let config = Config {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
+                name: None,
                 dozzle: None,
             }],
         };
@@ -114,6 +120,7 @@ mod tests {
         let config = Config {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
+                name: None,
                 dozzle: Some("https://dozzle.example.com".to_string()),
             }],
         };
@@ -177,9 +184,11 @@ hosts:
     fn test_host_config_without_dozzle() {
         let host = HostConfig {
             host: "local".to_string(),
+            name: None,
             dozzle: None,
         };
         assert_eq!(host.host, "local");
+        assert_eq!(host.name, None);
         assert_eq!(host.dozzle, None);
     }
 
@@ -187,9 +196,11 @@ hosts:
     fn test_host_config_with_dozzle() {
         let host = HostConfig {
             host: "ssh://user@host".to_string(),
+            name: Some("Production Server".to_string()),
             dozzle: Some("https://dozzle.example.com".to_string()),
         };
         assert_eq!(host.host, "ssh://user@host");
+        assert_eq!(host.name.as_deref(), Some("Production Server"));
         assert_eq!(host.dozzle.as_deref(), Some("https://dozzle.example.com"));
     }
 }

@@ -14,14 +14,21 @@ use crate::types::{
 #[derive(Clone)]
 pub struct DockerHost {
     pub host_id: HostId,
+    pub name: Option<String>,
     pub docker: Docker,
     pub dozzle_url: Option<String>,
 }
 
 impl DockerHost {
-    pub fn new(host_id: HostId, docker: Docker, dozzle_url: Option<String>) -> Self {
+    pub fn new(
+        host_id: HostId,
+        name: Option<String>,
+        docker: Docker,
+        dozzle_url: Option<String>,
+    ) -> Self {
         Self {
             host_id,
+            name,
             docker,
             dozzle_url,
         }

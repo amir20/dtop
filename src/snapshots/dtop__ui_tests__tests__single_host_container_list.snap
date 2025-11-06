@@ -2,7 +2,7 @@
 source: src/ui_tests.rs
 expression: output
 ---
-┌dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)────────────────────────────────────────────────────────────────┐
+┌dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)───────────────────────────────────────────────────────────────┐
 │ID             Name                                          CPU %   Memory  Net TX       Net RX       Uptime ▼       │
 │                                                                                                                      │
 │abc123456789 ▶ nginx                                          25.5%   45.2%  1.0KB/s      2.0KB/s      2 hours ago    │

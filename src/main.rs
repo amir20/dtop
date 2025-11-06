@@ -133,10 +133,11 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 // Create a unique host ID from the host spec
                 let host_id = create_host_id(host_spec);
 
-                // Get Dozzle URL if configured for this host
+                // Get name and Dozzle URL if configured for this host
+                let name = merged_config.hosts.get(idx).and_then(|h| h.name.clone());
                 let dozzle_url = merged_config.hosts.get(idx).and_then(|h| h.dozzle.clone());
 
-                let docker_host = DockerHost::new(host_id.clone(), docker, dozzle_url);
+                let docker_host = DockerHost::new(host_id.clone(), name, docker, dozzle_url);
 
                 // Store the DockerHost for log streaming
                 connected_hosts.insert(host_id.clone(), docker_host.clone());

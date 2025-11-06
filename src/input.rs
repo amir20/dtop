@@ -67,6 +67,9 @@ pub fn keyboard_worker(tx: EventSender) {
                     KeyCode::Char('a') | KeyCode::Char('A') => {
                         let _ = tx.blocking_send(AppEvent::ToggleShowAll);
                     }
+                    KeyCode::Char('h') | KeyCode::Char('H') => {
+                        let _ = tx.blocking_send(AppEvent::ShowHostSelection);
+                    }
                     _ => {}
                 },
                 Event::Resize(_, _) => {

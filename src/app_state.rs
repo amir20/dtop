@@ -47,6 +47,10 @@ pub struct AppState {
     pub sort_state: SortState,
     /// Whether to show all containers (including stopped ones)
     pub show_all_containers: bool,
+    /// Currently selected host filter (None = all hosts)
+    pub selected_host_filter: Option<String>,
+    /// Host selection state (for navigating host list)
+    pub host_selection_state: TableState,
 }
 
 impl AppState {
@@ -77,6 +81,8 @@ impl AppState {
             show_help: false,
             sort_state: SortState::default(), // Default to Uptime descending
             show_all_containers: false,       // Default to showing only running containers
+            selected_host_filter: None,       // Show all hosts by default
+            host_selection_state: TableState::default(),
         }
     }
 
@@ -109,6 +115,7 @@ impl AppState {
             AppEvent::CycleSortField => self.handle_cycle_sort_field(),
             AppEvent::SetSortField(field) => self.handle_set_sort_field(field),
             AppEvent::ToggleShowAll => self.handle_toggle_show_all(),
+            AppEvent::ShowHostSelection => self.handle_show_host_selection(),
         }
     }
 
@@ -190,72 +197,127 @@ impl AppState {
     }
 
     fn handle_select_previous(&mut self) -> bool {
-        let container_count = self.containers.len();
-        if container_count > 0 {
-            let selected = self.table_state.selected().unwrap_or(0);
-            if selected > 0 {
-                self.table_state.select(Some(selected - 1));
+        match self.view_state {
+            ViewState::ContainerList => {
+                let container_count = self.sorted_container_keys.len();
+                if container_count > 0 {
+                    let selected = self.table_state.selected().unwrap_or(0);
+                    if selected > 0 {
+                        self.table_state.select(Some(selected - 1));
+                    }
+                }
+                true // Force draw - selection changed
             }
+            ViewState::HostSelection => {
+                let host_count = self.connected_hosts.len() + 1; // +1 for "All Hosts"
+                if host_count > 0 {
+                    let selected = self.host_selection_state.selected().unwrap_or(0);
+                    if selected > 0 {
+                        self.host_selection_state.select(Some(selected - 1));
+                    }
+                }
+                true // Force draw - selection changed
+            }
+            ViewState::LogView(_) => false, // Handled by scroll_up
         }
-        true // Force draw - selection changed
     }
 
     fn handle_select_next(&mut self) -> bool {
-        let container_count = self.containers.len();
-        if container_count > 0 {
-            let selected = self.table_state.selected().unwrap_or(0);
-            if selected < container_count - 1 {
-                self.table_state.select(Some(selected + 1));
+        match self.view_state {
+            ViewState::ContainerList => {
+                let container_count = self.sorted_container_keys.len();
+                if container_count > 0 {
+                    let selected = self.table_state.selected().unwrap_or(0);
+                    if selected < container_count - 1 {
+                        self.table_state.select(Some(selected + 1));
+                    }
+                }
+                true // Force draw - selection changed
             }
+            ViewState::HostSelection => {
+                let host_count = self.connected_hosts.len() + 1; // +1 for "All Hosts"
+                if host_count > 0 {
+                    let selected = self.host_selection_state.selected().unwrap_or(0);
+                    if selected < host_count - 1 {
+                        self.host_selection_state.select(Some(selected + 1));
+                    }
+                }
+                true // Force draw - selection changed
+            }
+            ViewState::LogView(_) => false, // Handled by scroll_down
         }
-        true // Force draw - selection changed
     }
 
     fn handle_enter_pressed(&mut self) -> bool {
-        // Only handle Enter in ContainerList view
-        if self.view_state != ViewState::ContainerList {
-            return false;
+        match self.view_state {
+            ViewState::ContainerList => {
+                // Get the selected container
+                let Some(selected_idx) = self.table_state.selected() else {
+                    return false;
+                };
+
+                let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
+                    return false;
+                };
+
+                // Switch to log view
+                self.view_state = ViewState::LogView(container_key.clone());
+
+                // Set the current log container and clear cached text
+                self.current_log_container = Some(container_key.clone());
+                self.formatted_log_text = Text::default();
+
+                // Reset scroll state - start at bottom
+                self.log_scroll_offset = 0;
+                self.is_at_bottom = true;
+
+                // Stop any existing log stream
+                if let Some(handle) = self.log_stream_handle.take() {
+                    handle.abort();
+                }
+
+                // Start streaming logs for this container
+                if let Some(host) = self.connected_hosts.get(&container_key.host_id) {
+                    let host_clone = host.clone();
+                    let container_id = container_key.container_id.clone();
+                    let tx_clone = self.event_tx.clone();
+
+                    let handle = tokio::spawn(async move {
+                        stream_container_logs(host_clone, container_id, tx_clone).await;
+                    });
+
+                    self.log_stream_handle = Some(handle);
+                }
+
+                true // Force draw - view changed
+            }
+            ViewState::HostSelection => {
+                // Get selected host
+                let Some(selected_idx) = self.host_selection_state.selected() else {
+                    return false;
+                };
+
+                // Get sorted list of hosts
+                let mut hosts: Vec<String> = self
+                    .connected_hosts
+                    .keys()
+                    .cloned()
+                    .collect();
+                hosts.sort();
+
+                // Determine which host was selected
+                // Index 0 = "All Hosts" (None), index 1+ = specific hosts
+                let selected_host = if selected_idx == 0 {
+                    None
+                } else {
+                    hosts.get(selected_idx - 1).cloned()
+                };
+
+                // Handle the host selection
+                self.handle_select_host(selected_host)
+            }
+            ViewState::LogView(_) => false,
         }
-
-        // Get the selected container
-        let Some(selected_idx) = self.table_state.selected() else {
-            return false;
-        };
-
-        let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
-            return false;
-        };
-
-        // Switch to log view
-        self.view_state = ViewState::LogView(container_key.clone());
-
-        // Set the current log container and clear cached text
-        self.current_log_container = Some(container_key.clone());
-        self.formatted_log_text = Text::default();
-
-        // Reset scroll state - start at bottom
-        self.log_scroll_offset = 0;
-        self.is_at_bottom = true;
-
-        // Stop any existing log stream
-        if let Some(handle) = self.log_stream_handle.take() {
-            handle.abort();
-        }
-
-        // Start streaming logs for this container
-        if let Some(host) = self.connected_hosts.get(&container_key.host_id) {
-            let host_clone = host.clone();
-            let container_id = container_key.container_id.clone();
-            let tx_clone = self.event_tx.clone();
-
-            let handle = tokio::spawn(async move {
-                stream_container_logs(host_clone, container_id, tx_clone).await;
-            });
-
-            self.log_stream_handle = Some(handle);
-        }
-
-        true // Force draw - view changed
     }
 
     fn handle_exit_log_view(&mut self) -> bool {
@@ -265,24 +327,30 @@ impl AppState {
             return true; // Force redraw
         }
 
-        // Only handle Escape when in log view
-        if !matches!(self.view_state, ViewState::LogView(_)) {
-            return false;
+        // Handle Escape based on current view
+        match &self.view_state {
+            ViewState::LogView(_) => {
+                // Stop log streaming
+                if let Some(handle) = self.log_stream_handle.take() {
+                    handle.abort();
+                }
+
+                // Clear current log container and formatted text
+                self.current_log_container = None;
+                self.formatted_log_text = Text::default();
+
+                // Switch back to container list view
+                self.view_state = ViewState::ContainerList;
+
+                true // Force draw - view changed
+            }
+            ViewState::HostSelection => {
+                // Exit host selection and return to container list
+                self.view_state = ViewState::ContainerList;
+                true // Force draw - view changed
+            }
+            ViewState::ContainerList => false,
         }
-
-        // Stop log streaming
-        if let Some(handle) = self.log_stream_handle.take() {
-            handle.abort();
-        }
-
-        // Clear current log container and formatted text
-        self.current_log_container = None;
-        self.formatted_log_text = Text::default();
-
-        // Switch back to container list view
-        self.view_state = ViewState::ContainerList;
-
-        true // Force draw - view changed
     }
 
     fn handle_scroll_up(&mut self) -> bool {
@@ -456,16 +524,62 @@ impl AppState {
         true // Force redraw - visibility changed
     }
 
+    fn handle_show_host_selection(&mut self) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Switch to HostSelection view
+        self.view_state = ViewState::HostSelection;
+
+        // Select current host filter in the list
+        // Index 0 = "All Hosts", index 1+ = specific hosts
+        let selected_idx = if let Some(ref filter) = self.selected_host_filter {
+            // Find the index of the current filter
+            let mut hosts: Vec<String> = self.connected_hosts.keys().cloned().collect();
+            hosts.sort();
+            hosts.iter().position(|h| h == filter).map(|i| i + 1).unwrap_or(0)
+        } else {
+            0 // "All Hosts" is selected
+        };
+
+        self.host_selection_state.select(Some(selected_idx));
+
+        true // Force redraw
+    }
+
+    fn handle_select_host(&mut self, host_id: Option<String>) -> bool {
+        // Set the host filter
+        self.selected_host_filter = host_id;
+
+        // Return to container list view
+        self.view_state = ViewState::ContainerList;
+
+        // Re-sort/filter containers with new host filter
+        self.sort_containers();
+
+        // Reset selection to first container
+        if !self.sorted_container_keys.is_empty() {
+            self.table_state.select(Some(0));
+        } else {
+            self.table_state.select(None);
+        }
+
+        true // Force redraw
+    }
+
     /// Sorts the container keys based on the current sort field and direction
     fn sort_containers(&mut self) {
         use crate::types::ContainerState;
 
-        // Rebuild sorted_container_keys from containers, filtering by running state if needed
+        // Rebuild sorted_container_keys from containers, filtering by running state and host if needed
         self.sorted_container_keys = self
             .containers
             .keys()
             .filter(|key| {
-                if self.show_all_containers {
+                // Filter by running state
+                let state_match = if self.show_all_containers {
                     true // Show all containers
                 } else {
                     // Only show running containers
@@ -473,7 +587,16 @@ impl AppState {
                         .get(key)
                         .map(|c| c.state == ContainerState::Running)
                         .unwrap_or(false)
-                }
+                };
+
+                // Filter by host
+                let host_match = if let Some(ref filter_host) = self.selected_host_filter {
+                    &key.host_id == filter_host
+                } else {
+                    true // Show all hosts
+                };
+
+                state_match && host_match
             })
             .cloned()
             .collect();
