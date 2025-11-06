@@ -52,17 +52,6 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  a/A         Toggle showing all containers (including stopped)"),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Container Actions",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )]),
-        Line::from("  →/l         Open action menu"),
-        Line::from("  ↑/↓         Navigate actions in menu"),
-        Line::from("  Enter       Execute selected action"),
-        Line::from("  Esc/←/h     Cancel and close menu"),
-        Line::from(""),
-        Line::from(vec![Span::styled(
             "Sorting",
             Style::default()
                 .fg(Color::Cyan)
