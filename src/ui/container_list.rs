@@ -263,7 +263,7 @@ fn create_table<'a>(
     let mut constraints = vec![
         Constraint::Length(12), // Container ID
         Constraint::Length(1),  // Status icon
-        Constraint::Fill(1),    // Name (flexible)
+        Constraint::Min(8),     // Name (minimum 8, flexible)
     ];
 
     if show_host_column {
