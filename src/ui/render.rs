@@ -7,6 +7,7 @@ use ratatui::{
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerKey, ViewState};
 
+use crate::ui::action_menu::render_action_menu;
 use crate::ui::container_list::render_container_list;
 use crate::ui::help::render_help_popup;
 
@@ -37,7 +38,7 @@ impl Default for UiStyles {
     }
 }
 
-/// Renders the main UI - either container list or log view
+/// Renders the main UI - either container list, log view, or action menu
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     match &state.view_state {
         ViewState::ContainerList => {
@@ -59,6 +60,25 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
         ViewState::LogView(container_key) => {
             let container_key = container_key.clone();
             render_log_view(f, &container_key, state, styles);
+        }
+        ViewState::ActionMenu(_) => {
+            // First render the container list in the background
+            let unique_hosts: std::collections::HashSet<_> =
+                state.containers.keys().map(|key| &key.host_id).collect();
+            let show_host_column = unique_hosts.len() > 1;
+
+            render_container_list(
+                f,
+                &state.containers,
+                &state.sorted_container_keys,
+                styles,
+                &mut state.table_state,
+                show_host_column,
+                state.sort_state,
+            );
+
+            // Then render the action menu on top
+            render_action_menu(f, state, styles);
         }
     }
 

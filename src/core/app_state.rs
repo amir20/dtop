@@ -1,12 +1,12 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::TableState;
+use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::core::types::{
-    AppEvent, Container, ContainerKey, ContainerStats, HealthStatus, SortDirection, SortField,
-    SortState, ViewState,
+    AppEvent, Container, ContainerKey, ContainerState, ContainerStats, HealthStatus, SortDirection,
+    SortField, SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
 use crate::docker::logs::{LogEntry, stream_container_logs};
@@ -48,6 +48,8 @@ pub struct AppState {
     pub sort_state: SortState,
     /// Whether to show all containers (including stopped ones)
     pub show_all_containers: bool,
+    /// Action menu list state for selection tracking
+    pub action_menu_state: ListState,
 }
 
 impl AppState {
@@ -78,6 +80,7 @@ impl AppState {
             show_help: false,
             sort_state: SortState::default(), // Default to Uptime descending
             show_all_containers: false,       // Default to showing only running containers
+            action_menu_state: ListState::default(), // Default to no selection
         }
     }
 
@@ -89,6 +92,9 @@ impl AppState {
             }
             AppEvent::ContainerCreated(container) => self.handle_container_created(container),
             AppEvent::ContainerDestroyed(key) => self.handle_container_destroyed(key),
+            AppEvent::ContainerStateChanged(key, state) => {
+                self.handle_container_state_changed(key, state)
+            }
             AppEvent::ContainerStat(key, stats) => self.handle_container_stat(key, stats),
             AppEvent::ContainerHealthChanged(key, health) => {
                 self.handle_container_health_changed(key, health)
@@ -110,6 +116,16 @@ impl AppState {
             AppEvent::CycleSortField => self.handle_cycle_sort_field(),
             AppEvent::SetSortField(field) => self.handle_set_sort_field(field),
             AppEvent::ToggleShowAll => self.handle_toggle_show_all(),
+            AppEvent::ShowActionMenu => self.handle_show_action_menu(),
+            AppEvent::CancelActionMenu => self.handle_cancel_action_menu(),
+            AppEvent::SelectActionUp => self.handle_select_action_up(),
+            AppEvent::SelectActionDown => self.handle_select_action_down(),
+            AppEvent::ExecuteAction => self.handle_execute_action(),
+            AppEvent::ActionInProgress(key, action) => self.handle_action_in_progress(key, action),
+            AppEvent::ActionSuccess(key, action) => self.handle_action_success(key, action),
+            AppEvent::ActionError(key, action, error) => {
+                self.handle_action_error(key, action, error)
+            }
         }
     }
 
@@ -168,6 +184,14 @@ impl AppState {
         true // Force draw - table structure changed
     }
 
+    fn handle_container_state_changed(&mut self, key: ContainerKey, state: ContainerState) -> bool {
+        if let Some(container) = self.containers.get_mut(&key) {
+            container.state = state;
+            return true; // Force draw - state changed
+        }
+        false
+    }
+
     fn handle_container_stat(&mut self, key: ContainerKey, stats: ContainerStats) -> bool {
         if let Some(container) = self.containers.get_mut(&key) {
             container.stats = stats;
@@ -183,6 +207,11 @@ impl AppState {
     }
 
     fn handle_select_previous(&mut self) -> bool {
+        // Only handle in ContainerList view (not in ActionMenu or LogView)
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
         let container_count = self.containers.len();
         if container_count > 0 {
             let selected = self.table_state.selected().unwrap_or(0);
@@ -194,6 +223,11 @@ impl AppState {
     }
 
     fn handle_select_next(&mut self) -> bool {
+        // Only handle in ContainerList view (not in ActionMenu or LogView)
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
         let container_count = self.containers.len();
         if container_count > 0 {
             let selected = self.table_state.selected().unwrap_or(0);
@@ -569,5 +603,183 @@ impl AppState {
                 });
             }
         }
+    }
+
+    fn handle_show_action_menu(&mut self) -> bool {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Get the selected container
+        let Some(selected_idx) = self.table_state.selected() else {
+            return false;
+        };
+
+        let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
+            return false;
+        };
+
+        // Switch to action menu view
+        self.view_state = ViewState::ActionMenu(container_key.clone());
+
+        // Reset action menu selection to first item
+        self.action_menu_state.select(Some(0));
+
+        true // Force draw - view changed
+    }
+
+    fn handle_cancel_action_menu(&mut self) -> bool {
+        // Only handle when in action menu view
+        if !matches!(self.view_state, ViewState::ActionMenu(_)) {
+            return false;
+        }
+
+        // Switch back to container list view
+        self.view_state = ViewState::ContainerList;
+
+        // Clear action menu selection
+        self.action_menu_state.select(None);
+
+        true // Force draw - view changed
+    }
+
+    fn handle_select_action_up(&mut self) -> bool {
+        // Only handle in action menu view
+        let ViewState::ActionMenu(ref container_key) = self.view_state else {
+            return false;
+        };
+
+        // Get the container to determine available actions
+        let Some(container) = self.containers.get(container_key) else {
+            return false;
+        };
+
+        use crate::core::types::ContainerAction;
+        let available_actions = ContainerAction::available_for_state(&container.state);
+
+        if available_actions.is_empty() {
+            return false;
+        }
+
+        // Move selection up
+        let current = self.action_menu_state.selected().unwrap_or(0);
+        if current > 0 {
+            self.action_menu_state.select(Some(current - 1));
+            true // Force draw
+        } else {
+            false
+        }
+    }
+
+    fn handle_select_action_down(&mut self) -> bool {
+        // Only handle in action menu view
+        let ViewState::ActionMenu(ref container_key) = self.view_state else {
+            return false;
+        };
+
+        // Get the container to determine available actions
+        let Some(container) = self.containers.get(container_key) else {
+            return false;
+        };
+
+        use crate::core::types::ContainerAction;
+        let available_actions = ContainerAction::available_for_state(&container.state);
+
+        if available_actions.is_empty() {
+            return false;
+        }
+
+        // Move selection down
+        let current = self.action_menu_state.selected().unwrap_or(0);
+        if current < available_actions.len() - 1 {
+            self.action_menu_state.select(Some(current + 1));
+            true // Force draw
+        } else {
+            false
+        }
+    }
+
+    fn handle_execute_action(&mut self) -> bool {
+        // Only handle in action menu view
+        let ViewState::ActionMenu(ref container_key) = self.view_state else {
+            return false;
+        };
+
+        // Get the selected action
+        let Some(selected_idx) = self.action_menu_state.selected() else {
+            return false;
+        };
+
+        // Get the container to determine available actions
+        let Some(container) = self.containers.get(container_key) else {
+            return false;
+        };
+
+        use crate::core::types::ContainerAction;
+        let available_actions = ContainerAction::available_for_state(&container.state);
+
+        let Some(&action) = available_actions.get(selected_idx) else {
+            return false;
+        };
+
+        // Get the Docker host for this container
+        let Some(host) = self.connected_hosts.get(&container_key.host_id) else {
+            // Silently fail if host not found
+            return false;
+        };
+
+        // Spawn async task to execute the action
+        let host_clone = host.clone();
+        let container_key_clone = container_key.clone();
+        let tx_clone = self.event_tx.clone();
+
+        tokio::spawn(async move {
+            crate::docker::actions::execute_container_action(
+                host_clone,
+                container_key_clone,
+                action,
+                tx_clone,
+            )
+            .await;
+        });
+
+        // Close the action menu immediately
+        self.view_state = ViewState::ContainerList;
+        self.action_menu_state.select(None);
+
+        true // Force draw
+    }
+
+    fn handle_action_in_progress(
+        &mut self,
+        _key: ContainerKey,
+        _action: crate::core::types::ContainerAction,
+    ) -> bool {
+        // TODO: Could show a loading indicator in the UI in the future
+        // For now, just let Docker events update the container state
+        false // Don't force redraw for progress events
+    }
+
+    fn handle_action_success(
+        &mut self,
+        _key: ContainerKey,
+        _action: crate::core::types::ContainerAction,
+    ) -> bool {
+        // TODO: Could show a success toast/notification in the UI in the future
+        // The container state will be updated by Docker events
+        // so we don't need to manually update it here
+        false // Don't force redraw - Docker events will trigger updates
+    }
+
+    fn handle_action_error(
+        &mut self,
+        _key: ContainerKey,
+        _action: crate::core::types::ContainerAction,
+        _error: String,
+    ) -> bool {
+        // TODO: Could show an error toast/notification in the UI in the future
+        // For now, silently fail - the container state won't change on error
+        false // Don't force redraw for error messages
     }
 }

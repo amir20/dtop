@@ -24,20 +24,26 @@ pub fn keyboard_worker(tx: EventSender) {
                         break;
                     }
                     KeyCode::Up | KeyCode::Char('k') => {
-                        // Send both events - handler will decide based on view state
+                        // Send multiple events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::SelectPrevious);
                         let _ = tx.blocking_send(AppEvent::ScrollUp);
+                        let _ = tx.blocking_send(AppEvent::SelectActionUp);
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
-                        // Send both events - handler will decide based on view state
+                        // Send multiple events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::SelectNext);
                         let _ = tx.blocking_send(AppEvent::ScrollDown);
+                        let _ = tx.blocking_send(AppEvent::SelectActionDown);
                     }
                     KeyCode::Enter => {
+                        // Send both events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::EnterPressed);
+                        let _ = tx.blocking_send(AppEvent::ExecuteAction);
                     }
                     KeyCode::Esc => {
+                        // Send both events - handler will decide based on view state
                         let _ = tx.blocking_send(AppEvent::ExitLogView);
+                        let _ = tx.blocking_send(AppEvent::CancelActionMenu);
                     }
                     KeyCode::Char('o') => {
                         let _ = tx.blocking_send(AppEvent::OpenDozzle);
@@ -62,6 +68,12 @@ pub fn keyboard_worker(tx: EventSender) {
                     }
                     KeyCode::Char('a') | KeyCode::Char('A') => {
                         let _ = tx.blocking_send(AppEvent::ToggleShowAll);
+                    }
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        let _ = tx.blocking_send(AppEvent::ShowActionMenu);
+                    }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        let _ = tx.blocking_send(AppEvent::CancelActionMenu);
                     }
                     _ => {}
                 },
