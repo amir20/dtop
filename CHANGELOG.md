@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.11] - 2025-11-06
+
+### Features
+
+- Adds container actions via drop down menu (#95)
+- Adds min length on name (#96)
+
+### Miscellaneous Tasks
+
+- Updates docs
+- Adds copy in docs
+- Refactors code (#93)
+- More refactor
+- Makes help smaller
+
 ## [0.3.10] - 2025-11-04
 
 ### Features
@@ -17,6 +32,7 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous Tasks
 
 - Updates dist package
+- Release dtop version 0.3.10
 
 ### Chore
 
