@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.12] - 2025-11-08
+
+### Bug Fixes
+
+- Fixes jellyfin logs with \r (#97)
+
 ## [0.3.11] - 2025-11-06
 
 ### Features
@@ -16,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - Refactors code (#93)
 - More refactor
 - Makes help smaller
+- Release dtop version 0.3.11
 
 ## [0.3.10] - 2025-11-04
 
