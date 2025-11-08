@@ -58,8 +58,9 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
     while let Some(log_result) = log_stream.next().await {
         match log_result {
             Ok(log_output) => {
-                // Convert log output to string
-                let log_line = log_output.to_string();
+                // Convert log output to string and strip carriage returns
+                // Jellyfin and other apps use \r for progress updates, which causes artifacts
+                let log_line = log_output.to_string().replace('\r', "");
 
                 // Parse the log line into a LogEntry
                 if let Some(log_entry) = LogEntry::parse(&log_line) {
