@@ -1,0 +1,30 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for dtop
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please describe what you'd like to see added to dtop.
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: What feature would be useful?
+      description: Describe the feature you'd like to see and how it would help you
+      placeholder: |
+        A clear description of what you want to happen and why it would be useful.
+
+        Example:
+        - I would like to be able to filter containers by name/status
+        - This would help me quickly find specific containers in large deployments
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or examples about the feature request
+      placeholder: Add any other information that might help us understand the request

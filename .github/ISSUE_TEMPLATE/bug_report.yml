@@ -1,0 +1,75 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in dtop
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us diagnose and fix the issue.
+
+  - type: dropdown
+    id: installation-method
+    attributes:
+      label: How did you install dtop?
+      description: Select the installation method you used
+      options:
+        - Cargo (cargo install dtop)
+        - GitHub Release (downloaded binary or used curl)
+        - Built from source
+        - Docker
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: What version of dtop are you running?
+      description: Run `dtop --version` to find out
+      placeholder: "e.g., dtop 0.3.12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: host-configuration
+    attributes:
+      label: Host Configuration
+      description: What hosts are you monitoring? Include your config file or command-line arguments
+      placeholder: |
+        # Example: Command-line
+        dtop --host local --host ssh://user@server1
+
+        # Or paste your config.yaml
+        hosts:
+          - host: local
+          - host: ssh://user@server1
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: What is the bug?
+      description: A clear description of what happened and what you expected to happen
+      placeholder: |
+        Describe what you were doing, what went wrong, and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain the problem
+      placeholder: Drag and drop images here or paste them
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful (OS, terminal, Docker version, etc.)
+      placeholder: |
+        - OS: macOS 14.0
+        - Terminal: iTerm2
+        - Docker version: 24.0.0
