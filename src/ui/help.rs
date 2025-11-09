@@ -48,7 +48,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  →/l         Open action menu for container"),
         Line::from("  ←/h         Close action menu"),
         Line::from("  Esc         Exit log view, close menu, or close help"),
-        Line::from("  o           Open container in Dozzle (if configured)"),
+        Line::from("  o           Open container in Dozzle (if configured and available)"),
         Line::from("  a/A         Toggle showing all containers (including stopped)"),
         Line::from(""),
         Line::from(vec![Span::styled(
