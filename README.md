@@ -23,10 +23,14 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
 - [x] Sort containers by name and status
 - [x] Implement log view streaming (basic)
+- [x] Support mouse scrolling
+- [x] Support TLS certs via `DOCKER_CERT_PATH`
+- [x] Responsive columns for narrow view
+- [x] Support stopping, starting and removing containers
+- [x] Support container health status
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
 - [ ] Search or filter for containers
-- [ ] Support multiple certs for TLS
 - [ ] Configurable columns and saving preferences
 - [ ] Support simple JSON parsing and formatting
 
@@ -79,27 +83,39 @@ This command will:
 
 By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
 
+```
+> dtop --help
 A terminal-based Docker container monitoring tool with real-time CPU and memory metrics
 
-    Usage: dtop [OPTIONS] [COMMAND]
+Usage: dtop [OPTIONS] [COMMAND]
 
-    Commands:
-      update  Update dtop to the latest version
-      help    Print this message or the help of the given subcommand(s)
+Commands:
+  update  Update dtop to the latest version
+  help    Print this message or the help of the given subcommand(s)
 
-    Options:
-      -H, --host <HOST>
-              Docker host(s) to connect to. Can be specified multiple times.
+Options:
+  -H, --host <HOST>
+          Docker host(s) to connect to. Can be specified multiple times.
 
-              Examples: --host local                    (Connect to local Docker daemon) --host ssh://user@host          (Connect via SSH) --host ssh://user@host:2222     (Connect via SSH with custom port) --host tcp://host:2375          (Connect via TCP to remote Docker daemon) --host local --host ssh://user@server1 --host tcp://server2:2375  (Multiple hosts)
+          Examples:
+            --host local                    (Connect to local Docker daemon)
+            --host ssh://user@host          (Connect via SSH)
+            --host ssh://user@host:2222     (Connect via SSH with custom port)
+            --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
+            --host tls://host:2376          (Connect via TLS)
+            --host local --host ssh://user@server1 --host tls://server2:2376  (Multiple hosts)
 
-              If not specified, will use config file or default to "local"
+          For TLS connections, set DOCKER_CERT_PATH to a directory containing:
+            key.pem, cert.pem, and ca.pem
 
-      -h, --help
-              Print help (see a summary with '-h')
+          If not specified, will use config file or default to "local"
 
-      -V, --version
-              Print version
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
 
 ## Configuration File
 
