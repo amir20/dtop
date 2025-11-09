@@ -34,6 +34,21 @@
                 },
             };
         </script>
+        <style>
+            @keyframes blink {
+                0%,
+                49% {
+                    opacity: 1;
+                }
+                50%,
+                100% {
+                    opacity: 0;
+                }
+            }
+            .cursor-blink {
+                animation: blink 1.4s infinite;
+            }
+        </style>
         <script>
             // Theme toggle functionality
             function initTheme() {
@@ -87,9 +102,9 @@
                 <div class="flex justify-between items-center h-16">
                     <div class="flex items-center space-x-3">
                         <div
-                            class="text-2xl font-bold text-gray-900 dark:text-white"
+                            class="text-2xl font-bold text-gray-900 dark:text-white font-mono"
                         >
-                            dtop
+                            ./dtop<span class="cursor-blink ml-1">▋</span>
                         </div>
                     </div>
                     <div class="flex items-center space-x-6">
