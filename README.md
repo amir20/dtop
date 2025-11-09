@@ -144,9 +144,10 @@ See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.exam
 
 ## Supported Connections
 
-- **Local Docker** - Monitor containers running on the local Docker daemon using `--hosts local`
-- **Remote Docker** - Monitor containers running on remote Docker daemons via SSH using `--hosts tcp://host2:2375`
-- **SSH** - Establish an SSH connection to a remote host and monitor containers running on it using `--hosts ssh://user@host`
+- **Local Docker** - Monitor containers running on the local Docker daemon using `--host local`
+- **Remote HTTP Docker** - Monitor containers running on remote Docker daemons via TCP port `--host tcp://host2:2375`
+- **Remote TLS Docker** - Monitor containers running on remote Docker daemons via TLS port `--host tls://host2:2376`
+- **SSH** - Establish an SSH connection to a remote host and monitor containers running on it using `--host ssh://user@host`
 
 You can connect to multiple hosts by separating them with commas:
 
