@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.13] - 2025-11-10
+
+### Features
+
+- Prints better errors when connection fails (#101)
+
 ## [0.3.12] - 2025-11-08
 
 ### Bug Fixes
