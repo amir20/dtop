@@ -1,5 +1,5 @@
-use bollard::Docker;
 use bollard::query_parameters::{EventsOptions, InspectContainerOptions, ListContainersOptions};
+use bollard::{API_DEFAULT_VERSION, Docker};
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use std::collections::HashMap;
@@ -337,5 +337,70 @@ async fn handle_health_status_change(
         let _ = tx
             .send(AppEvent::ContainerHealthChanged(key, health_status))
             .await;
+    }
+}
+
+/// Connects to Docker based on the host string
+///
+/// # Arguments
+/// * `host` - Host specification string (e.g., "local", "ssh://user@host", "tcp://host:port", "tls://host:port")
+///
+/// # Returns
+/// * `Ok(Docker)` - Successfully connected Docker instance
+/// * `Err` - Connection error with details
+///
+/// # Examples
+/// ```ignore
+/// let docker = connect_docker("local")?;
+/// let docker = connect_docker("ssh://user@host")?;
+/// let docker = connect_docker("tcp://host:2375")?;
+/// let docker = connect_docker("tls://host:2376")?;
+/// ```
+pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
+    if host == "local" {
+        // Connect to local Docker daemon using default settings
+        Ok(Docker::connect_with_local_defaults()?)
+    } else if host.starts_with("ssh://") {
+        // Connect via SSH with 120 second timeout
+        Ok(Docker::connect_with_ssh(
+            host,
+            120, // timeout in seconds
+            API_DEFAULT_VERSION,
+        )?)
+    } else if host.starts_with("tls://") {
+        // Connect via TLS using environment variables for certificates
+        // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files
+        let cert_path = std::env::var("DOCKER_CERT_PATH")
+            .unwrap_or_else(|_| format!("{}/.docker", std::env::var("HOME").unwrap_or_default()));
+
+        let cert_dir = std::path::Path::new(&cert_path);
+        let key_path = cert_dir.join("key.pem");
+        let cert_path = cert_dir.join("cert.pem");
+        let ca_path = cert_dir.join("ca.pem");
+
+        // Convert tls:// to tcp:// for Bollard
+        let tcp_host = host.replace("tls://", "tcp://");
+
+        Ok(Docker::connect_with_ssl(
+            &tcp_host,
+            &key_path,
+            &cert_path,
+            &ca_path,
+            120, // timeout in seconds
+            API_DEFAULT_VERSION,
+        )?)
+    } else if host.starts_with("tcp://") {
+        // Connect via TCP (remote Docker daemon)
+        Ok(Docker::connect_with_http(
+            host,
+            120, // timeout in seconds
+            API_DEFAULT_VERSION,
+        )?)
+    } else {
+        Err(format!(
+            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
+            host
+        )
+        .into())
     }
 }
