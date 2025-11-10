@@ -121,43 +121,10 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Connect to all hosts and spawn container managers
     for (idx, host_spec) in hosts.iter().enumerate() {
-        match connect_docker(host_spec) {
-            Ok(docker) => {
-                // Create a unique host ID from the host spec
-                let host_id = create_host_id(host_spec);
-
-                // Get Dozzle URL if configured for this host
-                let dozzle_url = merged_config.hosts.get(idx).and_then(|h| h.dozzle.clone());
-
-                let docker_host = DockerHost::new(host_id.clone(), docker, dozzle_url);
-
-                // Verify the connection actually works by pinging Docker with timeout
-                let ping_timeout = Duration::from_secs(5);
-                match tokio::time::timeout(ping_timeout, docker_host.docker.ping()).await {
-                    Ok(Ok(_)) => {
-                        // Store the DockerHost for log streaming
-                        connected_hosts.insert(host_id.clone(), docker_host.clone());
-
-                        // Spawn container manager for this host
-                        spawn_container_manager(docker_host, tx.clone());
-                    }
-                    Ok(Err(e)) => {
-                        // Connection failed during ping
-                        eprintln!("Failed to connect to host '{}': {}", host_spec, e);
-                    }
-                    Err(_) => {
-                        // Ping timed out
-                        eprintln!(
-                            "Failed to connect to host '{}': Connection timeout",
-                            host_spec
-                        );
-                    }
-                }
-            }
-            Err(e) => {
-                // Log error but continue with other hosts
-                eprintln!("Failed to connect to host '{}': {}", host_spec, e);
-            }
+        let dozzle_url = merged_config.hosts.get(idx).and_then(|h| h.dozzle.clone());
+        if let Some(docker_host) = connect_and_verify_host(host_spec, dozzle_url).await {
+            connected_hosts.insert(docker_host.host_id.clone(), docker_host.clone());
+            spawn_container_manager(docker_host, tx.clone());
         }
     }
 
@@ -179,6 +146,43 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     cleanup_terminal(&mut terminal)?;
 
     Ok(())
+}
+
+/// Connects to a Docker host and verifies the connection works
+/// Returns Some(DockerHost) if successful, None if connection fails
+async fn connect_and_verify_host(
+    host_spec: &str,
+    dozzle_url: Option<String>,
+) -> Option<DockerHost> {
+    // Attempt to connect
+    let docker = match connect_docker(host_spec) {
+        Ok(docker) => docker,
+        Err(e) => {
+            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            return None;
+        }
+    };
+
+    // Create host ID and DockerHost instance
+    let host_id = create_host_id(host_spec);
+    let docker_host = DockerHost::new(host_id, docker, dozzle_url);
+
+    // Verify the connection actually works by pinging Docker with timeout
+    let ping_timeout = Duration::from_secs(5);
+    match tokio::time::timeout(ping_timeout, docker_host.docker.ping()).await {
+        Ok(Ok(_)) => Some(docker_host),
+        Ok(Err(e)) => {
+            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            None
+        }
+        Err(_) => {
+            eprintln!(
+                "Failed to connect to host '{}': Connection timeout",
+                host_spec
+            );
+            None
+        }
+    }
 }
 
 /// Creates a unique host identifier from the host specification
