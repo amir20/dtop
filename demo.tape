@@ -1,6 +1,6 @@
 Set Theme "Ayu Mirage"
 Output demo.gif
-
+Output demo.mp4
 
 Set TypingSpeed 100ms
 Set Shell "bash"
