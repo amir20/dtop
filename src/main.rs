@@ -102,17 +102,6 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         config.merge_with_cli_hosts(vec!["local".to_string()], true)
     };
 
-    // Get final list of hosts
-    let hosts: Vec<String> = if merged_config.hosts.is_empty() {
-        vec!["local".to_string()]
-    } else {
-        merged_config
-            .host_strings()
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect()
-    };
-
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
 
@@ -120,9 +109,10 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let mut connected_hosts: HashMap<String, DockerHost> = HashMap::new();
 
     // Connect to all hosts and spawn container managers
-    for (idx, host_spec) in hosts.iter().enumerate() {
-        let dozzle_url = merged_config.hosts.get(idx).and_then(|h| h.dozzle.clone());
-        if let Some(docker_host) = connect_and_verify_host(host_spec, dozzle_url).await {
+    for host_config in &merged_config.hosts {
+        if let Some(docker_host) =
+            connect_and_verify_host(&host_config.host, host_config.dozzle.clone()).await
+        {
             connected_hosts.insert(docker_host.host_id.clone(), docker_host.clone());
             spawn_container_manager(docker_host, tx.clone());
         }
