@@ -79,11 +79,6 @@ impl Config {
         }
         self
     }
-
-    /// Get all host connection strings
-    pub fn host_strings(&self) -> Vec<&str> {
-        self.hosts.iter().map(|h| h.host.as_str()).collect()
-    }
 }
 
 #[cfg(test)]
@@ -106,7 +101,8 @@ mod tests {
         };
 
         let merged = config.merge_with_cli_hosts(vec!["ssh://user@server2".to_string()], false);
-        assert_eq!(merged.host_strings(), vec!["ssh://user@server2"]);
+        assert_eq!(merged.hosts.len(), 1);
+        assert_eq!(merged.hosts[0].host, "ssh://user@server2");
     }
 
     #[test]
@@ -119,7 +115,8 @@ mod tests {
         };
 
         let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
-        assert_eq!(merged.host_strings(), vec!["ssh://user@server1"]);
+        assert_eq!(merged.hosts.len(), 1);
+        assert_eq!(merged.hosts[0].host, "ssh://user@server1");
         // Config file's dozzle URL is preserved
         assert_eq!(
             merged.hosts[0].dozzle.as_deref(),
@@ -132,7 +129,8 @@ mod tests {
         let config = Config { hosts: vec![] };
 
         let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
-        assert_eq!(merged.host_strings(), vec!["local"]);
+        assert_eq!(merged.hosts.len(), 1);
+        assert_eq!(merged.hosts[0].host, "local");
     }
 
     #[test]
@@ -145,10 +143,9 @@ hosts:
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 3);
-        assert_eq!(
-            config.host_strings(),
-            vec!["local", "ssh://user@server1", "ssh://user@server2:2222"]
-        );
+        assert_eq!(config.hosts[0].host, "local");
+        assert_eq!(config.hosts[1].host, "ssh://user@server1");
+        assert_eq!(config.hosts[2].host, "ssh://user@server2:2222");
         assert_eq!(config.hosts[0].dozzle, None);
     }
 
@@ -162,10 +159,8 @@ hosts:
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 2);
-        assert_eq!(
-            config.host_strings(),
-            vec!["ssh://root@146.190.3.114", "local"]
-        );
+        assert_eq!(config.hosts[0].host, "ssh://root@146.190.3.114");
+        assert_eq!(config.hosts[1].host, "local");
         assert_eq!(
             config.hosts[0].dozzle.as_deref(),
             Some("https://l.dozzle.dev/")
