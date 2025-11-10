@@ -144,16 +144,54 @@ See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.exam
 
 ## Supported Connections
 
-- **Local Docker** - Monitor containers running on the local Docker daemon using `--host local`
-- **Remote HTTP Docker** - Monitor containers running on remote Docker daemons via TCP port `--host tcp://host2:2375`
-- **Remote TLS Docker** - Monitor containers running on remote Docker daemons via TLS port `--host tls://host2:2376`
-- **SSH** - Establish an SSH connection to a remote host and monitor containers running on it using `--host ssh://user@host`
+### Local Docker
 
-You can connect to multiple hosts by separating them with commas:
+Monitor containers running on the local Docker daemon using `--host local`. `dtop` respects the `DOCKER_HOST` environment variable. If `DOCKER_HOST` is not set, it falls back to the default Docker socket location (`/var/run/docker.sock` on Linux/macOS).
+
+```bash
+dtop --host local
+# or simply
+dtop
+```
+
+### Remote HTTP Docker
+
+Connect to remote Docker daemons over unencrypted TCP connections. This is useful for development environments but should only be used on trusted networks.
+
+```bash
+dtop --host tcp://host2:2375
+```
+
+> [!Warning]
+> TCP connections are unencrypted. Only use on trusted networks or with proper firewall rules.
+
+### Remote TLS Docker
+
+Connect to remote Docker daemons over encrypted TLS connections. Requires certificates to be configured via the `DOCKER_CERT_PATH` environment variable.
+
+```bash
+export DOCKER_CERT_PATH=/path/to/certs  # Directory containing key.pem, cert.pem, and ca.pem
+dtop --host tls://host2:2376
+```
+
+### SSH
+
+Establish an SSH connection to a remote host and monitor containers running on it. This is the recommended method for secure remote connections.
+
+```bash
+dtop --host ssh://user@host
+# With custom port
+dtop --host ssh://user@host:2222
+```
+
+### Multiple Hosts
+
+You can monitor multiple Docker hosts simultaneously by specifying multiple `--host` flags:
 
 ```bash
 dtop --host local --host tcp://host2:2375 --host ssh://user@host
 ```
+
 > [!Note]
 > Currently, Dozzle url can only be configured in the configuration file. There is no way to provide it directly in the command line flags.
 
