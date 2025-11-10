@@ -131,11 +131,28 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
                 let docker_host = DockerHost::new(host_id.clone(), docker, dozzle_url);
 
-                // Store the DockerHost for log streaming
-                connected_hosts.insert(host_id.clone(), docker_host.clone());
+                // Verify the connection actually works by pinging Docker with timeout
+                let ping_timeout = Duration::from_secs(5);
+                match tokio::time::timeout(ping_timeout, docker_host.docker.ping()).await {
+                    Ok(Ok(_)) => {
+                        // Store the DockerHost for log streaming
+                        connected_hosts.insert(host_id.clone(), docker_host.clone());
 
-                // Spawn container manager for this host
-                spawn_container_manager(docker_host, tx.clone());
+                        // Spawn container manager for this host
+                        spawn_container_manager(docker_host, tx.clone());
+                    }
+                    Ok(Err(e)) => {
+                        // Connection failed during ping
+                        eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+                    }
+                    Err(_) => {
+                        // Ping timed out
+                        eprintln!(
+                            "Failed to connect to host '{}': Connection timeout",
+                            host_spec
+                        );
+                    }
+                }
             }
             Err(e) => {
                 // Log error but continue with other hosts
