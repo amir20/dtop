@@ -172,6 +172,12 @@ pub enum AppEvent {
     /// Action failed with error
     #[allow(dead_code)] // Will be used in Phase 2
     ActionError(ContainerKey, ContainerAction, String),
+    /// User pressed '/' to enter search mode
+    EnterSearchMode,
+    /// User pressed Escape to exit search mode (without applying filter)
+    ExitSearchMode,
+    /// Key event for search input (passed to tui-input)
+    SearchKeyEvent(crossterm::event::KeyEvent),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
@@ -185,6 +191,8 @@ pub enum ViewState {
     LogView(ContainerKey),
     /// Viewing action menu for a specific container
     ActionMenu(ContainerKey),
+    /// Search mode active (editing search query)
+    SearchMode,
 }
 
 /// Available actions for containers

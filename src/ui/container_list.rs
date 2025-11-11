@@ -18,6 +18,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Renders the container list view
 pub fn render_container_list(
     f: &mut Frame,
+    area: ratatui::layout::Rect,
     containers: &HashMap<ContainerKey, Container>,
     sorted_container_keys: &[ContainerKey],
     styles: &UiStyles,
@@ -25,8 +26,7 @@ pub fn render_container_list(
     show_host_column: bool,
     sort_state: SortState,
 ) {
-    let size = f.area();
-    let width = size.width;
+    let width = area.width;
 
     // Determine if we should show progress bars based on terminal width
     let show_progress_bars = width >= 128;
@@ -48,7 +48,7 @@ pub fn render_container_list(
         show_progress_bars,
     );
 
-    f.render_stateful_widget(table, size, table_state);
+    f.render_stateful_widget(table, area, table_state);
 }
 
 /// Creates a table row for a single container

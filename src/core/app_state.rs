@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+use tui_input::Input;
 
 use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, HealthStatus, SortDirection,
@@ -50,6 +51,10 @@ pub struct AppState {
     pub show_all_containers: bool,
     /// Action menu list state for selection tracking
     pub action_menu_state: ListState,
+    /// Search input widget
+    pub search_input: Input,
+    /// Whether search mode is currently active
+    pub is_search_active: bool,
 }
 
 impl AppState {
@@ -81,6 +86,8 @@ impl AppState {
             sort_state: SortState::default(), // Default to Uptime descending
             show_all_containers: false,       // Default to showing only running containers
             action_menu_state: ListState::default(), // Default to no selection
+            search_input: Input::default(),
+            is_search_active: false,
         }
     }
 
@@ -131,6 +138,9 @@ impl AppState {
             AppEvent::ActionError(key, action, error) => {
                 self.handle_action_error(key, action, error)
             }
+            AppEvent::EnterSearchMode => self.handle_enter_search_mode(),
+            AppEvent::ExitSearchMode => self.handle_exit_search_mode(),
+            AppEvent::SearchKeyEvent(key_event) => self.handle_search_key_event(key_event),
         }
     }
 
@@ -786,5 +796,65 @@ impl AppState {
         // TODO: Could show an error toast/notification in the UI in the future
         // For now, silently fail - the container state won't change on error
         false // Don't force redraw for error messages
+    }
+
+    fn handle_enter_search_mode(&mut self) -> bool {
+        // Only allow entering search mode from ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Activate search mode
+        self.is_search_active = true;
+        self.view_state = ViewState::SearchMode;
+
+        // Clear any existing search input
+        self.search_input.reset();
+
+        true // Force redraw to show search bar
+    }
+
+    fn handle_exit_search_mode(&mut self) -> bool {
+        // Only handle if we're in search mode
+        if !self.is_search_active {
+            return false;
+        }
+
+        // Deactivate search mode
+        self.is_search_active = false;
+        self.view_state = ViewState::ContainerList;
+
+        // Clear the search input
+        self.search_input.reset();
+
+        true // Force redraw to hide search bar
+    }
+
+    fn handle_search_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> bool {
+        use crossterm::event::KeyCode;
+
+        // Only process if search mode is active
+        if !self.is_search_active {
+            return false;
+        }
+
+        // Handle Escape to exit search mode
+        if matches!(key_event.code, KeyCode::Esc) {
+            return self.handle_exit_search_mode();
+        }
+
+        // Handle Enter (for future: apply filter and hide search bar)
+        // For now, just keep the search active
+        if matches!(key_event.code, KeyCode::Enter) {
+            // TODO: In the future, apply the filter here
+            return false; // Don't exit search mode yet
+        }
+
+        // Pass the key event to tui-input to handle character input, backspace, etc.
+        use tui_input::backend::crossterm::EventHandler;
+        self.search_input
+            .handle_event(&crossterm::event::Event::Key(key_event));
+
+        true // Force redraw to show updated search text
     }
 }
