@@ -216,12 +216,12 @@ async fn connect_and_verify_host(
             error!("Docker daemon ping failed for host '{}': {}", host_spec, e);
             debug!("Ping error details: {:?}", e);
             debug!("Error source chain:");
-            let mut source = std::error::Error::source(&e);
-            let mut level = 1;
-            while let Some(err) = source {
-                debug!("  Level {}: {}", level, err);
-                source = std::error::Error::source(err);
-                level += 1;
+            for (level, err) in std::iter::successors(std::error::Error::source(&e), |e| {
+                std::error::Error::source(*e)
+            })
+            .enumerate()
+            {
+                debug!("  Level {}: {}", level + 1, err);
             }
 
             eprintln!("Failed to connect to host '{}': {:?}", host_spec, e);
