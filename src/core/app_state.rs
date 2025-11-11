@@ -53,8 +53,6 @@ pub struct AppState {
     pub action_menu_state: ListState,
     /// Search input widget
     pub search_input: Input,
-    /// Whether search mode is currently active
-    pub is_search_active: bool,
 }
 
 impl AppState {
@@ -87,7 +85,6 @@ impl AppState {
             show_all_containers: false,       // Default to showing only running containers
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
-            is_search_active: false,
         }
     }
 
@@ -98,6 +95,7 @@ impl AppState {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
             _ => tracing::debug!("Handling event: {:?}", event),
         }
+
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
                 self.handle_initial_container_list(host_id, container_list)
@@ -139,7 +137,6 @@ impl AppState {
                 self.handle_action_error(key, action, error)
             }
             AppEvent::EnterSearchMode => self.handle_enter_search_mode(),
-            AppEvent::ExitSearchMode => self.handle_exit_search_mode(),
             AppEvent::SearchKeyEvent(key_event) => self.handle_search_key_event(key_event),
         }
     }
@@ -254,9 +251,20 @@ impl AppState {
     }
 
     fn handle_enter_pressed(&mut self) -> bool {
-        // Only handle Enter in ContainerList view
-        if self.view_state != ViewState::ContainerList {
-            return false;
+        // Handle Enter based on current view state
+        match self.view_state {
+            ViewState::SearchMode => {
+                // Apply filter and return to ContainerList view
+                self.view_state = ViewState::ContainerList;
+                return true; // Force redraw to show filter bar
+            }
+            ViewState::ContainerList => {
+                // Open logs for selected container
+            }
+            _ => {
+                // Ignore Enter in other views
+                return false;
+            }
         }
 
         // Get the selected container
@@ -307,9 +315,19 @@ impl AppState {
             return true; // Force redraw
         }
 
-        // Only handle Escape when in log view
-        if !matches!(self.view_state, ViewState::LogView(_)) {
-            return false;
+        // Handle Escape based on current view state
+        match self.view_state {
+            ViewState::SearchMode => {
+                // Exit search mode and clear filter
+                return self.handle_exit_search_mode();
+            }
+            ViewState::LogView(_) => {
+                // Exit log view
+            }
+            _ => {
+                // Ignore Escape in other views
+                return false;
+            }
         }
 
         // Stop log streaming
@@ -805,7 +823,6 @@ impl AppState {
         }
 
         // Activate search mode
-        self.is_search_active = true;
         self.view_state = ViewState::SearchMode;
 
         // Clear any existing search input
@@ -816,12 +833,11 @@ impl AppState {
 
     fn handle_exit_search_mode(&mut self) -> bool {
         // Only handle if we're in search mode
-        if !self.is_search_active {
+        if self.view_state != ViewState::SearchMode {
             return false;
         }
 
         // Deactivate search mode
-        self.is_search_active = false;
         self.view_state = ViewState::ContainerList;
 
         // Clear the search input
@@ -833,21 +849,15 @@ impl AppState {
     fn handle_search_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> bool {
         use crossterm::event::KeyCode;
 
-        // Only process if search mode is active
-        if !self.is_search_active {
+        // Only process typing keys when in search mode
+        // Enter and Escape are handled by handle_enter_pressed and handle_exit_log_view
+        if self.view_state != ViewState::SearchMode {
             return false;
         }
 
-        // Handle Escape to exit search mode
-        if matches!(key_event.code, KeyCode::Esc) {
-            return self.handle_exit_search_mode();
-        }
-
-        // Handle Enter (for future: apply filter and hide search bar)
-        // For now, just keep the search active
-        if matches!(key_event.code, KeyCode::Enter) {
-            // TODO: In the future, apply the filter here
-            return false; // Don't exit search mode yet
+        // Skip Enter and Escape - they're handled elsewhere
+        if matches!(key_event.code, KeyCode::Enter | KeyCode::Esc) {
+            return false;
         }
 
         // Pass the key event to tui-input to handle character input, backspace, etc.

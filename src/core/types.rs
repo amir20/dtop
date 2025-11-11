@@ -174,8 +174,6 @@ pub enum AppEvent {
     ActionError(ContainerKey, ContainerAction, String),
     /// User pressed '/' to enter search mode
     EnterSearchMode,
-    /// User pressed Escape to exit search mode (without applying filter)
-    ExitSearchMode,
     /// Key event for search input (passed to tui-input)
     SearchKeyEvent(crossterm::event::KeyEvent),
 }

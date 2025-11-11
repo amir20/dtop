@@ -47,7 +47,11 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let size = f.area();
 
     // Calculate the main area and search bar area
-    let (main_area, search_area) = if state.is_search_active {
+    // Show search bar if in SearchMode OR if there's an active filter
+    let show_search_bar = state.view_state == ViewState::SearchMode
+        || (!state.search_input.value().is_empty() && state.view_state == ViewState::ContainerList);
+
+    let (main_area, search_area) = if show_search_bar {
         // Reserve bottom 1 line for search bar
         let main_height = size.height.saturating_sub(1);
         let main = ratatui::layout::Rect {
@@ -208,8 +212,16 @@ fn render_search_bar(
 ) {
     use ratatui::text::{Line, Span};
 
-    // Create the search prompt with input value
-    let search_text = format!("/{}", state.search_input.value());
+    // Determine if we're in search mode (editing) or filter mode (applied)
+    let is_editing = state.view_state == ViewState::SearchMode;
+
+    let search_text = if is_editing {
+        // In search mode: show "/" prefix for editing
+        format!("/{}", state.search_input.value())
+    } else {
+        // Filter applied: show "Filtering: " prefix
+        format!("Filtering: {}", state.search_input.value())
+    };
 
     // Create a paragraph with the search text using the search_bar style
     let search_widget = Paragraph::new(Line::from(vec![Span::styled(
@@ -219,11 +231,14 @@ fn render_search_bar(
 
     f.render_widget(search_widget, area);
 
-    // Set the cursor position for the input
-    // Cursor should be after the '/' and the current input text
-    let cursor_x = area.x + 1 + state.search_input.visual_cursor() as u16;
-    let cursor_y = area.y;
+    // Only show cursor if we're in search mode (editing)
+    if is_editing {
+        // Set the cursor position for the input
+        // Cursor should be after the '/' and the current input text
+        let cursor_x = area.x + 1 + state.search_input.visual_cursor() as u16;
+        let cursor_y = area.y;
 
-    // Make cursor visible at the input position
-    f.set_cursor_position((cursor_x, cursor_y));
+        // Make cursor visible at the input position
+        f.set_cursor_position((cursor_x, cursor_y));
+    }
 }
