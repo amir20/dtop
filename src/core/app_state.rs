@@ -86,6 +86,11 @@ impl AppState {
 
     /// Processes a single event and returns whether UI should be redrawn
     pub fn handle_event(&mut self, event: AppEvent) -> bool {
+        // Log stats at TRACE level since they're very frequent, everything else at DEBUG
+        match &event {
+            AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
+            _ => tracing::debug!("Handling event: {:?}", event),
+        }
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
                 self.handle_initial_container_list(host_id, container_list)

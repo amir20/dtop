@@ -111,6 +111,7 @@ impl ContainerKey {
     }
 }
 
+#[derive(Debug)]
 pub enum AppEvent {
     /// Initial list of containers when app starts for a specific host
     InitialContainerList(HostId, Vec<Container>),

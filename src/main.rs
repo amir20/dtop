@@ -11,9 +11,11 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
+use std::fs::File;
 use std::io;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing_subscriber::EnvFilter;
 use url::Url;
 
 use cli::config::Config;
@@ -56,6 +58,9 @@ enum Command {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Setup logging
+    setup_logging()?;
+
     // Parse command line arguments
     let args = Args::parse();
 
@@ -288,4 +293,19 @@ async fn process_events(
     }
 
     force_draw
+}
+
+fn setup_logging() -> Result<(), Box<dyn std::error::Error>> {
+    // Check if DEBUG is enabled
+    if std::env::var("DEBUG").is_ok() {
+        let log_file = File::create("debug.log")?;
+
+        tracing_subscriber::fmt()
+            .with_writer(log_file)
+            .with_env_filter(EnvFilter::new("dtop=debug"))
+            .with_ansi(false)
+            .init();
+    }
+
+    Ok(())
 }
