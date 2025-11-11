@@ -19,6 +19,7 @@ pub struct UiStyles {
     pub header: Style,
     pub border: Style,
     pub selected: Style,
+    pub search_bar: Style,
 }
 
 impl Default for UiStyles {
@@ -33,6 +34,9 @@ impl Default for UiStyles {
             border: Style::default().fg(Color::White),
             selected: Style::default()
                 .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+            search_bar: Style::default()
+                .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         }
     }
@@ -200,15 +204,18 @@ fn render_search_bar(
     f: &mut Frame,
     area: ratatui::layout::Rect,
     state: &AppState,
-    _styles: &UiStyles,
+    styles: &UiStyles,
 ) {
     use ratatui::text::{Line, Span};
 
     // Create the search prompt with input value
     let search_text = format!("/{}", state.search_input.value());
 
-    // Create a paragraph with the search text
-    let search_widget = Paragraph::new(Line::from(vec![Span::raw(search_text)]));
+    // Create a paragraph with the search text using the search_bar style
+    let search_widget = Paragraph::new(Line::from(vec![Span::styled(
+        search_text,
+        styles.search_bar,
+    )]));
 
     f.render_widget(search_widget, area);
 
