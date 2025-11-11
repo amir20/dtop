@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" x-data="app()" x-init="initTheme()" :class="{ 'dark': isDark }">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,7 +11,24 @@
             href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
             rel="stylesheet"
         />
+        <script>
+            // Initialize theme BEFORE page renders to prevent flash
+            (function () {
+                const savedTheme = localStorage.getItem("theme");
+                const isDark = savedTheme
+                    ? savedTheme === "dark"
+                    : window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+                if (isDark) {
+                    document.documentElement.classList.add("dark");
+                }
+            })();
+        </script>
         <script src="https://cdn.tailwindcss.com"></script>
+        <script
+            defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+        ></script>
         <script>
             tailwind.config = {
                 darkMode: "class",
@@ -33,6 +50,45 @@
                     },
                 },
             };
+
+            // Alpine.js component
+            function app() {
+                return {
+                    isDark: document.documentElement.classList.contains("dark"),
+                    copiedStates: {},
+
+                    initTheme() {
+                        // Sync with the class that was already set by the inline script
+                        this.isDark =
+                            document.documentElement.classList.contains("dark");
+                    },
+
+                    toggleTheme() {
+                        this.isDark = !this.isDark;
+                        localStorage.setItem(
+                            "theme",
+                            this.isDark ? "dark" : "light",
+                        );
+                    },
+
+                    async copyToClipboard(text, id) {
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            this.copiedStates[id] = true;
+
+                            setTimeout(() => {
+                                this.copiedStates[id] = false;
+                            }, 2000);
+                        } catch (err) {
+                            console.error("Failed to copy:", err);
+                        }
+                    },
+
+                    isCopied(id) {
+                        return this.copiedStates[id] || false;
+                    },
+                };
+            }
         </script>
         <style>
             @keyframes blink {
@@ -49,49 +105,6 @@
                 animation: blink 1.4s infinite;
             }
         </style>
-        <script>
-            // Theme toggle functionality
-            function initTheme() {
-                const theme = localStorage.getItem("theme") || "dark";
-                if (theme === "dark") {
-                    document.documentElement.classList.add("dark");
-                } else {
-                    document.documentElement.classList.remove("dark");
-                }
-            }
-
-            function toggleTheme() {
-                const isDark =
-                    document.documentElement.classList.toggle("dark");
-                localStorage.setItem("theme", isDark ? "dark" : "light");
-            }
-
-            // Copy to clipboard functionality
-            async function copyToClipboard(text, button) {
-                try {
-                    await navigator.clipboard.writeText(text);
-
-                    // Get the SVG icon and checkmark
-                    const icon = button.querySelector(".copy-icon");
-                    const check = button.querySelector(".check-icon");
-
-                    // Show checkmark
-                    icon.classList.add("hidden");
-                    check.classList.remove("hidden");
-
-                    // Reset after 2 seconds
-                    setTimeout(() => {
-                        icon.classList.remove("hidden");
-                        check.classList.add("hidden");
-                    }, 2000);
-                } catch (err) {
-                    console.error("Failed to copy:", err);
-                }
-            }
-
-            // Initialize theme before page loads
-            initTheme();
-        </script>
     </head>
     <body class="bg-white dark:bg-gray-900 min-h-screen transition-colors">
         <!-- Header -->
@@ -109,7 +122,7 @@
                     </div>
                     <div class="flex items-center space-x-6">
                         <button
-                            onclick="toggleTheme()"
+                            @click="toggleTheme()"
                             class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-medium"
                             aria-label="Toggle theme"
                         >
@@ -308,13 +321,14 @@
                         >
                             <code>cargo install dtop</code>
                             <button
-                                onclick="copyToClipboard('cargo install dtop', this)"
+                                @click="copyToClipboard('cargo install dtop', 'cargo')"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
                                 aria-label="Copy to clipboard"
                                 title="Copy to clipboard"
                             >
                                 <svg
-                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    x-show="!isCopied('cargo')"
+                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -327,7 +341,9 @@
                                     ></path>
                                 </svg>
                                 <svg
-                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    x-show="isCopied('cargo')"
+                                    x-cloak
+                                    class="w-5 h-5 text-terminal-green"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -364,13 +380,14 @@
                                 | sh</code
                             >
                             <button
-                                onclick="copyToClipboard('curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh', this)"
+                                @click="copyToClipboard('curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh', 'shell')"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
                                 aria-label="Copy to clipboard"
                                 title="Copy to clipboard"
                             >
                                 <svg
-                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    x-show="!isCopied('shell')"
+                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -383,7 +400,9 @@
                                     ></path>
                                 </svg>
                                 <svg
-                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    x-show="isCopied('shell')"
+                                    x-cloak
+                                    class="w-5 h-5 text-terminal-green"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -420,13 +439,14 @@
                                 ghcr.io/amir20/dtop:latest</code
                             >
                             <button
-                                onclick="copyToClipboard('docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop:latest', this)"
+                                @click="copyToClipboard('docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop:latest', 'docker')"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
                                 aria-label="Copy to clipboard"
                                 title="Copy to clipboard"
                             >
                                 <svg
-                                    class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    x-show="!isCopied('docker')"
+                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -439,7 +459,9 @@
                                     ></path>
                                 </svg>
                                 <svg
-                                    class="check-icon w-5 h-5 text-terminal-green hidden"
+                                    x-show="isCopied('docker')"
+                                    x-cloak
+                                    class="w-5 h-5 text-terminal-green"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -466,13 +488,14 @@
                     >
                         <code>$ dtop</code>
                         <button
-                            onclick="copyToClipboard('dtop', this)"
+                            @click="copyToClipboard('dtop', 'dtop')"
                             class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
                             aria-label="Copy to clipboard"
                             title="Copy to clipboard"
                         >
                             <svg
-                                class="copy-icon w-5 h-5 text-gray-600 dark:text-gray-400"
+                                x-show="!isCopied('dtop')"
+                                class="w-5 h-5 text-gray-600 dark:text-gray-400"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -485,7 +508,9 @@
                                 ></path>
                             </svg>
                             <svg
-                                class="check-icon w-5 h-5 text-terminal-green hidden"
+                                x-show="isCopied('dtop')"
+                                x-cloak
+                                class="w-5 h-5 text-terminal-green"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -594,5 +619,10 @@
                 </div>
             </div>
         </footer>
+        <style>
+            [x-cloak] {
+                display: none !important;
+            }
+        </style>
     </body>
 </html>
