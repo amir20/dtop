@@ -2,5 +2,12 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", ":automergeDigest", ":automergeMinor"],
   "ignorePaths": [".github/workflows/release.yml"],
-  "platformAutomerge": true
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "matchPackageNames": ["crossterm"],
+      "allowedVersions": "0.28.x",
+      "description": "Pin crossterm to 0.28.x to match ratatui's dependency and avoid duplicate versions"
+    }
+  ]
 }
