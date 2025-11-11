@@ -214,7 +214,6 @@ async fn connect_and_verify_host(
         }
         Ok(Err(e)) => {
             error!("Docker daemon ping failed for host '{}': {}", host_spec, e);
-            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
             debug!("Ping error details: {:?}", e);
             debug!("Error source chain:");
             let mut source = std::error::Error::source(&e);
@@ -225,7 +224,7 @@ async fn connect_and_verify_host(
                 level += 1;
             }
 
-            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            eprintln!("Failed to connect to host '{}': {:?}", host_spec, e);
 
             if is_ssh {
                 let host_part = host_spec.strip_prefix("ssh://").unwrap_or(host_spec);
