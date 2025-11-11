@@ -132,8 +132,9 @@ fn create_container_row<'a>(
 
 /// Creates a text-based progress bar with percentage
 fn create_progress_bar(percentage: f64, width: usize) -> String {
-    let percentage = percentage.clamp(0.0, 100.0);
-    let filled_width = ((percentage / 100.0) * width as f64).round() as usize;
+    // Clamp the bar visual to 100%, but display the actual percentage value
+    let bar_percentage = percentage.clamp(0.0, 100.0);
+    let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
     let empty_width = width.saturating_sub(filled_width);
 
     let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
