@@ -149,11 +149,53 @@ async fn connect_and_verify_host(
     host_spec: &str,
     dozzle_url: Option<String>,
 ) -> Option<DockerHost> {
+    use tracing::{debug, error};
+
+    let is_ssh = host_spec.starts_with("ssh://");
+
+    debug!("Attempting to connect to host: {}", host_spec);
+
     // Attempt to connect
     let docker = match connect_docker(host_spec) {
-        Ok(docker) => docker,
+        Ok(docker) => {
+            debug!("Successfully created Docker client for host: {}", host_spec);
+            if is_ssh {
+                debug!("SSH transport layer established");
+            }
+            docker
+        }
         Err(e) => {
-            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            error!(
+                "Failed to create Docker client for host '{}': {}",
+                host_spec, e
+            );
+            debug!("Error details: {:?}", e);
+
+            if is_ssh {
+                let host_part = host_spec.strip_prefix("ssh://").unwrap_or(host_spec);
+                eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+                eprintln!("\nDebug steps to diagnose SSH connection:");
+                eprintln!(
+                    "  1. Test SSH access:       ssh {} 'echo SSH works'",
+                    host_part
+                );
+                eprintln!("  2. Test Docker on remote: ssh {} 'docker ps'", host_part);
+                eprintln!(
+                    "  3. Check Docker socket:   ssh {} 'ls -la /var/run/docker.sock'",
+                    host_part
+                );
+                eprintln!("  4. Check user groups:     ssh {} 'groups'", host_part);
+                eprintln!(
+                    "  5. Check Docker daemon:   ssh {} 'systemctl status docker'",
+                    host_part
+                );
+                eprintln!(
+                    "\nFor detailed logs, run with: DEBUG=1 dtop --host {}",
+                    host_spec
+                );
+            } else {
+                eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            }
             return None;
         }
     };
@@ -163,18 +205,68 @@ async fn connect_and_verify_host(
     let docker_host = DockerHost::new(host_id, docker, dozzle_url);
 
     // Verify the connection actually works by pinging Docker with timeout
-    let ping_timeout = Duration::from_secs(5);
+    debug!("Pinging Docker daemon at host: {}", host_spec);
+    let ping_timeout = Duration::from_secs(10);
     match tokio::time::timeout(ping_timeout, docker_host.docker.ping()).await {
-        Ok(Ok(_)) => Some(docker_host),
+        Ok(Ok(_)) => {
+            debug!("Successfully pinged Docker daemon at host: {}", host_spec);
+            Some(docker_host)
+        }
         Ok(Err(e)) => {
+            error!("Docker daemon ping failed for host '{}': {}", host_spec, e);
             eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+            debug!("Ping error details: {:?}", e);
+            debug!("Error source chain:");
+            let mut source = std::error::Error::source(&e);
+            let mut level = 1;
+            while let Some(err) = source {
+                debug!("  Level {}: {}", level, err);
+                source = std::error::Error::source(err);
+                level += 1;
+            }
+
+            eprintln!("Failed to connect to host '{}': {}", host_spec, e);
+
+            if is_ssh {
+                let host_part = host_spec.strip_prefix("ssh://").unwrap_or(host_spec);
+                eprintln!("\nSSH connection established but Docker API call failed.");
+                eprintln!("Common causes:");
+                eprintln!(
+                    "  • Docker daemon not running:  ssh {} 'systemctl status docker'",
+                    host_part
+                );
+                eprintln!(
+                    "  • Permission denied:          ssh {} 'docker ps'",
+                    host_part
+                );
+                eprintln!(
+                    "  • User not in docker group:   ssh {} 'groups' (should show 'docker')",
+                    host_part
+                );
+                eprintln!(
+                    "  • Socket permissions:         ssh {} 'stat /var/run/docker.sock'",
+                    host_part
+                );
+                eprintln!(
+                    "\nIf 'docker ps' works over SSH but dtop fails, please file a bug report."
+                );
+                eprintln!(
+                    "Enable detailed logs with: DEBUG=1 dtop --host {}",
+                    host_spec
+                );
+            }
             None
         }
         Err(_) => {
+            error!("Docker daemon ping timeout for host: {}", host_spec);
             eprintln!(
-                "Failed to connect to host '{}': Connection timeout",
+                "Failed to connect to host '{}': Docker ping timeout (>10s)",
                 host_spec
             );
+
+            if is_ssh {
+                eprintln!("\nTimeout suggests slow connection or unresponsive Docker daemon");
+            }
             None
         }
     }
