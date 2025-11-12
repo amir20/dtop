@@ -78,16 +78,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 state.containers.keys().map(|key| &key.host_id).collect();
             let show_host_column = unique_hosts.len() > 1;
 
-            render_container_list(
-                f,
-                main_area,
-                &state.containers,
-                &state.sorted_container_keys,
-                styles,
-                &mut state.table_state,
-                show_host_column,
-                state.sort_state,
-            );
+            render_container_list(f, main_area, state, styles, show_host_column);
         }
         ViewState::LogView(container_key) => {
             let container_key = container_key.clone();
@@ -99,16 +90,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 state.containers.keys().map(|key| &key.host_id).collect();
             let show_host_column = unique_hosts.len() > 1;
 
-            render_container_list(
-                f,
-                main_area,
-                &state.containers,
-                &state.sorted_container_keys,
-                styles,
-                &mut state.table_state,
-                show_host_column,
-                state.sort_state,
-            );
+            render_container_list(f, main_area, state, styles, show_host_column);
 
             // Then render the action menu on top
             render_action_menu(f, state, styles);

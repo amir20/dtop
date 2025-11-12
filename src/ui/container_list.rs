@@ -3,14 +3,12 @@ use ratatui::{
     Frame,
     layout::Constraint,
     style::{Color, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, Row, Table},
 };
-use std::collections::HashMap;
 use timeago::Formatter;
 
-use crate::core::types::{
-    Container, ContainerKey, ContainerState, HealthStatus, SortField, SortState,
-};
+use crate::core::app_state::AppState;
+use crate::core::types::{Container, ContainerState, HealthStatus, SortField, SortState};
 use crate::ui::render::UiStyles;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -19,12 +17,9 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn render_container_list(
     f: &mut Frame,
     area: ratatui::layout::Rect,
-    containers: &HashMap<ContainerKey, Container>,
-    sorted_container_keys: &[ContainerKey],
+    app_state: &mut AppState,
     styles: &UiStyles,
-    table_state: &mut TableState,
     show_host_column: bool,
-    sort_state: SortState,
 ) {
     let width = area.width;
 
@@ -32,23 +27,24 @@ pub fn render_container_list(
     let show_progress_bars = width >= 128;
 
     // Use pre-sorted list instead of sorting every frame
-    let rows: Vec<Row> = sorted_container_keys
+    let rows: Vec<Row> = app_state
+        .sorted_container_keys
         .iter()
-        .filter_map(|key| containers.get(key))
+        .filter_map(|key| app_state.containers.get(key))
         .map(|c| create_container_row(c, styles, show_host_column, show_progress_bars))
         .collect();
 
-    let header = create_header_row(styles, show_host_column, sort_state);
+    let header = create_header_row(styles, show_host_column, app_state.sort_state);
     let table = create_table(
         rows,
         header,
-        sorted_container_keys.len(),
+        app_state.sorted_container_keys.len(),
         styles,
         show_host_column,
         show_progress_bars,
     );
 
-    f.render_stateful_widget(table, area, table_state);
+    f.render_stateful_widget(table, area, &mut app_state.table_state);
 }
 
 /// Creates a table row for a single container
