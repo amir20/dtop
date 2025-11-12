@@ -116,6 +116,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Create a channel for receiving successful connections
     let (conn_tx, mut conn_rx) = mpsc::channel::<DockerHost>(merged_config.hosts.len());
 
+    // Collect at least one successful connection before proceeding
+    let total_hosts = merged_config.hosts.len();
+
     // Spawn all connection attempts in parallel
     let connection_handles: Vec<_> = merged_config
         .hosts
@@ -132,6 +135,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => {
                         use tracing::error;
                         error!("{}", e);
+                        if total_hosts == 1 {
+                            eprintln!("Failed to connect to Docker host: {:?}", e);
+                        }
                     }
                 }
             })
@@ -140,9 +146,6 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Drop the original sender so the channel closes when all tasks complete
     drop(conn_tx);
-
-    // Collect at least one successful connection before proceeding
-    let total_hosts = merged_config.hosts.len();
 
     // Try to get the first connection with a reasonable timeout
     match tokio::time::timeout(Duration::from_secs(30), conn_rx.recv()).await {
