@@ -84,17 +84,29 @@ src/
 │   └── update.rs         # Self-update functionality
 │
 ├── core/                  # Core application logic
-│   ├── app_state.rs      # Central state manager
+│   ├── app_state/        # Central state manager (modularized)
+│   │   ├── mod.rs        # AppState struct and main event dispatcher
+│   │   ├── actions.rs    # Action menu handling (start/stop/restart/remove)
+│   │   ├── container_events.rs  # Container lifecycle event handlers
+│   │   ├── integrations.rs      # Dozzle integration handlers
+│   │   ├── log_view.rs   # Log view event handlers
+│   │   ├── navigation.rs # Selection and navigation handlers
+│   │   ├── search.rs     # Search mode and filtering handlers
+│   │   └── sorting.rs    # Container sorting logic
 │   └── types.rs          # Core types and events
 │
 ├── docker/                # Docker-related functionality
 │   ├── connection.rs     # Container manager & Docker host abstraction
 │   ├── logs.rs           # Log streaming
-│   └── stats.rs          # Stats streaming and calculation
+│   ├── stats.rs          # Stats streaming and calculation
+│   └── actions.rs        # Container actions (start/stop/restart/remove)
 │
 ├── ui/                    # UI rendering and input handling
 │   ├── input.rs          # Keyboard worker
 │   ├── render.rs         # Ratatui UI rendering
+│   ├── container_list.rs # Container list table rendering
+│   ├── action_menu.rs    # Action menu popup rendering
+│   ├── help.rs           # Help popup rendering
 │   └── ui_tests.rs       # UI snapshot tests
 │
 ├── lib.rs                # Library root with module declarations
@@ -109,13 +121,21 @@ src/
    - Renders UI at 500ms intervals using Ratatui
    - Uses throttling to wait for events or timeout, then drains all pending events
 
-2. **AppState** (`core/app_state.rs::AppState`)
+2. **AppState** (`core/app_state/mod.rs::AppState`)
    - Central state manager that handles all runtime data
    - Maintains container state in `HashMap<ContainerKey, Container>` where `ContainerKey` is `(host_id, container_id)`
-   - Manages view state (container list vs log view)
+   - Manages view state (container list, log view, action menu, search mode)
    - Handles log streaming, scrolling, and auto-scroll behavior
-   - Pre-sorts containers by host_id and name for efficient rendering
+   - Pre-sorts containers by host_id and selected sort field for efficient rendering
    - Single source of truth for container data across all hosts
+   - **Modular architecture**: Event handlers are split across specialized modules:
+     - `actions.rs`: Action menu navigation and execution
+     - `container_events.rs`: Container lifecycle and stats updates
+     - `integrations.rs`: Dozzle integration
+     - `log_view.rs`: Log streaming and scrolling
+     - `navigation.rs`: Selection and navigation
+     - `search.rs`: Search filtering and input handling
+     - `sorting.rs`: Container sorting by multiple fields
 
 3. **Container Manager** (`docker/connection.rs::container_manager`) - **One per Docker host**
    - Async task that manages Docker API interactions for a specific host
@@ -143,8 +163,16 @@ src/
 
 6. **Keyboard Worker** (`ui/input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms
-   - Handles: 'q'/Ctrl-C (quit), Enter (view logs), Esc (exit log view), Up/Down (navigate/scroll)
+   - Handles: 'q'/Ctrl-C (quit), Enter (view logs/action), Esc (exit view), Up/Down (navigate/scroll)
+   - Arrow keys: Left (cancel action menu), Right (show action menu), '/' (search mode)
    - Separate thread because crossterm's event polling is blocking
+
+7. **Container Actions** (`docker/actions.rs::execute_container_action`)
+   - Async execution of Docker container actions
+   - Supports: Start, Stop, Restart, Remove
+   - Stop/Restart use 10-second timeout before force kill
+   - Remove uses force option to remove even if running
+   - Sends progress events (InProgress, Success, Error) back to main event loop
 
 ### Multi-Host Architecture
 
@@ -185,12 +213,24 @@ Container-related events use structured types to identify containers across host
 - `CycleSortField` - User pressed 's' to cycle through sort fields
 - `SetSortField(SortField)` - User pressed a specific key to set sort field (u/n/c/m)
 - `ToggleShowAll` - User pressed 'a' to toggle showing all containers (including stopped)
+- `ShowActionMenu` - User pressed Right arrow to show action menu
+- `CancelActionMenu` - User pressed Left arrow/Esc to cancel action menu
+- `SelectActionUp` - Navigate up in action menu (Up arrow)
+- `SelectActionDown` - Navigate down in action menu (Down arrow)
+- `ExecuteAction` - Execute selected action (Enter in action menu)
+- `ActionInProgress(ContainerKey, ContainerAction)` - Container action started
+- `ActionSuccess(ContainerKey, ContainerAction)` - Container action completed successfully
+- `ActionError(ContainerKey, ContainerAction, String)` - Container action failed
+- `EnterSearchMode` - User pressed '/' to enter search mode
+- `SearchKeyEvent(KeyEvent)` - Key event for search input (passed to tui-input)
 
 ### View States (`core/types.rs::ViewState`)
 
-The application has two view states:
+The application has four view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
+- `ActionMenu(ContainerKey)` - Action menu popup for a specific container
+- `SearchMode` - Search mode for filtering containers by name/ID
 
 ### Container Data Model (`core/types.rs::Container`)
 
@@ -259,6 +299,35 @@ The merge logic:
 - If both are empty/default, defaults to `local`
 - CLI hosts are converted to `HostConfig` structs with `dozzle: None`
 
+### Container Actions System
+
+The application supports interactive container management through an action menu (`ui/action_menu.rs` and `docker/actions.rs`):
+
+**Action Flow:**
+1. User presses Right arrow (→) in container list
+2. Action menu popup appears with available actions based on container state
+3. User selects action with Up/Down arrows and presses Enter
+4. Action is executed asynchronously via `execute_container_action()`
+5. Docker events automatically update container state in UI
+
+**Available Actions:**
+- **Start**: Available for Exited, Created, Dead containers
+- **Stop**: Available for Running, Paused containers (10-second timeout)
+- **Restart**: Available for Running containers (10-second timeout)
+- **Remove**: Available for any state except Restarting/Removing (forced removal)
+
+**State-Based Availability:**
+- Running → Stop, Restart, Remove
+- Paused → Stop, Remove
+- Exited/Created/Dead → Start, Remove
+- Restarting/Removing → No actions available
+
+**Implementation Details:**
+- Actions spawn async tasks that don't block the UI
+- Progress events sent back to main loop (InProgress, Success, Error)
+- Container state updates happen automatically via Docker event stream
+- Action menu closes immediately after execution for responsive UX
+
 ### Docker Connection
 
 The `connect_docker()` function in `main.rs` handles four connection modes:
@@ -283,17 +352,28 @@ Stats are calculated in `docker/stats.rs` with exponential smoothing applied:
 
 The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations.
 
-**Two View Modes:**
+**Four View Modes:**
 1. **Container List View** - Main table showing all containers
    - Dynamically shows/hides "Host" column (only shown when multiple hosts are connected)
    - Displays: ID, Name, Host (conditional), CPU%, Memory%, Net TX, Net RX, Status
    - Progress bars with percentage indicators for CPU and Memory
    - Network rates formatted as B/s, KB/s, MB/s, or GB/s
+   - Search bar at bottom when in SearchMode (filters containers as you type)
 2. **Log View** - Full-screen log streaming for selected container
    - Shows last 100 lines initially, then follows new logs
    - Timestamps displayed in yellow with bold formatting
    - Auto-scroll when at bottom, manual scroll preserves position
    - Displays "[AUTO]" or "[MANUAL]" indicator in title
+3. **Action Menu** - Centered popup for container actions
+   - Shows available actions based on container state
+   - Actions: Start (stopped), Stop (running), Restart (running), Remove (any state)
+   - Displays container name and host in title
+   - Visual feedback with icons (▶ Start, ■ Stop, ↻ Restart, 🗑 Remove)
+4. **Search Mode** - Filter containers by name/ID
+   - Shows search input at bottom of container list
+   - Filters containers in real-time as you type
+   - Uses `tui-input` widget for text editing
+   - Escape or Enter to exit search mode
 
 **Color Coding for Metrics:**
 - Green: 0-50%
@@ -314,6 +394,9 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 - By default, only running containers are shown
 - Press 'a' to toggle showing all containers (including stopped/exited containers)
 - Filter state is tracked in `AppState::show_all_containers`
+- Press '/' to enter search mode and filter by container name/ID
+- Search filtering is case-insensitive and filters by both name and ID
+- Filtered containers are automatically re-sorted after filtering
 
 **Health Status:**
 - Containers with health checks display their status: Healthy, Unhealthy, Starting
@@ -461,6 +544,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - **Open**: Cross-platform URL opener for Dozzle integration
 - **Ansi-to-tui**: ANSI escape code parsing for colored log output
 - **Timeago**: Human-readable time formatting for container uptime
+- **Tui-input**: Text input widget for search functionality
 
 ### Dev Dependencies
 - **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)
@@ -487,9 +571,11 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 **Container List View:**
 - `↑/↓` - Navigate between containers
 - `Enter` - View logs for selected container
+- `→` - Show action menu for selected container
 - `q` or `Ctrl-C` - Quit application
 - `o` - Open Dozzle for selected container (if configured and not in SSH session)
 - `?` - Toggle help popup
+- `/` - Enter search mode (filter containers)
 - `s` - Cycle through sort fields (Uptime → Name → CPU → Memory → Uptime)
 - `u` - Sort by Uptime (toggle direction if already sorting by Uptime)
 - `n` - Sort by Name (toggle direction if already sorting by Name)
@@ -502,6 +588,18 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `Esc` - Return to container list
 - `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)
+
+**Action Menu:**
+- `↑/↓` - Navigate between available actions
+- `Enter` - Execute selected action
+- `Esc` or `←` - Cancel and return to container list
+- Available actions depend on container state (e.g., running containers can be stopped/restarted)
+
+**Search Mode:**
+- Type to filter containers by name or ID (case-insensitive)
+- `Backspace`/`Delete` - Edit search query
+- `Enter` or `Esc` - Exit search mode
+- `↑/↓` - Navigate filtered results while searching
 
 ## Testing Strategy
 
