@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.14] - 2025-11-12
+
+### Bug Fixes
+
+- Unify crossterm version to 0.28 (#105)
+- *(deps)* Update rust crate crossterm to 0.29 (#107)
+- Fixes cpu being clamped at 100% (#111)
+
+### Chore
+
+- Dep fix (#108)
+
 ## [0.3.13] - 2025-11-10
 
 ### Features
