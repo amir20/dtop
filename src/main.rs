@@ -392,7 +392,11 @@ fn setup_logging() -> Result<(), Box<dyn std::error::Error>> {
 
         tracing_subscriber::fmt()
             .with_writer(log_file)
-            .with_env_filter(EnvFilter::from_default_env().add_directive("dtop=debug".parse()?))
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive("dtop=debug".parse()?)
+                    .from_env_lossy(),
+            )
             .with_ansi(false)
             .init();
     }
