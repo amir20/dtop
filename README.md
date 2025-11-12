@@ -28,9 +28,9 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - [x] Responsive columns for narrow view
 - [x] Support stopping, starting and removing containers
 - [x] Support container health status
+- [x] Search or filter for containers
 - [ ] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
-- [ ] Search or filter for containers
 - [ ] Configurable columns and saving preferences
 - [ ] Support simple JSON parsing and formatting
 
