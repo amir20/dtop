@@ -520,12 +520,17 @@ impl AppState {
     fn sort_containers(&mut self) {
         use crate::core::types::ContainerState;
 
-        // Rebuild sorted_container_keys from containers, filtering by running state if needed
+        // Get the search filter (case-insensitive)
+        let search_filter = self.search_input.value().to_lowercase();
+        let has_search_filter = !search_filter.is_empty();
+
+        // Rebuild sorted_container_keys from containers, filtering by running state and search term
         self.sorted_container_keys = self
             .containers
             .keys()
             .filter(|key| {
-                if self.show_all_containers {
+                // First filter by running state
+                let passes_state_filter = if self.show_all_containers {
                     true // Show all containers
                 } else {
                     // Only show running containers
@@ -533,6 +538,27 @@ impl AppState {
                         .get(key)
                         .map(|c| c.state == ContainerState::Running)
                         .unwrap_or(false)
+                };
+
+                if !passes_state_filter {
+                    return false;
+                }
+
+                // Then filter by search term if present
+                if has_search_filter {
+                    if let Some(container) = self.containers.get(key) {
+                        // Search in name, id, and host_id (case-insensitive)
+                        let name_matches = container.name.to_lowercase().contains(&search_filter);
+                        let id_matches = container.id.to_lowercase().contains(&search_filter);
+                        let host_matches =
+                            container.host_id.to_lowercase().contains(&search_filter);
+
+                        name_matches || id_matches || host_matches
+                    } else {
+                        false
+                    }
+                } else {
+                    true // No search filter, include container
                 }
             })
             .cloned()
@@ -843,6 +869,21 @@ impl AppState {
         // Clear the search input
         self.search_input.reset();
 
+        // Re-sort/filter containers without search term
+        self.sort_containers();
+
+        // Adjust selection after clearing filter
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            self.table_state.select(Some(container_count - 1));
+        } else if self.table_state.selected().is_none() && container_count > 0 {
+            self.table_state.select(Some(0));
+        }
+
         true // Force redraw to hide search bar
     }
 
@@ -865,6 +906,23 @@ impl AppState {
         self.search_input
             .handle_event(&crossterm::event::Event::Key(key_event));
 
-        true // Force redraw to show updated search text
+        // Re-filter and sort containers based on new search input
+        self.sort_containers();
+
+        // Adjust selection after filtering
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            // If current selection is out of bounds, select the last item
+            self.table_state.select(Some(container_count - 1));
+        } else if self.table_state.selected().is_none() && container_count > 0 {
+            // If nothing is selected but we have containers, select the first one
+            self.table_state.select(Some(0));
+        }
+
+        true // Force redraw to show updated search text and filtered results
     }
 }
