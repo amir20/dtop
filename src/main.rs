@@ -113,19 +113,77 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Store DockerHost instances for log streaming
     let mut connected_hosts: HashMap<String, DockerHost> = HashMap::new();
 
-    // Connect to all hosts and spawn container managers
-    for host_config in &merged_config.hosts {
-        if let Some(docker_host) =
-            connect_and_verify_host(&host_config.host, host_config.dozzle.clone()).await
-        {
+    // Create a channel for receiving successful connections
+    let (conn_tx, mut conn_rx) = mpsc::channel::<DockerHost>(merged_config.hosts.len());
+
+    // Spawn all connection attempts in parallel
+    let connection_handles: Vec<_> = merged_config
+        .hosts
+        .iter()
+        .map(|host_config| {
+            let host_config = host_config.clone();
+            let conn_tx = conn_tx.clone();
+
+            tokio::spawn(async move {
+                match connect_and_verify_host(&host_config).await {
+                    Ok(docker_host) => {
+                        let _ = conn_tx.send(docker_host).await;
+                    }
+                    Err(e) => {
+                        use tracing::error;
+                        error!("{}", e);
+                    }
+                }
+            })
+        })
+        .collect();
+
+    // Drop the original sender so the channel closes when all tasks complete
+    drop(conn_tx);
+
+    // Collect at least one successful connection before proceeding
+    let total_hosts = merged_config.hosts.len();
+
+    // Try to get the first connection with a reasonable timeout
+    match tokio::time::timeout(Duration::from_secs(30), conn_rx.recv()).await {
+        Ok(Some(docker_host)) => {
+            use tracing::debug;
+
+            // Got first connection! Start the container manager and setup terminal
             connected_hosts.insert(docker_host.host_id.clone(), docker_host.clone());
             spawn_container_manager(docker_host, tx.clone());
-        }
-    }
 
-    // Check if at least one host connected successfully
-    if connected_hosts.is_empty() {
-        return Err("Failed to connect to any Docker hosts. Please check your configuration and connection settings.".into());
+            if total_hosts > 1 {
+                debug!("Connected to host 1/{}, starting UI...", total_hosts);
+            }
+
+            // Continue collecting remaining connections in the background after UI starts
+            let remaining_tx = tx.clone();
+            tokio::spawn(async move {
+                use tracing::debug;
+                let mut remaining_count = 1; // Already got one
+                while let Some(docker_host) = conn_rx.recv().await {
+                    spawn_container_manager(docker_host, remaining_tx.clone());
+                    remaining_count += 1;
+                    if total_hosts > 1 {
+                        debug!("Connected to host {}/{}", remaining_count, total_hosts);
+                    }
+                }
+
+                // Wait for all connection attempts to complete
+                for handle in connection_handles {
+                    let _ = handle.await;
+                }
+            });
+        }
+        Ok(None) => {
+            // Channel closed without any connections
+            return Err("Failed to connect to any Docker hosts. Please check your configuration and connection settings. Set DEBUG=1 to see detailed logs in debug.log".into());
+        }
+        Err(_) => {
+            // Timeout waiting for first connection
+            return Err("Timeout waiting for Docker host connections (30s). Please check your network and Docker daemon status.".into());
+        }
     }
 
     // Spawn keyboard worker in blocking thread
@@ -144,76 +202,40 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Connects to a Docker host and verifies the connection works
-/// Returns Some(DockerHost) if successful, None if connection fails
+/// Returns Ok(DockerHost) if successful, Err with details if connection fails
 async fn connect_and_verify_host(
-    host_spec: &str,
-    dozzle_url: Option<String>,
-) -> Option<DockerHost> {
-    use tracing::{debug, error};
+    host_config: &cli::config::HostConfig,
+) -> Result<DockerHost, String> {
+    use tracing::debug;
 
-    let is_ssh = host_spec.starts_with("ssh://");
+    let host_spec = &host_config.host;
 
     debug!("Attempting to connect to host: {}", host_spec);
 
     // Attempt to connect
-    let docker = match connect_docker(host_spec) {
-        Ok(docker) => {
-            debug!("Successfully created Docker client for host: {}", host_spec);
-            if is_ssh {
-                debug!("SSH transport layer established");
-            }
-            docker
-        }
-        Err(e) => {
-            error!(
-                "Failed to create Docker client for host '{}': {}",
-                host_spec, e
-            );
-            debug!("Error details: {:?}", e);
+    let docker = connect_docker(host_spec).map_err(|e| {
+        format!(
+            "Failed to create Docker client for host '{}': {}",
+            host_spec, e
+        )
+    })?;
 
-            if is_ssh {
-                let host_part = host_spec.strip_prefix("ssh://").unwrap_or(host_spec);
-                eprintln!("Failed to connect to host '{}': {}", host_spec, e);
-                eprintln!("\nDebug steps to diagnose SSH connection:");
-                eprintln!(
-                    "  1. Test SSH access:       ssh {} 'echo SSH works'",
-                    host_part
-                );
-                eprintln!("  2. Test Docker on remote: ssh {} 'docker ps'", host_part);
-                eprintln!(
-                    "  3. Check Docker socket:   ssh {} 'ls -la /var/run/docker.sock'",
-                    host_part
-                );
-                eprintln!("  4. Check user groups:     ssh {} 'groups'", host_part);
-                eprintln!(
-                    "  5. Check Docker daemon:   ssh {} 'systemctl status docker'",
-                    host_part
-                );
-                eprintln!(
-                    "\nFor detailed logs, run with: DEBUG=1 dtop --host {}",
-                    host_spec
-                );
-            } else {
-                eprintln!("Failed to connect to host '{}': {}", host_spec, e);
-            }
-            return None;
-        }
-    };
+    debug!("Successfully created Docker client for host: {}", host_spec);
 
     // Create host ID and DockerHost instance
     let host_id = create_host_id(host_spec);
-    let docker_host = DockerHost::new(host_id, docker, dozzle_url);
+    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone());
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
     let ping_timeout = Duration::from_secs(10);
+
     match tokio::time::timeout(ping_timeout, docker_host.docker.ping()).await {
         Ok(Ok(_)) => {
             debug!("Successfully pinged Docker daemon at host: {}", host_spec);
-            Some(docker_host)
+            Ok(docker_host)
         }
         Ok(Err(e)) => {
-            error!("Docker daemon ping failed for host '{}': {}", host_spec, e);
             debug!("Ping error details: {:?}", e);
             debug!("Error source chain:");
             for (level, err) in std::iter::successors(std::error::Error::source(&e), |e| {
@@ -223,51 +245,15 @@ async fn connect_and_verify_host(
             {
                 debug!("  Level {}: {}", level + 1, err);
             }
-
-            eprintln!("Failed to connect to host '{}': {:?}", host_spec, e);
-
-            if is_ssh {
-                let host_part = host_spec.strip_prefix("ssh://").unwrap_or(host_spec);
-                eprintln!("\nSSH connection established but Docker API call failed.");
-                eprintln!("Common causes:");
-                eprintln!(
-                    "  • Docker daemon not running:  ssh {} 'systemctl status docker'",
-                    host_part
-                );
-                eprintln!(
-                    "  • Permission denied:          ssh {} 'docker ps'",
-                    host_part
-                );
-                eprintln!(
-                    "  • User not in docker group:   ssh {} 'groups' (should show 'docker')",
-                    host_part
-                );
-                eprintln!(
-                    "  • Socket permissions:         ssh {} 'stat /var/run/docker.sock'",
-                    host_part
-                );
-                eprintln!(
-                    "\nIf 'docker ps' works over SSH but dtop fails, please file a bug report."
-                );
-                eprintln!(
-                    "Enable detailed logs with: DEBUG=1 dtop --host {}",
-                    host_spec
-                );
-            }
-            None
+            Err(format!(
+                "Docker daemon ping failed for host '{}': {}",
+                host_spec, e
+            ))
         }
-        Err(_) => {
-            error!("Docker daemon ping timeout for host: {}", host_spec);
-            eprintln!(
-                "Failed to connect to host '{}': Docker ping timeout (>10s)",
-                host_spec
-            );
-
-            if is_ssh {
-                eprintln!("\nTimeout suggests slow connection or unresponsive Docker daemon");
-            }
-            None
-        }
+        Err(_) => Err(format!(
+            "Docker daemon ping timeout for host '{}' (>10s)",
+            host_spec
+        )),
     }
 }
 
