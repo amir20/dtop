@@ -95,9 +95,10 @@ impl AppState {
 
     /// Processes a single event and returns whether UI should be redrawn
     pub fn handle_event(&mut self, event: AppEvent) -> bool {
-        // Log stats at TRACE level since they're very frequent, everything else at DEBUG
+        // Log stats and log lines at TRACE level since they're very frequent, everything else at DEBUG
         match &event {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
+            AppEvent::LogLine(_, _) => tracing::trace!("Handling log line: {:?}", event),
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
