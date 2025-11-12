@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-11-12
+
+### Features
+
+- Implements search (#113)
+
+### Bug Fixes
+
+- *(deps)* Update rust crate tui-input to 0.14 (#116)
+
 ## [0.3.14] - 2025-11-12
 
 ### Bug Fixes
