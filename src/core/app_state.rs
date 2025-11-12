@@ -3,6 +3,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+use tui_input::Input;
 
 use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, HealthStatus, SortDirection,
@@ -50,6 +51,8 @@ pub struct AppState {
     pub show_all_containers: bool,
     /// Action menu list state for selection tracking
     pub action_menu_state: ListState,
+    /// Search input widget
+    pub search_input: Input,
 }
 
 impl AppState {
@@ -81,6 +84,7 @@ impl AppState {
             sort_state: SortState::default(), // Default to Uptime descending
             show_all_containers: false,       // Default to showing only running containers
             action_menu_state: ListState::default(), // Default to no selection
+            search_input: Input::default(),
         }
     }
 
@@ -91,6 +95,7 @@ impl AppState {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
             _ => tracing::debug!("Handling event: {:?}", event),
         }
+
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
                 self.handle_initial_container_list(host_id, container_list)
@@ -131,6 +136,8 @@ impl AppState {
             AppEvent::ActionError(key, action, error) => {
                 self.handle_action_error(key, action, error)
             }
+            AppEvent::EnterSearchMode => self.handle_enter_search_mode(),
+            AppEvent::SearchKeyEvent(key_event) => self.handle_search_key_event(key_event),
         }
     }
 
@@ -244,9 +251,20 @@ impl AppState {
     }
 
     fn handle_enter_pressed(&mut self) -> bool {
-        // Only handle Enter in ContainerList view
-        if self.view_state != ViewState::ContainerList {
-            return false;
+        // Handle Enter based on current view state
+        match self.view_state {
+            ViewState::SearchMode => {
+                // Apply filter and return to ContainerList view
+                self.view_state = ViewState::ContainerList;
+                return true; // Force redraw to show filter bar
+            }
+            ViewState::ContainerList => {
+                // Open logs for selected container
+            }
+            _ => {
+                // Ignore Enter in other views
+                return false;
+            }
         }
 
         // Get the selected container
@@ -297,9 +315,19 @@ impl AppState {
             return true; // Force redraw
         }
 
-        // Only handle Escape when in log view
-        if !matches!(self.view_state, ViewState::LogView(_)) {
-            return false;
+        // Handle Escape based on current view state
+        match self.view_state {
+            ViewState::SearchMode => {
+                // Exit search mode and clear filter
+                return self.handle_exit_search_mode();
+            }
+            ViewState::LogView(_) => {
+                // Exit log view
+            }
+            _ => {
+                // Ignore Escape in other views
+                return false;
+            }
         }
 
         // Stop log streaming
@@ -492,12 +520,17 @@ impl AppState {
     fn sort_containers(&mut self) {
         use crate::core::types::ContainerState;
 
-        // Rebuild sorted_container_keys from containers, filtering by running state if needed
+        // Get the search filter (case-insensitive)
+        let search_filter = self.search_input.value().to_lowercase();
+        let has_search_filter = !search_filter.is_empty();
+
+        // Rebuild sorted_container_keys from containers, filtering by running state and search term
         self.sorted_container_keys = self
             .containers
             .keys()
             .filter(|key| {
-                if self.show_all_containers {
+                // First filter by running state
+                let passes_state_filter = if self.show_all_containers {
                     true // Show all containers
                 } else {
                     // Only show running containers
@@ -505,6 +538,27 @@ impl AppState {
                         .get(key)
                         .map(|c| c.state == ContainerState::Running)
                         .unwrap_or(false)
+                };
+
+                if !passes_state_filter {
+                    return false;
+                }
+
+                // Then filter by search term if present
+                if has_search_filter {
+                    if let Some(container) = self.containers.get(key) {
+                        // Search in name, id, and host_id (case-insensitive)
+                        let name_matches = container.name.to_lowercase().contains(&search_filter);
+                        let id_matches = container.id.to_lowercase().contains(&search_filter);
+                        let host_matches =
+                            container.host_id.to_lowercase().contains(&search_filter);
+
+                        name_matches || id_matches || host_matches
+                    } else {
+                        false
+                    }
+                } else {
+                    true // No search filter, include container
                 }
             })
             .cloned()
@@ -786,5 +840,89 @@ impl AppState {
         // TODO: Could show an error toast/notification in the UI in the future
         // For now, silently fail - the container state won't change on error
         false // Don't force redraw for error messages
+    }
+
+    fn handle_enter_search_mode(&mut self) -> bool {
+        // Only allow entering search mode from ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return false;
+        }
+
+        // Activate search mode
+        self.view_state = ViewState::SearchMode;
+
+        // Clear any existing search input
+        self.search_input.reset();
+
+        true // Force redraw to show search bar
+    }
+
+    fn handle_exit_search_mode(&mut self) -> bool {
+        // Only handle if we're in search mode
+        if self.view_state != ViewState::SearchMode {
+            return false;
+        }
+
+        // Deactivate search mode
+        self.view_state = ViewState::ContainerList;
+
+        // Clear the search input
+        self.search_input.reset();
+
+        // Re-sort/filter containers without search term
+        self.sort_containers();
+
+        // Adjust selection after clearing filter
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            self.table_state.select(Some(container_count - 1));
+        } else if self.table_state.selected().is_none() && container_count > 0 {
+            self.table_state.select(Some(0));
+        }
+
+        true // Force redraw to hide search bar
+    }
+
+    fn handle_search_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> bool {
+        use crossterm::event::KeyCode;
+
+        // Only process typing keys when in search mode
+        // Enter and Escape are handled by handle_enter_pressed and handle_exit_log_view
+        if self.view_state != ViewState::SearchMode {
+            return false;
+        }
+
+        // Skip Enter and Escape - they're handled elsewhere
+        if matches!(key_event.code, KeyCode::Enter | KeyCode::Esc) {
+            return false;
+        }
+
+        // Pass the key event to tui-input to handle character input, backspace, etc.
+        use tui_input::backend::crossterm::EventHandler;
+        self.search_input
+            .handle_event(&crossterm::event::Event::Key(key_event));
+
+        // Re-filter and sort containers based on new search input
+        self.sort_containers();
+
+        // Adjust selection after filtering
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            // If current selection is out of bounds, select the last item
+            self.table_state.select(Some(container_count - 1));
+        } else if self.table_state.selected().is_none() && container_count > 0 {
+            // If nothing is selected but we have containers, select the first one
+            self.table_state.select(Some(0));
+        }
+
+        true // Force redraw to show updated search text and filtered results
     }
 }
