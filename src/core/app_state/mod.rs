@@ -1,10 +1,11 @@
 use ratatui::text::Text;
 use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
 
-use crate::core::types::{AppEvent, Container, ContainerKey, SortState, ViewState};
+use crate::core::types::{AppEvent, Container, ContainerKey, HostId, SortState, ViewState};
 use crate::docker::connection::DockerHost;
 
 // Import all the event handler modules
@@ -54,6 +55,8 @@ pub struct AppState {
     pub action_menu_state: ListState,
     /// Search input widget
     pub search_input: Input,
+    /// Connection errors to display (host_id -> (error_message, timestamp))
+    pub connection_errors: HashMap<HostId, (String, Instant)>,
 }
 
 impl AppState {
@@ -86,6 +89,7 @@ impl AppState {
             show_all_containers: false,       // Default to showing only running containers
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
+            connection_errors: HashMap::new(),
         }
     }
 
@@ -139,6 +143,22 @@ impl AppState {
             }
             AppEvent::EnterSearchMode => self.handle_enter_search_mode(),
             AppEvent::SearchKeyEvent(key_event) => self.handle_search_key_event(key_event),
+            AppEvent::ConnectionError(host_id, error) => {
+                self.handle_connection_error(host_id, error)
+            }
         }
+    }
+
+    /// Handles a connection error by storing it with a timestamp
+    fn handle_connection_error(&mut self, host_id: HostId, error: String) -> bool {
+        // Store the error with current timestamp
+        self.connection_errors
+            .insert(host_id, (error, Instant::now()));
+
+        // Remove errors older than 10 seconds
+        self.connection_errors
+            .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
+
+        true // Redraw to show the error
     }
 }

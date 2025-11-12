@@ -1,7 +1,9 @@
 use ratatui::{
     Frame,
+    layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Paragraph, Wrap},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 use crate::core::app_state::AppState;
@@ -106,6 +108,9 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     if state.show_help {
         render_help_popup(f, styles);
     }
+
+    // Render connection error notifications in top right corner
+    render_error_notifications(f, state, styles);
 }
 
 /// Renders the log view for a specific container
@@ -222,5 +227,59 @@ fn render_search_bar(
 
         // Make cursor visible at the input position
         f.set_cursor_position((cursor_x, cursor_y));
+    }
+}
+
+/// Renders connection error notifications in the top right corner
+fn render_error_notifications(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
+    // Clean up old errors (older than 10 seconds)
+    state
+        .connection_errors
+        .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
+
+    if state.connection_errors.is_empty() {
+        return;
+    }
+
+    let screen_area = f.area();
+
+    // Stack errors vertically from the top
+    let mut y_offset = 0;
+
+    for (host_id, (error_msg, _)) in &state.connection_errors {
+        // Shorten the error message if it's too long
+        let display_msg = if error_msg.len() > 80 {
+            format!("{}...", &error_msg[..77])
+        } else {
+            error_msg.clone()
+        };
+
+        let error_text = format!("✗ {}: {}", host_id, display_msg);
+        let error_width = (error_text.len() + 4).min(80) as u16; // +4 for borders and padding
+        let error_height = 3; // Border + text + border
+
+        // Position in top right corner, stacked vertically
+        let error_area = Rect {
+            x: screen_area.width.saturating_sub(error_width),
+            y: y_offset,
+            width: error_width,
+            height: error_height,
+        };
+
+        // Create error notification with red styling from UiStyles
+        let error_widget = Paragraph::new(Line::from(vec![Span::styled(
+            error_text,
+            styles.high.add_modifier(Modifier::BOLD),
+        )]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(styles.high),
+        )
+        .alignment(Alignment::Left);
+
+        f.render_widget(error_widget, error_area);
+
+        y_offset += error_height;
     }
 }

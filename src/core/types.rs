@@ -176,6 +176,8 @@ pub enum AppEvent {
     EnterSearchMode,
     /// Key event for search input (passed to tui-input)
     SearchKeyEvent(crossterm::event::KeyEvent),
+    /// Connection to a Docker host failed
+    ConnectionError(HostId, String),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
