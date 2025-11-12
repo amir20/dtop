@@ -357,16 +357,33 @@ async fn handle_health_status_change(
 /// let docker = connect_docker("tls://host:2376")?;
 /// ```
 pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> {
+    use tracing::{debug, error};
+
     if host == "local" {
+        debug!("Connecting to local Docker daemon");
         // Connect to local Docker daemon using default settings
-        Ok(Docker::connect_with_local_defaults()?)
+        Docker::connect_with_local_defaults().map_err(|e| {
+            error!("Local Docker connection failed: {:?}", e);
+            e.into()
+        })
     } else if host.starts_with("ssh://") {
+        debug!("Connecting to Docker via SSH: {}", host);
+        debug!(
+            "SSH timeout: 120 seconds, API version: {}",
+            API_DEFAULT_VERSION
+        );
+
         // Connect via SSH with 120 second timeout
-        Ok(Docker::connect_with_ssh(
+        Docker::connect_with_ssh(
             host,
             120, // timeout in seconds
             API_DEFAULT_VERSION,
-        )?)
+        )
+        .map_err(|e| {
+            error!("SSH Docker connection failed for '{}': {:?}", host, e);
+            debug!("Bollard SSH error type: {}", std::any::type_name_of_val(&e));
+            e.into()
+        })
     } else if host.starts_with("tls://") {
         // Connect via TLS using environment variables for certificates
         // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files
