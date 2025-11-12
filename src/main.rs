@@ -126,6 +126,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .map(|host_config| {
             let host_config = host_config.clone();
             let conn_tx = conn_tx.clone();
+            let error_tx = tx.clone();
 
             tokio::spawn(async move {
                 match connect_and_verify_host(&host_config).await {
@@ -135,6 +136,15 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => {
                         use tracing::error;
                         error!("{}", e);
+
+                        // Create host_id for the error event
+                        let host_id = create_host_id(&host_config.host);
+
+                        // Send error event to UI
+                        let _ = error_tx
+                            .send(AppEvent::ConnectionError(host_id, e.clone()))
+                            .await;
+
                         if total_hosts == 1 {
                             eprintln!("Failed to connect to Docker host: {:?}", e);
                         }
