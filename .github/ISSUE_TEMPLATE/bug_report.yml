@@ -58,6 +58,21 @@ body:
       required: true
 
   - type: textarea
+    id: debug-logs
+    attributes:
+      label: Debug Logs
+      description: |
+        Please run dtop with debug logging enabled and attach the `debug.log` file.
+
+        To enable debug logging, run: `DEBUG=1 dtop [your args]`
+
+        This will create a `debug.log` file in the current directory. Please attach it here or paste relevant excerpts.
+      placeholder: |
+        Attach debug.log or paste relevant log excerpts here
+    validations:
+      required: false
+
+  - type: textarea
     id: screenshots
     attributes:
       label: Screenshots
