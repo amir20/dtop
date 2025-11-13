@@ -7,18 +7,22 @@ Set Shell "bash"
 Set Width 2100
 Set Height 800
 
-Type "dtop"
+Type "dtop -H local"
 Sleep 700ms
 Enter
 
-Sleep 5s
+Sleep 3s
 
-Sleep 1s
-Down
-Sleep 2s
-Up
-
+Type "/sleep"
 Enter
 Sleep 2s
+Type "/"
+Escape
+Sleep 2s
 
-Sleep 8s
+Right
+Sleep 2s
+Escape
+Sleep 2s
+
+Enter
