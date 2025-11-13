@@ -286,7 +286,8 @@ fn create_table<'a>(
         .header(header)
         .block(
             Block::default()
-                .borders(Borders::ALL)
+                .borders(Borders::NONE)
+                .padding(ratatui::widgets::Padding::proportional(1))
                 .title(format!(
                     "dtop v{} - {} containers ('?' for help, 'q' to quit)",
                     VERSION, container_count

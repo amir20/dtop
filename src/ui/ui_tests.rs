@@ -494,4 +494,222 @@ mod tests {
 
         assert_snapshot_with_redaction!(output);
     }
+
+    #[test]
+    fn test_search_mode_active() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add some containers
+        let containers = vec![
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0),
+            create_test_container(
+                "def987654321",
+                "postgres",
+                "local",
+                65.8,
+                78.3,
+                5120.0,
+                10240.0,
+            ),
+            create_test_container("ghi111222333", "redis", "local", 15.2, 30.5, 512.0, 1024.0),
+        ];
+
+        for container in containers {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+
+        // Enter search mode with some input
+        state.view_state = ViewState::SearchMode;
+        state.search_input = tui_input::Input::new("ngi".to_string());
+
+        let backend = TestBackend::new(120, 25);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify search bar is visible with "/" prefix
+        assert!(output.contains("/ngi"), "Search mode should show /ngi");
+
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_filtering_active_search_mode_off() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add some containers
+        let containers = vec![
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0),
+            create_test_container(
+                "def987654321",
+                "postgres",
+                "local",
+                65.8,
+                78.3,
+                5120.0,
+                10240.0,
+            ),
+        ];
+
+        for container in containers {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+
+        // Set up filter but not in search mode (user exited search mode with filter active)
+        state.view_state = ViewState::ContainerList;
+        state.search_input = tui_input::Input::new("nginx".to_string());
+
+        let backend = TestBackend::new(120, 25);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify search bar shows "Filtering:" prefix instead of "/"
+        assert!(
+            output.contains("Filtering: nginx"),
+            "Should show 'Filtering: nginx'"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_help_popup_enabled() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add a container
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key);
+
+        // Enable help popup
+        state.show_help = true;
+
+        let backend = TestBackend::new(120, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify help content is visible
+        assert!(output.contains("Help"), "Should show help popup");
+        assert!(
+            output.contains("Navigation") || output.contains("Sorting"),
+            "Should show help content sections"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_action_menu_enabled() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add a running container
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key.clone());
+        state.table_state.select(Some(0));
+
+        // Show action menu
+        state.view_state = ViewState::ActionMenu(key);
+        state.action_menu_state.select(Some(0));
+
+        let backend = TestBackend::new(120, 25);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify action menu is visible with actions
+        assert!(output.contains("Actions"), "Should show action menu");
+        assert!(
+            output.contains("Stop") || output.contains("Restart"),
+            "Should show container actions"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_connection_error_notification() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        // Add a successful container
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key);
+
+        // Add a connection error for a remote host
+        use std::time::Instant;
+        state.connection_errors.insert(
+            "user@server1".to_string(),
+            (
+                "Failed to connect: Connection refused".to_string(),
+                Instant::now(),
+            ),
+        );
+
+        let backend = TestBackend::new(140, 25);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+
+        // Verify error notification is visible in top right
+        assert!(output.contains("user@server1"), "Should show failed host");
+        assert!(
+            output.contains("Failed to connect") || output.contains("Connection refused"),
+            "Should show error message"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
 }
