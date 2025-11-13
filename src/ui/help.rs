@@ -58,7 +58,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  u/U         Sort by Uptime (press again to toggle asc/desc)"),
+        Line::from("  u/U         Sort by Created (press again to toggle asc/desc)"),
         Line::from("  n/N         Sort by Name (press again to toggle asc/desc)"),
         Line::from("  c/C         Sort by CPU usage (press again to toggle asc/desc)"),
         Line::from("  m/M         Sort by Memory usage (press again to toggle asc/desc)"),

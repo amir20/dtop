@@ -4,7 +4,7 @@ expression: output
 ---
 dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)                                                                                      
                                                                                                                                             
-  ID     Name     Host                 CPU %                        Memory %                     Net TX       Net RX       Uptime ▼         
+  ID     Name     Host                 CPU %                        Memory %                     Net TX       Net RX       Created ▼        
                                                                                                                                             
   abc1 ▶ nginx    local                █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░  45.2%  1.0KB/s      2.0KB/s      2 hours ago      
   def9 ▶ postgres user@server1         █████████████░░░░░░░  65.8%  ████████████████░░░░  78.3%  5.0KB/s      10.0KB/s     2 hours ago      

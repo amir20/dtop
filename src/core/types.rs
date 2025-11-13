@@ -284,7 +284,7 @@ impl Default for SortState {
 /// Sort field for container list
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SortField {
-    /// Sort by creation time (uptime)
+    /// Sort by creation time
     Uptime,
     /// Sort by container name
     Name,
