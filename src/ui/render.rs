@@ -48,31 +48,7 @@ impl Default for UiStyles {
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let size = f.area();
 
-    // Calculate the main area and search bar area
-    // Show search bar if in SearchMode OR if there's an active filter
-    let show_search_bar = state.view_state == ViewState::SearchMode
-        || (!state.search_input.value().is_empty() && state.view_state == ViewState::ContainerList);
-
-    let (main_area, search_area) = if show_search_bar {
-        // Reserve bottom 1 line for search bar
-        let main_height = size.height.saturating_sub(1);
-        let main = ratatui::layout::Rect {
-            x: size.x,
-            y: size.y,
-            width: size.width,
-            height: main_height,
-        };
-        let search = ratatui::layout::Rect {
-            x: size.x,
-            y: size.y + main_height,
-            width: size.width,
-            height: 1,
-        };
-        (main, Some(search))
-    } else {
-        (size, None)
-    };
-
+    // Render main content
     match &state.view_state {
         ViewState::ContainerList | ViewState::SearchMode => {
             // Calculate unique hosts to determine if host column should be shown
@@ -80,11 +56,11 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 state.containers.keys().map(|key| &key.host_id).collect();
             let show_host_column = unique_hosts.len() > 1;
 
-            render_container_list(f, main_area, state, styles, show_host_column);
+            render_container_list(f, size, state, styles, show_host_column);
         }
         ViewState::LogView(container_key) => {
             let container_key = container_key.clone();
-            render_log_view(f, main_area, &container_key, state, styles);
+            render_log_view(f, size, &container_key, state, styles);
         }
         ViewState::ActionMenu(_) => {
             // First render the container list in the background
@@ -92,15 +68,24 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 state.containers.keys().map(|key| &key.host_id).collect();
             let show_host_column = unique_hosts.len() > 1;
 
-            render_container_list(f, main_area, state, styles, show_host_column);
+            render_container_list(f, size, state, styles, show_host_column);
 
             // Then render the action menu on top
             render_action_menu(f, state, styles);
         }
     }
 
-    // Render search bar if active
-    if let Some(search_area) = search_area {
+    // Render search bar overlay if in SearchMode OR if there's an active filter
+    let show_search_bar = state.view_state == ViewState::SearchMode
+        || (!state.search_input.value().is_empty() && state.view_state == ViewState::ContainerList);
+
+    if show_search_bar {
+        let search_area = ratatui::layout::Rect {
+            x: size.x,
+            y: size.y + size.height.saturating_sub(1),
+            width: size.width,
+            height: 1,
+        };
         render_search_bar(f, search_area, state, styles);
     }
 
