@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2025-11-13
+
+### Features
+
+- Removes borders (#120)
+
 ## [0.4.1] - 2025-11-12
 
 ### Features
