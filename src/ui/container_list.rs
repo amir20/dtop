@@ -239,9 +239,9 @@ fn create_header_row(
         "Net TX".to_string(),
         "Net RX".to_string(),
         if sort_field == SortField::Uptime {
-            format!("Uptime {}", sort_symbol)
+            format!("Created {}", sort_symbol)
         } else {
-            "Uptime".to_string()
+            "Created".to_string()
         },
     ]);
 
@@ -279,7 +279,7 @@ fn create_table<'a>(
         Constraint::Length(cpu_mem_width), // Memory
         Constraint::Length(12),            // Network TX (1.23MB/s)
         Constraint::Length(12),            // Network RX (4.56MB/s)
-        Constraint::Length(15),            // Uptime
+        Constraint::Length(15),            // Created
     ]);
 
     Table::new(rows, constraints)

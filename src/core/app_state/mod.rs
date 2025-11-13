@@ -85,7 +85,7 @@ impl AppState {
             event_tx,
             is_ssh_session,
             show_help: false,
-            sort_state: SortState::default(), // Default to Uptime descending
+            sort_state: SortState::default(), // Default to Created descending
             show_all_containers: false,       // Default to showing only running containers
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
