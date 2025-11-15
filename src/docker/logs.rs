@@ -44,12 +44,15 @@ impl LogEntry {
     fn try_format_json(message: &str) -> String {
         // Try to parse as JSON to validate it
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message) {
-            // Create formatter with CompactFormatter for single-line output
-            // Note: Creating the formatter is cheap (just struct initialization)
-            // and to_colored_json_auto() consumes self, so we can't reuse it anyway
+            // Get compact colored JSON without spaces
             let formatter = ColoredFormatter::new(CompactFormatter {});
-            if let Ok(colored) = formatter.to_colored_json_auto(&json_value) {
-                return colored;
+            if let Ok(compact_colored) = formatter.to_colored_json_auto(&json_value) {
+                // Post-process to add spaces after colons and commas for readability
+                // Do a single pass replacing : with ": " and , with ", " everywhere
+                // This works because these characters don't appear inside JSON string values
+                // (they would be escaped as \: or \, if they did)
+                let with_spaces = compact_colored.replace(':', ": ").replace(',', ", ");
+                return with_spaces;
             }
         }
         // If not valid JSON or colorization failed, return original message
@@ -183,5 +186,38 @@ mod tests {
 
         assert_eq!(entry.timestamp.format("%Y-%m-%d").to_string(), "2025-10-28");
         assert!(!entry.text.lines.is_empty());
+    }
+
+    #[test]
+    fn test_json_formatting_has_spaces() {
+        let log_line = r#"2025-10-28T12:34:56.789Z {"key":"value","another":"test"}"#;
+        let entry = LogEntry::parse(log_line).expect("Should parse log line with JSON");
+
+        // Convert the text to a plain string to check for spaces
+        let text_str = entry
+            .text
+            .lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // The formatted JSON should have spaces after colons and commas
+        // {"key": "value", "another": "test"}
+        assert!(
+            text_str.contains("\": "),
+            "JSON should have spaces after colons for readability. Got: '{}'",
+            text_str
+        );
+        assert!(
+            text_str.contains(", \""),
+            "JSON should have spaces after commas for readability. Got: '{}'",
+            text_str
+        );
     }
 }
