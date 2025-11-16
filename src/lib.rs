@@ -5,12 +5,7 @@ pub mod core {
 }
 
 // Docker-related modules
-pub mod docker {
-    pub mod actions;
-    pub mod connection;
-    pub mod logs;
-    pub mod stats;
-}
+pub mod docker;
 
 // UI modules
 pub mod ui {
