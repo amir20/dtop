@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2025-11-16
+
+### Features
+
+- Colorizes json logs (#123)
+- Improves the colors and mapping of json (#124)
+
+### Bug Fixes
+
+- Uses "created" instead of "uptime" for status. fixes #110 (#121)
+- Remove padding around video in docs/index.html (#122)
+
 ## [0.4.2] - 2025-11-13
 
 ### Features
