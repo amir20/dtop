@@ -67,7 +67,7 @@ impl LogEntry {
     }
 
     /// Format JSON as colored ratatui Text with flattened key-value pairs
-    /// Returns Text with color-coded keys and values separated by tabs
+    /// Returns Text with color-coded keys and values padded to multiples of 5 for alignment
     fn format_json_as_text(json_value: &serde_json::Value) -> Text<'static> {
         // Flatten the JSON object into key-value pairs with type information
         let flattened = Self::flatten_json("", json_value);
@@ -75,12 +75,7 @@ impl LogEntry {
         // Create colored spans for each key=value pair
         let mut spans = Vec::new();
 
-        for (i, (key, value_type)) in flattened.iter().enumerate() {
-            if i > 0 {
-                // Add space separator between pairs (tabs don't render well with styled text)
-                spans.push(Span::raw("  "));
-            }
-
+        for (key, value_type) in flattened.iter() {
             // Key in cyan with bold
             spans.push(Span::styled(
                 key.clone(),
@@ -92,12 +87,20 @@ impl LogEntry {
             // Equals sign in gray
             spans.push(Span::styled(
                 "=".to_string(),
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(Color::Gray),
             ));
 
             // Value color based on type (no parsing needed!)
             let value_style = Self::get_value_style(value_type);
             spans.push(Span::styled(value_type.as_str().to_string(), value_style));
+
+            // Calculate padding to nearest multiple of 5, with at least 1 space
+            // For example: length 13 -> pad to 15 (add 2 spaces)
+            //              length 10 -> pad to 15 (add 5 spaces, not 0)
+            let field_len = key.len() + 1 + value_type.as_str().len(); // +1 for "="
+            let next_multiple = ((field_len / 5) + 1) * 5; // Always round up to next multiple
+            let padding = next_multiple - field_len;
+            spans.push(Span::raw(" ".repeat(padding)));
         }
 
         Text::from(Line::from(spans))
