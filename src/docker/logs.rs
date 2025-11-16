@@ -1,12 +1,33 @@
 use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
-use colored_json::{ColoredFormatter, CompactFormatter};
 use futures_util::stream::StreamExt;
-use ratatui::text::Text;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
+
+/// Represents the type of a JSON value for efficient styling
+#[derive(Clone, Debug)]
+enum JsonValueType {
+    String(String),
+    Number(String),
+    Bool(bool),
+    Null,
+}
+
+impl JsonValueType {
+    /// Get the string representation of the value
+    fn as_str(&self) -> &str {
+        match self {
+            JsonValueType::String(s) | JsonValueType::Number(s) => s,
+            JsonValueType::Bool(true) => "true",
+            JsonValueType::Bool(false) => "false",
+            JsonValueType::Null => "null",
+        }
+    }
+}
 
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
@@ -30,33 +51,105 @@ impl LogEntry {
             .with_timezone(&Utc);
 
         // Try to detect and format JSON
-        let formatted_message = Self::try_format_json(message.trim());
-        let text = formatted_message
-            .as_bytes()
-            .into_text()
-            .unwrap_or_else(|_| Text::from(message.to_string()));
+        let text = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message.trim())
+        {
+            Self::format_json_as_text(&json_value)
+        } else {
+            // Not JSON, try ANSI parsing for colored text
+            message
+                .trim()
+                .as_bytes()
+                .into_text()
+                .unwrap_or_else(|_| Text::from(message.to_string()))
+        };
 
         Some(LogEntry { timestamp, text })
     }
 
-    /// Try to parse and format the message as JSON
-    /// Returns the colorized JSON string if valid, otherwise returns the original message
-    fn try_format_json(message: &str) -> String {
-        // Try to parse as JSON to validate it
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message) {
-            // Get compact colored JSON without spaces
-            let formatter = ColoredFormatter::new(CompactFormatter {});
-            if let Ok(compact_colored) = formatter.to_colored_json_auto(&json_value) {
-                // Post-process to add spaces after colons and commas for readability
-                // Do a single pass replacing : with ": " and , with ", " everywhere
-                // This works because these characters don't appear inside JSON string values
-                // (they would be escaped as \: or \, if they did)
-                let with_spaces = compact_colored.replace(':', ": ").replace(',', ", ");
-                return with_spaces;
+    /// Format JSON as colored ratatui Text with flattened key-value pairs
+    /// Returns Text with color-coded keys and values separated by tabs
+    fn format_json_as_text(json_value: &serde_json::Value) -> Text<'static> {
+        // Flatten the JSON object into key-value pairs with type information
+        let flattened = Self::flatten_json("", json_value);
+
+        // Create colored spans for each key=value pair
+        let mut spans = Vec::new();
+
+        for (i, (key, value_type)) in flattened.iter().enumerate() {
+            if i > 0 {
+                // Add space separator between pairs (tabs don't render well with styled text)
+                spans.push(Span::raw("  "));
+            }
+
+            // Key in cyan with bold
+            spans.push(Span::styled(
+                key.clone(),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+            // Equals sign in gray
+            spans.push(Span::styled(
+                "=".to_string(),
+                Style::default().fg(Color::DarkGray),
+            ));
+
+            // Value color based on type (no parsing needed!)
+            let value_style = Self::get_value_style(value_type);
+            spans.push(Span::styled(value_type.as_str().to_string(), value_style));
+        }
+
+        Text::from(Line::from(spans))
+    }
+
+    /// Determine the style for a value based on its type
+    fn get_value_style(value_type: &JsonValueType) -> Style {
+        match value_type {
+            JsonValueType::Null => Style::default().fg(Color::DarkGray),
+            JsonValueType::Bool(true) => Style::default().fg(Color::Green),
+            JsonValueType::Bool(false) => Style::default().fg(Color::Red),
+            JsonValueType::Number(_) => Style::default().fg(Color::Yellow),
+            JsonValueType::String(_) => Style::default().fg(Color::White),
+        }
+    }
+
+    /// Recursively flatten a JSON value into dot-notation key-value pairs
+    /// Returns a vector of (key, value_type) tuples
+    fn flatten_json(prefix: &str, value: &serde_json::Value) -> Vec<(String, JsonValueType)> {
+        let mut result = Vec::new();
+
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, val) in map {
+                    let new_prefix = if prefix.is_empty() {
+                        key.to_string()
+                    } else {
+                        format!("{}.{}", prefix, key)
+                    };
+                    result.extend(Self::flatten_json(&new_prefix, val));
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for (idx, val) in arr.iter().enumerate() {
+                    let new_prefix = format!("{}[{}]", prefix, idx);
+                    result.extend(Self::flatten_json(&new_prefix, val));
+                }
+            }
+            _ => {
+                // Leaf value - capture type information
+                let value_type = match value {
+                    serde_json::Value::String(s) => JsonValueType::String(s.clone()),
+                    serde_json::Value::Number(n) => JsonValueType::Number(n.to_string()),
+                    serde_json::Value::Bool(b) => JsonValueType::Bool(*b),
+                    serde_json::Value::Null => JsonValueType::Null,
+                    _ => unreachable!(),
+                };
+                result.push((prefix.to_string(), value_type));
             }
         }
-        // If not valid JSON or colorization failed, return original message
-        message.to_string()
+
+        result
     }
 }
 
@@ -189,11 +282,11 @@ mod tests {
     }
 
     #[test]
-    fn test_json_formatting_has_spaces() {
+    fn test_json_formatting_flattened() {
         let log_line = r#"2025-10-28T12:34:56.789Z {"key":"value","another":"test"}"#;
         let entry = LogEntry::parse(log_line).expect("Should parse log line with JSON");
 
-        // Convert the text to a plain string to check for spaces
+        // Convert the text to a plain string to check the flattened format
         let text_str = entry
             .text
             .lines
@@ -207,16 +300,63 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        // The formatted JSON should have spaces after colons and commas
-        // {"key": "value", "another": "test"}
+        // The formatted JSON should be flattened: key=value  another=test
         assert!(
-            text_str.contains("\": "),
-            "JSON should have spaces after colons for readability. Got: '{}'",
+            text_str.contains("another=test"),
+            "JSON should be flattened with key=value format. Got: '{}'",
             text_str
         );
         assert!(
-            text_str.contains(", \""),
-            "JSON should have spaces after commas for readability. Got: '{}'",
+            text_str.contains("key=value"),
+            "JSON should be flattened with key=value format. Got: '{}'",
+            text_str
+        );
+        // Check that fields are separated (should contain both keys)
+        assert!(
+            text_str.contains("another") && text_str.contains("key"),
+            "JSON should contain all fields. Got: '{}'",
+            text_str
+        );
+    }
+
+    #[test]
+    fn test_json_formatting_nested() {
+        let log_line = r#"2025-10-28T12:34:56.789Z {"name":"Alice","age":30,"address":{"city":"Portland","zip":"97201"}}"#;
+        let entry = LogEntry::parse(log_line).expect("Should parse log line with nested JSON");
+
+        // Convert the text to a plain string
+        let text_str = entry
+            .text
+            .lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Check for flattened nested keys using dot notation
+        assert!(
+            text_str.contains("name=Alice"),
+            "Should contain flattened name field. Got: '{}'",
+            text_str
+        );
+        assert!(
+            text_str.contains("age=30"),
+            "Should contain flattened age field. Got: '{}'",
+            text_str
+        );
+        assert!(
+            text_str.contains("address.city=Portland"),
+            "Should contain flattened nested city field with dot notation. Got: '{}'",
+            text_str
+        );
+        assert!(
+            text_str.contains("address.zip=97201"),
+            "Should contain flattened nested zip field with dot notation. Got: '{}'",
             text_str
         );
     }
