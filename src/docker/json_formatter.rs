@@ -65,7 +65,7 @@ pub fn format_json_as_text(json_value: &serde_json::Value) -> Text<'static> {
 /// Determine the style for a value based on its type
 fn get_value_style(value_type: &JsonValueType) -> Style {
     match value_type {
-        JsonValueType::Null => Style::default().fg(Color::DarkGray),
+        JsonValueType::Null => Style::default().fg(Color::Gray),
         JsonValueType::Bool(true) => Style::default().fg(Color::Green),
         JsonValueType::Bool(false) => Style::default().fg(Color::Red),
         JsonValueType::Number(_) => Style::default().fg(Color::Yellow),
