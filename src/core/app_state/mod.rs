@@ -147,6 +147,7 @@ impl AppState {
             AppEvent::ConnectionError(host_id, error) => {
                 self.handle_connection_error(host_id, error)
             }
+            AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
         }
     }
 
@@ -161,5 +162,19 @@ impl AppState {
             .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
 
         true // Redraw to show the error
+    }
+
+    /// Handles a new Docker host connection by adding it to the connected hosts
+    fn handle_host_connected(&mut self, docker_host: DockerHost) -> bool {
+        use tracing::debug;
+
+        let host_id = docker_host.host_id.clone();
+        debug!("Adding host to connected_hosts: {}", host_id);
+        self.connected_hosts.insert(host_id.clone(), docker_host);
+
+        // Clear any connection error for this host
+        self.connection_errors.remove(&host_id);
+
+        false // No need to force redraw, container list will update via normal events
     }
 }

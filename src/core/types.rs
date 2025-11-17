@@ -178,6 +178,8 @@ pub enum AppEvent {
     SearchKeyEvent(crossterm::event::KeyEvent),
     /// Connection to a Docker host failed
     ConnectionError(HostId, String),
+    /// A new Docker host has successfully connected
+    HostConnected(crate::docker::connection::DockerHost),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

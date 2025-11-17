@@ -11,7 +11,7 @@ use crate::core::types::{
 use crate::docker::stats::stream_container_stats;
 
 /// Represents a Docker host connection with its identifier
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DockerHost {
     pub host_id: HostId,
     pub docker: Docker,

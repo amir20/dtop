@@ -176,6 +176,10 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 use tracing::debug;
                 let mut remaining_count = 1; // Already got one
                 while let Some(docker_host) = conn_rx.recv().await {
+                    // Send HostConnected event so AppState can track this host for log streaming
+                    let _ = remaining_tx
+                        .send(AppEvent::HostConnected(docker_host.clone()))
+                        .await;
                     spawn_container_manager(docker_host, remaining_tx.clone());
                     remaining_count += 1;
                     if total_hosts > 1 {
