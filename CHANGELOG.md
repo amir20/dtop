@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.4] - 2025-11-17
+
+### Bug Fixes
+
+- Fixes hosts not being updated after valid connection (#126)
+
 ## [0.4.3] - 2025-11-16
 
 ### Features
