@@ -1,3 +1,4 @@
+use chrono::Local;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 
@@ -144,8 +145,9 @@ impl AppState {
         if let Some(current_key) = &self.current_log_container
             && current_key == &key
         {
-            // Format the new log entry with timestamp and append to cached text
-            let timestamp_str = log_entry.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+            // Format the new log entry with timestamp in local timezone and append to cached text
+            let local_timestamp = log_entry.timestamp.with_timezone(&Local);
+            let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
 
             // Create a line with timestamp + ANSI-parsed content
             let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
