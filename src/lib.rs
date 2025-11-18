@@ -8,16 +8,7 @@ pub mod core {
 pub mod docker;
 
 // UI modules
-pub mod ui {
-    pub mod action_menu;
-    pub mod container_list;
-    pub mod help;
-    pub mod input;
-    pub mod render;
-
-    #[cfg(test)]
-    mod ui_tests;
-}
+pub mod ui;
 
 // CLI modules
 pub mod cli {
