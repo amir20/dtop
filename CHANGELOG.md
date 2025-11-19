@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.5] - 2025-11-19
+
+### Features
+
+- Uses current timezone instead of utc (#136)
+
+### Bug Fixes
+
+- Removes mouse events which disabled highlighting (#135)
+
 ## [0.4.4] - 2025-11-17
 
 ### Bug Fixes
