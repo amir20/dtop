@@ -156,6 +156,7 @@ pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
 }
 
 /// Extracts raw memory bytes (used, limit) from container stats
+/// Note: Uses raw usage value, consistent with calculate_memory_percentage
 fn extract_memory_bytes(stats: &ContainerStatsResponse) -> (u64, u64) {
     let memory_stats = match &stats.memory_stats {
         Some(ms) => ms,

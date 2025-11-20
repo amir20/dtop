@@ -155,7 +155,7 @@ fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usi
     format!("{} {}/{}", bar, format_bytes(used), format_bytes(limit))
 }
 
-/// Formats bytes into a human-readable string (B, KB, MB, GB)
+/// Formats bytes into a human-readable string (B, K, M, G)
 fn format_bytes(bytes: u64) -> String {
     const KB: f64 = 1024.0;
     const MB: f64 = KB * 1024.0;
@@ -164,7 +164,7 @@ fn format_bytes(bytes: u64) -> String {
     let bytes_f64 = bytes as f64;
 
     if bytes_f64 >= GB {
-        format!("{:.1}G", bytes_f64 / GB)
+        format!("{:.0}G", bytes_f64 / GB)
     } else if bytes_f64 >= MB {
         format!("{:.0}M", bytes_f64 / MB)
     } else if bytes_f64 >= KB {
@@ -311,7 +311,7 @@ fn create_table<'a>(
     };
 
     let mem_width = if show_progress_bars {
-        32 // Memory progress bar (20 chars + " 1.2G/4.0G")
+        31 // Memory progress bar (20 chars + " 999M/999M")
     } else {
         7 // Just percentage (" 100.0%")
     };
@@ -342,6 +342,68 @@ fn create_table<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_format_bytes_zero() {
+        assert_eq!(format_bytes(0), "0B");
+    }
+
+    #[test]
+    fn test_format_bytes_bytes() {
+        assert_eq!(format_bytes(1), "1B");
+        assert_eq!(format_bytes(512), "512B");
+        assert_eq!(format_bytes(1023), "1023B");
+    }
+
+    #[test]
+    fn test_format_bytes_kilobytes() {
+        assert_eq!(format_bytes(1024), "1K");
+        assert_eq!(format_bytes(1536), "2K"); // 1.5KB rounds to 2K
+        assert_eq!(format_bytes(10240), "10K");
+        assert_eq!(format_bytes(1048575), "1024K"); // Just under 1MB
+    }
+
+    #[test]
+    fn test_format_bytes_megabytes() {
+        assert_eq!(format_bytes(1048576), "1M"); // Exactly 1MB
+        assert_eq!(format_bytes(536870912), "512M");
+        assert_eq!(format_bytes(1073741823), "1024M"); // Just under 1GB
+    }
+
+    #[test]
+    fn test_format_bytes_gigabytes() {
+        assert_eq!(format_bytes(1073741824), "1G"); // Exactly 1GB
+        assert_eq!(format_bytes(4294967296), "4G"); // 4GB
+        assert_eq!(format_bytes(17179869184), "16G"); // 16GB
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_format() {
+        let bar = create_memory_progress_bar(50.0, 512 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("512M/1G"));
+        assert!(bar.contains("██████████")); // 50% filled = 10 blocks
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_zero() {
+        let bar = create_memory_progress_bar(0.0, 0, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("0B/1G"));
+        assert!(bar.starts_with("░░░░░░░░░░░░░░░░░░░░")); // All empty
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_full() {
+        let bar = create_memory_progress_bar(100.0, 1024 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("1G/1G"));
+        assert!(bar.starts_with("████████████████████")); // All filled
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_clamps_over_100() {
+        // Bar visual should clamp at 100% even if percentage > 100
+        let bar = create_memory_progress_bar(150.0, 1536 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.starts_with("████████████████████")); // Still fully filled
+    }
 
     #[test]
     fn test_percentage_style_thresholds() {
