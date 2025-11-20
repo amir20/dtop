@@ -177,7 +177,8 @@ mod tests {
         // Select the second container
         state.table_state.select(Some(1));
 
-        let backend = TestBackend::new(140, 25);
+        // Use wider terminal (150) to accommodate Host column without truncation
+        let backend = TestBackend::new(150, 25);
         let mut terminal = Terminal::new(backend).unwrap();
 
         terminal
