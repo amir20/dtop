@@ -4,6 +4,6 @@ expression: output
 ---
 dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)                           ┌─────────────────────────────────────────────────────────┐
                                                                                  │✗ user@server1: Failed to connect: Connection refused    │
-  ID             Name                  CPU %                        Memory %     └─────────────────────────────────────────────────────────┘
+  ID             Name              CPU %                        Memory %         └─────────────────────────────────────────────────────────┘
                                                                                                                                             
-  abc123456789 ▶ nginx                 █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░  45.2%  1.0KB/s      2.0KB/s      2 hours ago
+  abc123456789 ▶ nginx             █████░░░░░░░░░░░░░░░  25.5%  █████████░░░░░░░░░░░ 431M/954M   1.0KB/s      2.0KB/s      2 hours ago

@@ -68,6 +68,8 @@ mod tests {
             stats: ContainerStats {
                 cpu,
                 memory,
+                memory_used_bytes: (memory * 10_000_000.0) as u64, // Approximate based on percentage
+                memory_limit_bytes: 1_000_000_000,                 // 1GB limit
                 network_tx_bytes_per_sec: net_tx,
                 network_rx_bytes_per_sec: net_rx,
             },

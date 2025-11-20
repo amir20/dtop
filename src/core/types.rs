@@ -89,6 +89,10 @@ pub struct Container {
 pub struct ContainerStats {
     pub cpu: f64,
     pub memory: f64,
+    /// Memory used in bytes
+    pub memory_used_bytes: u64,
+    /// Memory limit in bytes
+    pub memory_limit_bytes: u64,
     /// Network transmit rate in bytes per second
     pub network_tx_bytes_per_sec: f64,
     /// Network receive rate in bytes per second

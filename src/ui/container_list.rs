@@ -71,7 +71,12 @@ fn create_container_row<'a>(
 
     let (memory_bar, memory_style) = if is_running {
         let display = if show_progress_bars {
-            create_progress_bar(container.stats.memory, 20)
+            create_memory_progress_bar(
+                container.stats.memory,
+                container.stats.memory_used_bytes,
+                container.stats.memory_limit_bytes,
+                20,
+            )
         } else {
             format!("{:5.1}%", container.stats.memory)
         };
@@ -136,6 +141,37 @@ fn create_progress_bar(percentage: f64, width: usize) -> String {
     let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
 
     format!("{} {:5.1}%", bar, percentage)
+}
+
+/// Creates a text-based progress bar with memory used/limit display
+fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usize) -> String {
+    // Clamp the bar visual to 100%, but display the actual percentage value
+    let bar_percentage = percentage.clamp(0.0, 100.0);
+    let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
+    let empty_width = width.saturating_sub(filled_width);
+
+    let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
+
+    format!("{} {}/{}", bar, format_bytes(used), format_bytes(limit))
+}
+
+/// Formats bytes into a human-readable string (B, KB, MB, GB)
+fn format_bytes(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    const GB: f64 = MB * 1024.0;
+
+    let bytes_f64 = bytes as f64;
+
+    if bytes_f64 >= GB {
+        format!("{:.1}G", bytes_f64 / GB)
+    } else if bytes_f64 >= MB {
+        format!("{:.0}M", bytes_f64 / MB)
+    } else if bytes_f64 >= KB {
+        format!("{:.0}K", bytes_f64 / KB)
+    } else {
+        format!("{}B", bytes)
+    }
 }
 
 /// Formats bytes per second into a human-readable string (KB/s, MB/s, GB/s)
@@ -268,18 +304,24 @@ fn create_table<'a>(
     }
 
     // Adjust column widths based on whether progress bars are shown
-    let cpu_mem_width = if show_progress_bars {
-        28 // CPU/Memory progress bar (20 chars + " 100.0%")
+    let cpu_width = if show_progress_bars {
+        28 // CPU progress bar (20 chars + " 100.0%")
+    } else {
+        7 // Just percentage (" 100.0%")
+    };
+
+    let mem_width = if show_progress_bars {
+        32 // Memory progress bar (20 chars + " 1.2G/4.0G")
     } else {
         7 // Just percentage (" 100.0%")
     };
 
     constraints.extend(vec![
-        Constraint::Length(cpu_mem_width), // CPU
-        Constraint::Length(cpu_mem_width), // Memory
-        Constraint::Length(12),            // Network TX (1.23MB/s)
-        Constraint::Length(12),            // Network RX (4.56MB/s)
-        Constraint::Length(15),            // Created
+        Constraint::Length(cpu_width), // CPU
+        Constraint::Length(mem_width), // Memory
+        Constraint::Length(12),        // Network TX (1.23MB/s)
+        Constraint::Length(12),        // Network RX (4.56MB/s)
+        Constraint::Length(15),        // Created
     ]);
 
     Table::new(rows, constraints)
