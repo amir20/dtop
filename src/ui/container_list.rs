@@ -311,7 +311,7 @@ fn create_table<'a>(
     };
 
     let mem_width = if show_progress_bars {
-        31 // Memory progress bar (20 chars + " 999M/999M")
+        33 // Memory progress bar (20 chars + " 999M/999M" + padding)
     } else {
         7 // Just percentage (" 100.0%")
     };
