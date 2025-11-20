@@ -1,0 +1,32 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: |
+      (github.event_name == 'pull_request') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude PR Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          model: claude-sonnet-4-20250514
+          direct_prompt: |
+            Review this PR and provide concise feedback. Keep your response brief and actionable.
+            Focus on: bugs, security issues, and significant improvements only.
+            Skip minor style nitpicks unless they affect readability significantly.
