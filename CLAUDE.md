@@ -611,3 +611,18 @@ The codebase includes unit tests for:
 - UI snapshot tests (`ui/ui_tests.rs`): Visual regression testing using insta
 
 Run tests with `cargo test` or `cargo insta test` for snapshot tests.
+
+## Claude PR Review Guidelines
+
+When reviewing pull requests for this repository, follow these guidelines:
+
+- **Keep feedback concise and actionable** - Focus on what matters, not lengthy explanations
+- **Prioritize issues by severity**:
+  1. Security vulnerabilities (always report)
+  2. Bugs and logic errors
+  3. Performance issues
+  4. API/interface issues
+- **Skip minor nitpicks** - Don't comment on trivial style issues unless they significantly affect readability
+- **Be direct** - Use short, clear sentences. Avoid filler phrases
+- **Group related feedback** - Don't create separate comments for each small issue
+- **Limit comments to 3-5 items** unless there are critical issues requiring more attention
