@@ -25,7 +25,6 @@ jobs:
       - name: Run Claude PR Review
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: claude-sonnet-4-20250514
           direct_prompt: |
             Review this PR and provide concise feedback. Keep your response brief and actionable.
