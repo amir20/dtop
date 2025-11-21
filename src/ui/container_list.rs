@@ -1,15 +1,13 @@
-use chrono::Utc;
+use crate::core::app_state::AppState;
+use crate::core::types::{Container, ContainerState, HealthStatus, SortField, SortState};
+use crate::ui::formatters::{format_bytes, format_bytes_per_sec, format_time_elapsed};
+use crate::ui::render::UiStyles;
 use ratatui::{
     Frame,
     layout::Constraint,
     style::{Color, Style},
     widgets::{Block, Borders, Cell, Row, Table},
 };
-use timeago::Formatter;
-
-use crate::core::app_state::AppState;
-use crate::core::types::{Container, ContainerState, HealthStatus, SortField, SortState};
-use crate::ui::render::UiStyles;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -71,7 +69,12 @@ fn create_container_row<'a>(
 
     let (memory_bar, memory_style) = if is_running {
         let display = if show_progress_bars {
-            create_progress_bar(container.stats.memory, 20)
+            create_memory_progress_bar(
+                container.stats.memory,
+                container.stats.memory_used_bytes,
+                container.stats.memory_limit_bytes,
+                20,
+            )
         } else {
             format!("{:5.1}%", container.stats.memory)
         };
@@ -138,33 +141,16 @@ fn create_progress_bar(percentage: f64, width: usize) -> String {
     format!("{} {:5.1}%", bar, percentage)
 }
 
-/// Formats bytes per second into a human-readable string (KB/s, MB/s, GB/s)
-fn format_bytes_per_sec(bytes_per_sec: f64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = KB * 1024.0;
-    const GB: f64 = MB * 1024.0;
+/// Creates a text-based progress bar with memory used/limit display
+fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usize) -> String {
+    // Clamp the bar visual to 100%, but display the actual percentage value
+    let bar_percentage = percentage.clamp(0.0, 100.0);
+    let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
+    let empty_width = width.saturating_sub(filled_width);
 
-    if bytes_per_sec >= GB {
-        format!("{:.2}GB/s", bytes_per_sec / GB)
-    } else if bytes_per_sec >= MB {
-        format!("{:.2}MB/s", bytes_per_sec / MB)
-    } else if bytes_per_sec >= KB {
-        format!("{:.1}KB/s", bytes_per_sec / KB)
-    } else {
-        format!("{:.0}B/s", bytes_per_sec)
-    }
-}
+    let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
 
-/// Formats the time elapsed since container creation
-fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
-    match created {
-        Some(created_time) => {
-            let formatter = Formatter::new();
-            let now = Utc::now();
-            formatter.convert_chrono(*created_time, now)
-        }
-        None => "Unknown".to_string(),
-    }
+    format!("{} {}/{}", bar, format_bytes(used), format_bytes(limit))
 }
 
 /// Returns the status icon and color based on container health (if available) or state
@@ -268,18 +254,24 @@ fn create_table<'a>(
     }
 
     // Adjust column widths based on whether progress bars are shown
-    let cpu_mem_width = if show_progress_bars {
-        28 // CPU/Memory progress bar (20 chars + " 100.0%")
+    let cpu_width = if show_progress_bars {
+        28 // CPU progress bar (20 chars + " 100.0%")
+    } else {
+        7 // Just percentage (" 100.0%")
+    };
+
+    let mem_width = if show_progress_bars {
+        33 // Memory progress bar (20 chars + " 999M/999M" + padding)
     } else {
         7 // Just percentage (" 100.0%")
     };
 
     constraints.extend(vec![
-        Constraint::Length(cpu_mem_width), // CPU
-        Constraint::Length(cpu_mem_width), // Memory
-        Constraint::Length(12),            // Network TX (1.23MB/s)
-        Constraint::Length(12),            // Network RX (4.56MB/s)
-        Constraint::Length(15),            // Created
+        Constraint::Length(cpu_width), // CPU
+        Constraint::Length(mem_width), // Memory
+        Constraint::Length(12),        // Network TX (1.23MB/s)
+        Constraint::Length(12),        // Network RX (4.56MB/s)
+        Constraint::Length(15),        // Created
     ]);
 
     Table::new(rows, constraints)
@@ -300,6 +292,34 @@ fn create_table<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_create_memory_progress_bar_format() {
+        let bar = create_memory_progress_bar(50.0, 512 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("512M/1G"));
+        assert!(bar.contains("██████████")); // 50% filled = 10 blocks
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_zero() {
+        let bar = create_memory_progress_bar(0.0, 0, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("0B/1G"));
+        assert!(bar.starts_with("░░░░░░░░░░░░░░░░░░░░")); // All empty
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_full() {
+        let bar = create_memory_progress_bar(100.0, 1024 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.contains("1G/1G"));
+        assert!(bar.starts_with("████████████████████")); // All filled
+    }
+
+    #[test]
+    fn test_create_memory_progress_bar_clamps_over_100() {
+        // Bar visual should clamp at 100% even if percentage > 100
+        let bar = create_memory_progress_bar(150.0, 1536 * 1024 * 1024, 1024 * 1024 * 1024, 20);
+        assert!(bar.starts_with("████████████████████")); // Still fully filled
+    }
 
     #[test]
     fn test_percentage_style_thresholds() {

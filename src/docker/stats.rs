@@ -78,9 +78,14 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 smoothed_net_tx = Some(network_tx_bytes_per_sec);
                 smoothed_net_rx = Some(network_rx_bytes_per_sec);
 
+                // Extract raw memory bytes for display
+                let (memory_used_bytes, memory_limit_bytes) = extract_memory_bytes(&stats);
+
                 let stats = ContainerStats {
                     cpu,
                     memory,
+                    memory_used_bytes,
+                    memory_limit_bytes,
                     network_tx_bytes_per_sec,
                     network_rx_bytes_per_sec,
                 };
@@ -148,6 +153,20 @@ pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
     } else {
         0.0
     }
+}
+
+/// Extracts raw memory bytes (used, limit) from container stats
+/// Note: Uses raw usage value, consistent with calculate_memory_percentage
+fn extract_memory_bytes(stats: &ContainerStatsResponse) -> (u64, u64) {
+    let memory_stats = match &stats.memory_stats {
+        Some(ms) => ms,
+        None => return (0, 0),
+    };
+
+    let memory_used = memory_stats.usage.unwrap_or(0);
+    let memory_limit = memory_stats.limit.unwrap_or(0);
+
+    (memory_used, memory_limit)
 }
 
 /// Extracts total network bytes (tx, rx) from container stats

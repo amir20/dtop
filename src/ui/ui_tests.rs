@@ -68,6 +68,8 @@ mod tests {
             stats: ContainerStats {
                 cpu,
                 memory,
+                memory_used_bytes: (memory * 10_000_000.0) as u64, // Approximate based on percentage
+                memory_limit_bytes: 1_000_000_000,                 // 1GB limit
                 network_tx_bytes_per_sec: net_tx,
                 network_rx_bytes_per_sec: net_rx,
             },
@@ -175,7 +177,8 @@ mod tests {
         // Select the second container
         state.table_state.select(Some(1));
 
-        let backend = TestBackend::new(140, 25);
+        // Use wider terminal (150) to accommodate Host column without truncation
+        let backend = TestBackend::new(150, 25);
         let mut terminal = Terminal::new(backend).unwrap();
 
         terminal
