@@ -51,6 +51,8 @@ impl Config {
         // 1. Relative paths (current directory)
         paths.push(PathBuf::from("config.yaml"));
         paths.push(PathBuf::from("config.yml"));
+        paths.push(PathBuf::from(".dtop.yaml"));
+        paths.push(PathBuf::from(".dtop.yml"));
 
         // 2. ~/.config/dtop/config.{yaml,yml}
         if let Some(home) = dirs::home_dir() {
