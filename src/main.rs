@@ -12,6 +12,8 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
@@ -19,7 +21,7 @@ use url::Url;
 
 use cli::config::Config;
 use core::app_state::AppState;
-use core::types::AppEvent;
+use core::types::{AppEvent, ContainerKey};
 use docker::connection::{DockerHost, connect_docker, container_manager};
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, render_ui};
@@ -202,14 +204,24 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Create pause flag for keyboard worker
+    let keyboard_paused = Arc::new(AtomicBool::new(false));
+
     // Spawn keyboard worker in blocking thread
-    spawn_keyboard_worker(tx.clone());
+    spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
 
     // Setup terminal
     let mut terminal = setup_terminal()?;
 
     // Run main event loop
-    run_event_loop(&mut terminal, &mut rx, tx.clone(), connected_hosts).await?;
+    run_event_loop(
+        &mut terminal,
+        &mut rx,
+        tx.clone(),
+        connected_hosts,
+        keyboard_paused,
+    )
+    .await?;
 
     // Restore terminal
     cleanup_terminal(&mut terminal)?;
@@ -312,9 +324,9 @@ fn spawn_container_manager(docker_host: DockerHost, tx: mpsc::Sender<AppEvent>) 
 }
 
 /// Spawns the keyboard input worker thread
-fn spawn_keyboard_worker(tx: mpsc::Sender<AppEvent>) {
+fn spawn_keyboard_worker(tx: mpsc::Sender<AppEvent>, paused: Arc<AtomicBool>) {
     std::thread::spawn(move || {
-        keyboard_worker(tx);
+        keyboard_worker(tx, paused);
     });
 }
 
@@ -324,6 +336,7 @@ async fn run_event_loop(
     rx: &mut mpsc::Receiver<AppEvent>,
     tx: mpsc::Sender<AppEvent>,
     connected_hosts: HashMap<String, DockerHost>,
+    keyboard_paused: Arc<AtomicBool>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = AppState::new(connected_hosts, tx);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
@@ -334,7 +347,33 @@ async fn run_event_loop(
 
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting
-        let force_draw = process_events(rx, &mut state, draw_interval).await;
+        let (force_draw, shell_request) = process_events(rx, &mut state, draw_interval).await;
+
+        // Handle shell request - this takes over the terminal
+        if let Some(container_key) = shell_request {
+            if let Some(host) = state.connected_hosts.get(&container_key.host_id) {
+                // Pause keyboard worker during shell session
+                keyboard_paused.store(true, Ordering::Relaxed);
+
+                // Run shell session - this blocks until shell exits
+                if let Err(e) =
+                    docker::shell::run_shell_session(host, &container_key.container_id).await
+                {
+                    tracing::error!("Shell session error: {}", e);
+                }
+
+                // Resume keyboard worker
+                keyboard_paused.store(false, Ordering::Relaxed);
+
+                // Force full redraw after returning from shell
+                terminal.clear()?;
+                terminal.draw(|f| {
+                    render_ui(f, &mut state, &styles);
+                })?;
+                last_draw = std::time::Instant::now();
+            }
+            continue;
+        }
 
         // Draw UI if forced (table structure changed) or if draw_interval has elapsed
         let should_draw = force_draw || last_draw.elapsed() >= draw_interval;
@@ -352,36 +391,52 @@ async fn run_event_loop(
 
 /// Processes all pending events from the event channel
 /// Waits with timeout for at least one event, then drains all pending events
-/// Returns true if a force draw is needed (table structure changed)
+/// Returns (force_draw, shell_request) - force_draw if UI needs redraw, shell_request if shell session requested
 async fn process_events(
     rx: &mut mpsc::Receiver<AppEvent>,
     state: &mut AppState,
     timeout: Duration,
-) -> bool {
+) -> (bool, Option<ContainerKey>) {
     let mut force_draw = false;
+    let mut shell_request = None;
 
     // Wait for first event with timeout
     match tokio::time::timeout(timeout, rx.recv()).await {
         Ok(Some(event)) => {
-            force_draw |= state.handle_event(event);
+            // Check for shell request before handling
+            if let AppEvent::StartShell(ref key) = event {
+                shell_request = Some(key.clone());
+            } else {
+                force_draw |= state.handle_event(event);
+            }
         }
         Ok(None) => {
             // Channel closed
             state.should_quit = true;
-            return false;
+            return (false, None);
         }
         Err(_) => {
             // Timeout - no events, just return without forcing draw
-            return false;
+            return (false, None);
         }
+    }
+
+    // If we got a shell request, return immediately
+    if shell_request.is_some() {
+        return (force_draw, shell_request);
     }
 
     // Drain any additional pending events without blocking
     while let Ok(event) = rx.try_recv() {
+        // Check for shell request
+        if let AppEvent::StartShell(ref key) = event {
+            shell_request = Some(key.clone());
+            break;
+        }
         force_draw |= state.handle_event(event);
     }
 
-    force_draw
+    (force_draw, shell_request)
 }
 
 fn setup_logging() -> Result<(), Box<dyn std::error::Error>> {

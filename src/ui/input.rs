@@ -1,12 +1,20 @@
 use crossterm::event::{self, Event, KeyCode, KeyEvent, MouseEventKind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::core::types::{AppEvent, EventSender, SortField};
 
 /// Polls for keyboard input and terminal events
 /// Sends events for various key presses, mouse events, and terminal resize
-pub fn keyboard_worker(tx: EventSender) {
+pub fn keyboard_worker(tx: EventSender, paused: Arc<AtomicBool>) {
     loop {
+        // Check if we should pause (e.g., during shell session)
+        if paused.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
+
         // Poll every 200ms - humans won't notice the difference
         if event::poll(Duration::from_millis(200)).unwrap_or(false)
             && let Ok(event) = event::read()

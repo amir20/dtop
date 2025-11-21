@@ -123,6 +123,26 @@ impl AppState {
             return false;
         };
 
+        // Handle Shell action specially - it needs to take over the terminal
+        if action == ContainerAction::Shell {
+            let container_key_clone = container_key.clone();
+            let tx_clone = self.event_tx.clone();
+
+            tokio::spawn(async move {
+                let _ = tx_clone
+                    .send(crate::core::types::AppEvent::StartShell(
+                        container_key_clone,
+                    ))
+                    .await;
+            });
+
+            // Close the action menu immediately
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+
+            return true;
+        }
+
         // Spawn async task to execute the action
         let host_clone = host.clone();
         let container_key_clone = container_key.clone();

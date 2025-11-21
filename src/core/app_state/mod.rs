@@ -148,6 +148,7 @@ impl AppState {
                 self.handle_connection_error(host_id, error)
             }
             AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
+            AppEvent::StartShell(_) => false, // Handled in main event loop
         }
     }
 
