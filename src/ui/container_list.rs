@@ -1,15 +1,13 @@
-use chrono::Utc;
+use crate::core::app_state::AppState;
+use crate::core::types::{Container, ContainerState, HealthStatus, SortField, SortState};
+use crate::ui::formatters::{format_bytes, format_bytes_per_sec, format_time_elapsed};
+use crate::ui::render::UiStyles;
 use ratatui::{
     Frame,
     layout::Constraint,
     style::{Color, Style},
     widgets::{Block, Borders, Cell, Row, Table},
 };
-use timeago::Formatter;
-
-use crate::core::app_state::AppState;
-use crate::core::types::{Container, ContainerState, HealthStatus, SortField, SortState};
-use crate::ui::render::UiStyles;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -155,54 +153,6 @@ fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usi
     format!("{} {}/{}", bar, format_bytes(used), format_bytes(limit))
 }
 
-/// Formats bytes into a human-readable string (B, K, M, G)
-fn format_bytes(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = KB * 1024.0;
-    const GB: f64 = MB * 1024.0;
-
-    let bytes_f64 = bytes as f64;
-
-    if bytes_f64 >= GB {
-        format!("{:.0}G", bytes_f64 / GB)
-    } else if bytes_f64 >= MB {
-        format!("{:.0}M", bytes_f64 / MB)
-    } else if bytes_f64 >= KB {
-        format!("{:.0}K", bytes_f64 / KB)
-    } else {
-        format!("{}B", bytes)
-    }
-}
-
-/// Formats bytes per second into a human-readable string (KB/s, MB/s, GB/s)
-fn format_bytes_per_sec(bytes_per_sec: f64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = KB * 1024.0;
-    const GB: f64 = MB * 1024.0;
-
-    if bytes_per_sec >= GB {
-        format!("{:.2}GB/s", bytes_per_sec / GB)
-    } else if bytes_per_sec >= MB {
-        format!("{:.2}MB/s", bytes_per_sec / MB)
-    } else if bytes_per_sec >= KB {
-        format!("{:.1}KB/s", bytes_per_sec / KB)
-    } else {
-        format!("{:.0}B/s", bytes_per_sec)
-    }
-}
-
-/// Formats the time elapsed since container creation
-fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
-    match created {
-        Some(created_time) => {
-            let formatter = Formatter::new();
-            let now = Utc::now();
-            formatter.convert_chrono(*created_time, now)
-        }
-        None => "Unknown".to_string(),
-    }
-}
-
 /// Returns the status icon and color based on container health (if available) or state
 fn get_status_icon(state: &ContainerState, health: &Option<HealthStatus>) -> (String, Style) {
     // Prioritize health status if container has health checks configured
@@ -342,40 +292,6 @@ fn create_table<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_format_bytes_zero() {
-        assert_eq!(format_bytes(0), "0B");
-    }
-
-    #[test]
-    fn test_format_bytes_bytes() {
-        assert_eq!(format_bytes(1), "1B");
-        assert_eq!(format_bytes(512), "512B");
-        assert_eq!(format_bytes(1023), "1023B");
-    }
-
-    #[test]
-    fn test_format_bytes_kilobytes() {
-        assert_eq!(format_bytes(1024), "1K");
-        assert_eq!(format_bytes(1536), "2K"); // 1.5KB rounds to 2K
-        assert_eq!(format_bytes(10240), "10K");
-        assert_eq!(format_bytes(1048575), "1024K"); // Just under 1MB
-    }
-
-    #[test]
-    fn test_format_bytes_megabytes() {
-        assert_eq!(format_bytes(1048576), "1M"); // Exactly 1MB
-        assert_eq!(format_bytes(536870912), "512M");
-        assert_eq!(format_bytes(1073741823), "1024M"); // Just under 1GB
-    }
-
-    #[test]
-    fn test_format_bytes_gigabytes() {
-        assert_eq!(format_bytes(1073741824), "1G"); // Exactly 1GB
-        assert_eq!(format_bytes(4294967296), "4G"); // 4GB
-        assert_eq!(format_bytes(17179869184), "16G"); // 16GB
-    }
 
     #[test]
     fn test_create_memory_progress_bar_format() {
