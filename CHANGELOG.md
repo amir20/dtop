@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6] - 2025-11-22
+
+### Features
+
+- Enable Claude PR review with concise feedback guidelines (#138)
+- Shows mem usage / limit instead of % (#143)
+- Supports for ./.dtop.yml (#145)
+
 ## [0.4.5] - 2025-11-19
 
 ### Features
