@@ -141,6 +141,8 @@ pub enum AppEvent {
     EnterPressed,
     /// User pressed Escape to exit log view
     ExitLogView,
+    /// User pressed right arrow to show log view
+    ShowLogView,
     /// User scrolled up in log view
     ScrollUp,
     /// User scrolled down in log view
@@ -157,16 +159,12 @@ pub enum AppEvent {
     SetSortField(SortField),
     /// User pressed 'a' to toggle showing all containers (including stopped)
     ToggleShowAll,
-    /// User pressed right arrow to show action menu
-    ShowActionMenu,
     /// User pressed left arrow or Esc to cancel action menu
     CancelActionMenu,
     /// Navigate up in action menu
     SelectActionUp,
     /// Navigate down in action menu
     SelectActionDown,
-    /// Execute the selected action
-    ExecuteAction,
     /// Action is in progress
     #[allow(dead_code)] // Will be used in Phase 2
     ActionInProgress(ContainerKey, ContainerAction),
