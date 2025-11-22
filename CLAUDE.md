@@ -61,12 +61,18 @@ hosts:
   - host: tcp://192.168.1.100:2375
   - host: ssh://root@146.190.3.114
     dozzle: https://l.dozzle.dev/
+
+# Icon style: "unicode" (default) or "nerd" (requires Nerd Font)
+icons: unicode
 ```
 
 Each host entry is a struct with:
 - `host`: Docker connection string (required)
 - `dozzle`: Optional URL to Dozzle instance
 - Future optional fields can be added as needed
+
+Global config options:
+- `icons`: Icon style to use ("unicode" or "nerd")
 
 See `config.example.yaml` for a complete example.
 
@@ -108,6 +114,7 @@ src/
 │   ├── container_list.rs # Container list table rendering
 │   ├── action_menu.rs    # Action menu popup rendering
 │   ├── help.rs           # Help popup rendering
+│   ├── icons.rs          # Icon sets (Unicode and Nerd Font)
 │   └── ui_tests.rs       # UI snapshot tests
 │
 ├── lib.rs                # Library root with module declarations
