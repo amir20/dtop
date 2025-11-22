@@ -35,7 +35,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
 insta = { version = "1.43", features = ["filters"] }
-mockall = "0.13"
+mockall = "0.14"
 
 [profile.release]
 strip = true          # Strip all symbols for smallest binary size
