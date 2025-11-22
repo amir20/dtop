@@ -23,6 +23,7 @@ use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
 use core::types::{AppEvent, RenderAction};
 use docker::connection::{DockerHost, container_manager};
+use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, render_ui};
 
@@ -49,6 +50,14 @@ struct Args {
     /// If not specified, will use config file or default to "local"
     #[arg(short = 'H', long, verbatim_doc_comment)]
     host: Vec<String>,
+
+    /// Icon style to use for the UI
+    ///
+    /// Options:
+    ///   unicode  - Standard Unicode icons (default, works everywhere)
+    ///   nerd     - Nerd Font icons (requires Nerd Font installed)
+    #[arg(short = 'i', long, default_value = "unicode")]
+    icons: String,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -108,6 +117,18 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         config.merge_with_cli_hosts(vec!["local".to_string()], true)
     };
 
+    // Determine icon style (CLI takes precedence over config)
+    let icon_style = if args.icons != "unicode" {
+        // CLI explicitly set a non-default value
+        args.icons.parse::<IconStyle>().unwrap_or_default()
+    } else if let Some(ref config_icons) = merged_config.icons {
+        // Use config file value
+        config_icons.parse::<IconStyle>().unwrap_or_default()
+    } else {
+        // Default to unicode
+        IconStyle::Unicode
+    };
+
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
 
@@ -143,6 +164,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         tx.clone(),
         connected_hosts,
         keyboard_paused,
+        icon_style,
     )
     .await?;
 
@@ -192,13 +214,14 @@ async fn run_event_loop(
     tx: mpsc::Sender<AppEvent>,
     connected_hosts: HashMap<String, DockerHost>,
     keyboard_paused: Arc<AtomicBool>,
+    icon_style: IconStyle,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = AppState::new(connected_hosts, tx);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 
     // Pre-allocate styles to avoid recreation every frame
-    let styles = UiStyles::default();
+    let styles = UiStyles::with_icon_style(icon_style);
 
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting

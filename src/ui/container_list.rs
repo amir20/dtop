@@ -106,7 +106,7 @@ fn create_container_row<'a>(
     };
 
     // Get status icon and color (health takes priority over state)
-    let (icon, icon_style) = get_status_icon(&container.state, &container.health);
+    let (icon, icon_style) = get_status_icon(&container.state, &container.health, styles);
 
     let mut cells = vec![
         Cell::from(container.id.as_str()),
@@ -154,27 +154,35 @@ fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usi
 }
 
 /// Returns the status icon and color based on container health (if available) or state
-fn get_status_icon(state: &ContainerState, health: &Option<HealthStatus>) -> (String, Style) {
+fn get_status_icon(
+    state: &ContainerState,
+    health: &Option<HealthStatus>,
+    styles: &UiStyles,
+) -> (String, Style) {
     // Prioritize health status if container has health checks configured
     if let Some(health_status) = health {
-        return match health_status {
-            HealthStatus::Healthy => ("✓".to_string(), Style::default().fg(Color::Green)),
-            HealthStatus::Unhealthy => ("✖".to_string(), Style::default().fg(Color::Red)),
-            HealthStatus::Starting => ("◐".to_string(), Style::default().fg(Color::Yellow)),
+        let icon = styles.icons.health(health_status).to_string();
+        let style = match health_status {
+            HealthStatus::Healthy => Style::default().fg(Color::Green),
+            HealthStatus::Unhealthy => Style::default().fg(Color::Red),
+            HealthStatus::Starting => Style::default().fg(Color::Yellow),
         };
+        return (icon, style);
     }
 
     // Use state-based icon if no health check is configured
-    match state {
-        ContainerState::Running => ("▶".to_string(), Style::default().fg(Color::Green)),
-        ContainerState::Paused => ("⏸".to_string(), Style::default().fg(Color::Yellow)),
-        ContainerState::Restarting => ("↻".to_string(), Style::default().fg(Color::Yellow)),
-        ContainerState::Removing => ("↻".to_string(), Style::default().fg(Color::Yellow)),
-        ContainerState::Exited => ("■".to_string(), Style::default().fg(Color::Red)),
-        ContainerState::Dead => ("✖".to_string(), Style::default().fg(Color::Red)),
-        ContainerState::Created => ("◆".to_string(), Style::default().fg(Color::Cyan)),
-        ContainerState::Unknown => ("?".to_string(), Style::default().fg(Color::Gray)),
-    }
+    let icon = styles.icons.state(state).to_string();
+    let style = match state {
+        ContainerState::Running => Style::default().fg(Color::Green),
+        ContainerState::Paused => Style::default().fg(Color::Yellow),
+        ContainerState::Restarting => Style::default().fg(Color::Yellow),
+        ContainerState::Removing => Style::default().fg(Color::Yellow),
+        ContainerState::Exited => Style::default().fg(Color::Red),
+        ContainerState::Dead => Style::default().fg(Color::Red),
+        ContainerState::Created => Style::default().fg(Color::Cyan),
+        ContainerState::Unknown => Style::default().fg(Color::Gray),
+    };
+    (icon, style)
 }
 
 /// Returns the appropriate style based on percentage value

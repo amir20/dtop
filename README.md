@@ -110,6 +110,13 @@ Options:
 
           If not specified, will use config file or default to "local"
 
+  -i, --icons <ICONS>
+          Icon style to use for the UI [default: unicode]
+
+          Options:
+            unicode  - Standard Unicode icons (works everywhere)
+            nerd     - Nerd Font icons (requires Nerd Font installed)
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -142,6 +149,32 @@ hosts:
 ```
 
 See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.example.yaml) for more examples.
+
+## Nerd Font Icons
+
+`dtop` supports [Nerd Fonts](https://www.nerdfonts.com/) for enhanced icon display. Nerd Fonts are fonts that have been patched to include additional glyphs and icons commonly used in terminal applications.
+
+### Installing Nerd Fonts
+
+1. Visit [nerdfonts.com/font-downloads](https://www.nerdfonts.com/font-downloads)
+2. Download a patched font (e.g., "FiraCode Nerd Font", "JetBrainsMono Nerd Font")
+3. Install the font on your system
+4. Configure your terminal emulator to use the Nerd Font
+
+### Using Nerd Font Icons
+
+Once you have a Nerd Font installed and configured in your terminal, enable Nerd Font icons in `dtop`:
+
+```bash
+# Via command line
+dtop --icons nerd
+
+# Or in config file
+icons: nerd
+```
+
+> [!Note]
+> If icons appear as boxes or question marks, ensure your terminal is using a Nerd Font. The default `unicode` mode works with any terminal font.
 
 ## Supported Connections
 

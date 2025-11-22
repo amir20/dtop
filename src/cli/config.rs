@@ -21,6 +21,10 @@ pub struct Config {
     /// Docker host(s) to connect to
     #[serde(default)]
     pub hosts: Vec<HostConfig>,
+
+    /// Icon style to use (unicode or nerd)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<String>,
 }
 
 impl Config {
@@ -101,6 +105,7 @@ mod tests {
                 host: "ssh://user@server1".to_string(),
                 dozzle: None,
             }],
+            icons: None,
         };
 
         let merged = config.merge_with_cli_hosts(vec!["ssh://user@server2".to_string()], false);
@@ -115,6 +120,7 @@ mod tests {
                 host: "ssh://user@server1".to_string(),
                 dozzle: Some("https://dozzle.example.com".to_string()),
             }],
+            icons: None,
         };
 
         let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
@@ -129,7 +135,10 @@ mod tests {
 
     #[test]
     fn test_merge_with_cli_hosts_defaults_to_local() {
-        let config = Config { hosts: vec![] };
+        let config = Config {
+            hosts: vec![],
+            icons: None,
+        };
 
         let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
         assert_eq!(merged.hosts.len(), 1);
