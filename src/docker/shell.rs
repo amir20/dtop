@@ -38,7 +38,11 @@ pub async fn run_shell_session(
 
     // Create exec instance with /bin/sh (most containers have this)
     let exec_config = CreateExecOptions {
-        cmd: Some(vec!["/bin/sh"]),
+        cmd: Some(vec![
+            "sh",
+            "-c",
+            "command -v bash >/dev/null 2>&1 && exec bash || exec sh",
+        ]),
         attach_stdin: Some(true),
         attach_stdout: Some(true),
         attach_stderr: Some(true),
