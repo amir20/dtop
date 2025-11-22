@@ -16,15 +16,15 @@ impl AppState {
             ViewState::SearchMode => {
                 // Apply filter and return to ContainerList view
                 self.view_state = ViewState::ContainerList;
-                return RenderAction::Render; // Force redraw to show filter bar
+                RenderAction::Render // Force redraw to show filter bar
             }
             ViewState::ContainerList => {
                 // Show action menu for selected container
-                return self.handle_show_action_menu();
+                self.handle_show_action_menu()
             }
             ViewState::ActionMenu(_) => {
                 // Execute selected action
-                return self.handle_execute_action();
+                self.handle_execute_action()
             }
             _ => {
                 // Ignore Enter in other views
