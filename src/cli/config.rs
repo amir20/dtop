@@ -25,9 +25,10 @@ pub struct Config {
 
 impl Config {
     /// Find and load config file from the following locations (in priority order):
-    /// 1. ./config.yaml or ./config.yml (relative to current directory)
-    /// 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
-    /// 3. ~/.dtop.yaml or ~/.dtop.yml
+    /// 1. ./config.yaml or ./config.yml
+    /// 2. ./.dtop.yaml or ./.dtop.yml
+    /// 3. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
+    /// 4. ~/.dtop.yaml or ~/.dtop.yml
     ///
     /// Returns (Config, Option<PathBuf>) where the PathBuf is Some if a config file was found
     pub fn load_with_path() -> Result<(Self, Option<PathBuf>), Box<dyn std::error::Error>> {

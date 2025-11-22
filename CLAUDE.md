@@ -46,9 +46,10 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -it dtop
 
 The application supports configuration via YAML files. Config files are searched in the following order (first found wins):
 
-1. `./config.yaml` or `./config.yml` (relative to current directory)
-2. `~/.config/dtop/config.yaml` or `~/.config/dtop/config.yml`
-3. `~/.dtop.yaml` or `~/.dtop.yml`
+1. `./config.yaml` or `./config.yml`
+2. `./.dtop.yaml` or `./.dtop.yml`
+3. `~/.config/dtop/config.yaml` or `~/.config/dtop/config.yml`
+4. `~/.dtop.yaml` or `~/.dtop.yml`
 
 **Command line arguments take precedence over config file values.**
 
