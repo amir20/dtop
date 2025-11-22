@@ -185,10 +185,22 @@ pub enum AppEvent {
     /// A new Docker host has successfully connected
     HostConnected(crate::docker::connection::DockerHost),
     /// Start a shell session in a container
+    #[allow(dead_code)] // Constructed in keyboard_worker via event sender
     StartShell(ContainerKey),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
+
+/// Action to take after processing an event
+#[derive(Clone, Debug, PartialEq)]
+pub enum RenderAction {
+    /// Don't render
+    None,
+    /// Normal render
+    Render,
+    /// Start a shell session for a container
+    StartShell(ContainerKey),
+}
 
 /// Current view state of the application
 #[derive(Clone, Debug, PartialEq)]

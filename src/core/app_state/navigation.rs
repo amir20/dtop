@@ -1,11 +1,11 @@
 use crate::core::app_state::AppState;
-use crate::core::types::ViewState;
+use crate::core::types::{RenderAction, ViewState};
 
 impl AppState {
-    pub(super) fn handle_select_previous(&mut self) -> bool {
+    pub(super) fn handle_select_previous(&mut self) -> RenderAction {
         // Only handle in ContainerList view (not in ActionMenu or LogView)
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         let container_count = self.containers.len();
@@ -15,13 +15,13 @@ impl AppState {
                 self.table_state.select(Some(selected - 1));
             }
         }
-        true // Force draw - selection changed
+        RenderAction::Render // Force draw - selection changed
     }
 
-    pub(super) fn handle_select_next(&mut self) -> bool {
+    pub(super) fn handle_select_next(&mut self) -> RenderAction {
         // Only handle in ContainerList view (not in ActionMenu or LogView)
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         let container_count = self.containers.len();
@@ -31,11 +31,11 @@ impl AppState {
                 self.table_state.select(Some(selected + 1));
             }
         }
-        true // Force draw - selection changed
+        RenderAction::Render // Force draw - selection changed
     }
 
-    pub(super) fn handle_toggle_help(&mut self) -> bool {
+    pub(super) fn handle_toggle_help(&mut self) -> RenderAction {
         self.show_help = !self.show_help;
-        true // Force redraw to show/hide popup
+        RenderAction::Render // Force redraw to show/hide popup
     }
 }

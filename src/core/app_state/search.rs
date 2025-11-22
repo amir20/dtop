@@ -1,11 +1,11 @@
 use crate::core::app_state::AppState;
-use crate::core::types::ViewState;
+use crate::core::types::{RenderAction, ViewState};
 
 impl AppState {
-    pub(super) fn handle_enter_search_mode(&mut self) -> bool {
+    pub(super) fn handle_enter_search_mode(&mut self) -> RenderAction {
         // Only allow entering search mode from ContainerList view
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         // Activate search mode
@@ -14,13 +14,13 @@ impl AppState {
         // Clear any existing search input
         self.search_input.reset();
 
-        true // Force redraw to show search bar
+        RenderAction::Render // Force redraw to show search bar
     }
 
-    pub(super) fn handle_exit_search_mode(&mut self) -> bool {
+    pub(super) fn handle_exit_search_mode(&mut self) -> RenderAction {
         // Only handle if we're in search mode
         if self.view_state != ViewState::SearchMode {
-            return false;
+            return RenderAction::None;
         }
 
         // Deactivate search mode
@@ -44,24 +44,24 @@ impl AppState {
             self.table_state.select(Some(0));
         }
 
-        true // Force redraw to hide search bar
+        RenderAction::Render // Force redraw to hide search bar
     }
 
     pub(super) fn handle_search_key_event(
         &mut self,
         key_event: crossterm::event::KeyEvent,
-    ) -> bool {
+    ) -> RenderAction {
         use crossterm::event::KeyCode;
 
         // Only process typing keys when in search mode
         // Enter and Escape are handled by handle_enter_pressed and handle_exit_log_view
         if self.view_state != ViewState::SearchMode {
-            return false;
+            return RenderAction::None;
         }
 
         // Skip Enter and Escape - they're handled elsewhere
         if matches!(key_event.code, KeyCode::Enter | KeyCode::Esc) {
-            return false;
+            return RenderAction::None;
         }
 
         // Pass the key event to tui-input to handle character input, backspace, etc.
@@ -86,6 +86,6 @@ impl AppState {
             self.table_state.select(Some(0));
         }
 
-        true // Force redraw to show updated search text and filtered results
+        RenderAction::Render // Force redraw to show updated search text and filtered results
     }
 }

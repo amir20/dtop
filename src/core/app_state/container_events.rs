@@ -1,12 +1,14 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{Container, ContainerKey, ContainerState, ContainerStats, HealthStatus};
+use crate::core::types::{
+    Container, ContainerKey, ContainerState, ContainerStats, HealthStatus, RenderAction,
+};
 
 impl AppState {
     pub(super) fn handle_initial_container_list(
         &mut self,
         host_id: String,
         container_list: Vec<Container>,
-    ) -> bool {
+    ) -> RenderAction {
         for container in container_list {
             let key = ContainerKey::new(host_id.clone(), container.id.clone());
             self.containers.insert(key.clone(), container);
@@ -21,10 +23,10 @@ impl AppState {
             self.table_state.select(Some(0));
         }
 
-        true // Force draw - table structure changed
+        RenderAction::Render // Force draw - table structure changed
     }
 
-    pub(super) fn handle_container_created(&mut self, container: Container) -> bool {
+    pub(super) fn handle_container_created(&mut self, container: Container) -> RenderAction {
         let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
         self.containers.insert(key.clone(), container);
         self.sorted_container_keys.push(key);
@@ -37,10 +39,10 @@ impl AppState {
             self.table_state.select(Some(0));
         }
 
-        true // Force draw - table structure changed
+        RenderAction::Render // Force draw - table structure changed
     }
 
-    pub(super) fn handle_container_destroyed(&mut self, key: ContainerKey) -> bool {
+    pub(super) fn handle_container_destroyed(&mut self, key: ContainerKey) -> RenderAction {
         self.containers.remove(&key);
         self.sorted_container_keys.retain(|k| k != &key);
 
@@ -54,40 +56,40 @@ impl AppState {
             self.table_state.select(Some(container_count - 1));
         }
 
-        true // Force draw - table structure changed
+        RenderAction::Render // Force draw - table structure changed
     }
 
     pub(super) fn handle_container_state_changed(
         &mut self,
         key: ContainerKey,
         state: ContainerState,
-    ) -> bool {
+    ) -> RenderAction {
         if let Some(container) = self.containers.get_mut(&key) {
             container.state = state;
-            return true; // Force draw - state changed
+            return RenderAction::Render; // Force draw - state changed
         }
-        false
+        RenderAction::None
     }
 
     pub(super) fn handle_container_stat(
         &mut self,
         key: ContainerKey,
         stats: ContainerStats,
-    ) -> bool {
+    ) -> RenderAction {
         if let Some(container) = self.containers.get_mut(&key) {
             container.stats = stats;
         }
-        false // No force draw - just stats update
+        RenderAction::None // No force draw - just stats update
     }
 
     pub(super) fn handle_container_health_changed(
         &mut self,
         key: ContainerKey,
         health: HealthStatus,
-    ) -> bool {
+    ) -> RenderAction {
         if let Some(container) = self.containers.get_mut(&key) {
             container.health = Some(health);
         }
-        true // Force draw - health status changed (visible in UI)
+        RenderAction::Render // Force draw - health status changed (visible in UI)
     }
 }

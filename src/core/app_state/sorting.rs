@@ -1,11 +1,11 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerState, SortDirection, SortField, ViewState};
+use crate::core::types::{ContainerState, RenderAction, SortDirection, SortField, ViewState};
 
 impl AppState {
-    pub(super) fn handle_cycle_sort_field(&mut self) -> bool {
+    pub(super) fn handle_cycle_sort_field(&mut self) -> RenderAction {
         // Only handle in ContainerList view
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         // Cycle to next sort field with default direction
@@ -14,13 +14,13 @@ impl AppState {
         // Re-sort the container list
         self.sort_containers();
 
-        true // Force redraw - sort order changed
+        RenderAction::Render // Force redraw - sort order changed
     }
 
-    pub(super) fn handle_set_sort_field(&mut self, field: SortField) -> bool {
+    pub(super) fn handle_set_sort_field(&mut self, field: SortField) -> RenderAction {
         // Only handle in ContainerList view
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         // If same field, toggle direction; otherwise use default direction
@@ -33,13 +33,13 @@ impl AppState {
         // Re-sort the container list
         self.sort_containers();
 
-        true // Force redraw - sort order changed
+        RenderAction::Render // Force redraw - sort order changed
     }
 
-    pub(super) fn handle_toggle_show_all(&mut self) -> bool {
+    pub(super) fn handle_toggle_show_all(&mut self) -> RenderAction {
         // Only handle in ContainerList view
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         // Toggle the show_all_containers flag
@@ -58,7 +58,7 @@ impl AppState {
             self.table_state.select(Some(container_count - 1));
         }
 
-        true // Force redraw - visibility changed
+        RenderAction::Render // Force redraw - visibility changed
     }
 
     /// Sorts the container keys based on the current sort field and direction
