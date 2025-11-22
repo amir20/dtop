@@ -20,9 +20,11 @@ Type "/"
 Escape
 Sleep 2s
 
-Right
+Enter
 Sleep 2s
 Escape
 Sleep 2s
 
-Enter
+Right
+
+Sleep 3s
