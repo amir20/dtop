@@ -25,9 +25,10 @@ pub struct Config {
 
 impl Config {
     /// Find and load config file from the following locations (in priority order):
-    /// 1. ./config.yaml or ./config.yml (relative to current directory)
-    /// 2. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
-    /// 3. ~/.dtop.yaml or ~/.dtop.yml
+    /// 1. ./config.yaml or ./config.yml
+    /// 2. ./.dtop.yaml or ./.dtop.yml
+    /// 3. ~/.config/dtop/config.yaml or ~/.config/dtop/config.yml
+    /// 4. ~/.dtop.yaml or ~/.dtop.yml
     ///
     /// Returns (Config, Option<PathBuf>) where the PathBuf is Some if a config file was found
     pub fn load_with_path() -> Result<(Self, Option<PathBuf>), Box<dyn std::error::Error>> {
@@ -46,11 +47,13 @@ impl Config {
 
     /// Get list of potential config file paths in priority order
     fn get_config_paths() -> Vec<PathBuf> {
-        let mut paths = Vec::new();
-
         // 1. Relative paths (current directory)
-        paths.push(PathBuf::from("config.yaml"));
-        paths.push(PathBuf::from("config.yml"));
+        let mut paths = vec![
+            PathBuf::from("config.yaml"),
+            PathBuf::from("config.yml"),
+            PathBuf::from(".dtop.yaml"),
+            PathBuf::from(".dtop.yml"),
+        ];
 
         // 2. ~/.config/dtop/config.{yaml,yml}
         if let Some(home) = dirs::home_dir() {

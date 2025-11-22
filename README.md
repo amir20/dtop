@@ -119,11 +119,12 @@ Options:
 
 ## Configuration File
 
-`dtop` supports command line flags or configuration file. The configuration file reads from the following locations:
+`dtop` supports command line flags or configuration file. The configuration file reads from the following locations (in priority order):
 
-- `./config.yaml`
-- `~/.dtop.yaml`
-- `~/.config/dtop/config.yaml`
+1. `./config.yaml` or `./config.yml`
+2. `./.dtop.yaml` or `./.dtop.yml`
+3. `~/.config/dtop/config.yaml` or `~/.config/dtop/config.yml`
+4. `~/.dtop.yaml` or `~/.dtop.yml`
 
 > [!Note]
 > Both `yaml` and `yml` files are supported.
