@@ -56,8 +56,8 @@ struct Args {
     /// Options:
     ///   unicode  - Standard Unicode icons (default, works everywhere)
     ///   nerd     - Nerd Font icons (requires Nerd Font installed)
-    #[arg(short = 'i', long, default_value = "unicode")]
-    icons: String,
+    #[arg(short = 'i', long)]
+    icons: Option<String>,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -118,9 +118,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Determine icon style (CLI takes precedence over config)
-    let icon_style = if args.icons != "unicode" {
-        // CLI explicitly set a non-default value
-        args.icons.parse::<IconStyle>().unwrap_or_default()
+    let icon_style = if let Some(ref cli_icons) = args.icons {
+        // CLI explicitly provided
+        cli_icons.parse::<IconStyle>().unwrap_or_default()
     } else if let Some(ref config_icons) = merged_config.icons {
         // Use config file value
         config_icons.parse::<IconStyle>().unwrap_or_default()
