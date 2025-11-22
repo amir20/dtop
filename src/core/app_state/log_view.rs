@@ -19,12 +19,24 @@ impl AppState {
                 return RenderAction::Render; // Force redraw to show filter bar
             }
             ViewState::ContainerList => {
-                // Open logs for selected container
+                // Show action menu for selected container
+                return self.handle_show_action_menu();
+            }
+            ViewState::ActionMenu(_) => {
+                // Execute selected action
+                return self.handle_execute_action();
             }
             _ => {
                 // Ignore Enter in other views
-                return RenderAction::None;
+                RenderAction::None
             }
+        }
+    }
+
+    pub(super) fn handle_show_log_view(&mut self) -> RenderAction {
+        // Only handle in ContainerList view
+        if self.view_state != ViewState::ContainerList {
+            return RenderAction::None;
         }
 
         // Get the selected container
@@ -70,25 +82,9 @@ impl AppState {
     }
 
     pub(super) fn handle_exit_log_view(&mut self) -> RenderAction {
-        // If help is shown, close it first
-        if self.show_help {
-            self.show_help = false;
-            return RenderAction::Render; // Force redraw
-        }
-
-        // Handle Escape based on current view state
-        match self.view_state {
-            ViewState::SearchMode => {
-                // Exit search mode and clear filter
-                return self.handle_exit_search_mode();
-            }
-            ViewState::LogView(_) => {
-                // Exit log view
-            }
-            _ => {
-                // Ignore Escape in other views
-                return RenderAction::None;
-            }
+        // Only handle in LogView
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
         }
 
         // Stop log streaming

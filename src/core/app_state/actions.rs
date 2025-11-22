@@ -27,9 +27,25 @@ impl AppState {
     }
 
     pub(super) fn handle_cancel_action_menu(&mut self) -> RenderAction {
-        // Only handle when in action menu view
-        if !matches!(self.view_state, ViewState::ActionMenu(_)) {
-            return RenderAction::None;
+        // If help is shown, close it first
+        if self.show_help {
+            self.show_help = false;
+            return RenderAction::Render; // Force redraw
+        }
+
+        // Handle Escape based on current view state
+        match self.view_state {
+            ViewState::SearchMode => {
+                // Exit search mode and clear filter
+                return self.handle_exit_search_mode();
+            }
+            ViewState::ActionMenu(_) => {
+                // Exit action menu
+            }
+            _ => {
+                // Ignore Escape in other views
+                return RenderAction::None;
+            }
         }
 
         // Switch back to container list view

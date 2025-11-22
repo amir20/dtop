@@ -11,10 +11,10 @@ dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)
                         │                                                                      │                        
                         │ Navigation                                                           │                        
                         │   ↑/↓ or j/k  Navigate containers or scroll logs                     │                        
-                        │   Enter       View logs for selected container                       │                        
-                        │   →/l         Open action menu for container                         │                        
-                        │   ←/h         Close action menu                                      │                        
-                        │   Esc         Exit log view, close menu, or close help               │                        
+                        │   Enter       Open action menu for container                         │                        
+                        │   →/l         View logs for selected container                       │                        
+                        │   ←/h         Exit log view                                          │                        
+                        │   Esc         Close action menu, search, or help                     │                        
                         │   o           Open container in Dozzle (if configured and available) │                        
                         │   a/A         Toggle showing all containers (including stopped)      │                        
                         │   /           Filter containers by name, id or host                  │                        

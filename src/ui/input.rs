@@ -76,13 +76,11 @@ fn handle_key_event(key: KeyEvent, tx: &EventSender) {
             let _ = tx.blocking_send(AppEvent::SelectActionDown);
         }
         KeyCode::Enter => {
-            // Send both events - handler will decide based on view state
+            // Send EnterPressed - handler will show action menu or execute action based on view state
             let _ = tx.blocking_send(AppEvent::EnterPressed);
-            let _ = tx.blocking_send(AppEvent::ExecuteAction);
         }
         KeyCode::Esc => {
             // Send both events - handler will decide based on view state
-            let _ = tx.blocking_send(AppEvent::ExitLogView);
             let _ = tx.blocking_send(AppEvent::CancelActionMenu);
         }
         KeyCode::Char('o') => {
@@ -110,10 +108,10 @@ fn handle_key_event(key: KeyEvent, tx: &EventSender) {
             let _ = tx.blocking_send(AppEvent::ToggleShowAll);
         }
         KeyCode::Right | KeyCode::Char('l') => {
-            let _ = tx.blocking_send(AppEvent::ShowActionMenu);
+            let _ = tx.blocking_send(AppEvent::ShowLogView);
         }
         KeyCode::Left | KeyCode::Char('h') => {
-            let _ = tx.blocking_send(AppEvent::CancelActionMenu);
+            let _ = tx.blocking_send(AppEvent::ExitLogView);
         }
         _ => {}
     }
