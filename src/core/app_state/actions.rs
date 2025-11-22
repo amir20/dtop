@@ -39,6 +39,10 @@ impl AppState {
                 // Exit search mode and clear filter
                 return self.handle_exit_search_mode();
             }
+            ViewState::LogView(_) => {
+                // Exit log view
+                return self.handle_exit_log_view();
+            }
             ViewState::ActionMenu(_) => {
                 // Exit action menu
             }
