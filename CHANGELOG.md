@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2025-11-22
+
+### Features
+
+- Adds exec support for shell 🎉 (#146)
+- Supports nerd fonts (#148)
+- Changes keyboard shortcuts to use arrow for logs and enter to show action menu (#150)
+
 ## [0.4.6] - 2025-11-22
 
 ### Features
