@@ -1,13 +1,14 @@
 use bollard::exec::{CreateExecOptions, ResizeExecOptions, StartExecOptions, StartExecResults};
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use futures_util::StreamExt;
-use std::io::{self, Write};
+use std::io;
 use tokio::io::AsyncWriteExt as _;
+use tokio::sync::mpsc;
 
 use crate::docker::connection::DockerHost;
 
@@ -27,7 +28,10 @@ pub async fn run_shell_session(
     terminal::disable_raw_mode()?;
 
     // Print a message so user knows shell is starting
+    println!();
     println!("Connecting to shell in container {}...", container_id);
+    println!("Press Ctrl+D to exit");
+    println!();
 
     // Get terminal size
     let (cols, rows) = terminal::size()?;
@@ -85,86 +89,109 @@ pub async fn run_shell_session(
             // Enable raw mode for the shell session
             terminal::enable_raw_mode()?;
 
-            // Spawn task to read from container and write to stdout
-            let output_handle = tokio::spawn(async move {
-                let mut stdout = io::stdout();
-                while let Some(result) = output.next().await {
-                    match result {
-                        Ok(output) => {
-                            let bytes = output.into_bytes();
-                            let _ = stdout.write_all(&bytes);
-                            let _ = stdout.flush();
+            // Create channel for input events from blocking thread
+            let (input_tx, mut input_rx) = mpsc::channel::<InputEvent>(32);
+
+            // Spawn blocking thread for crossterm event reading
+            let input_handle = std::thread::spawn(move || {
+                loop {
+                    // 100ms poll timeout - human input doesn't need 1ms responsiveness
+                    if crossterm::event::poll(std::time::Duration::from_millis(100))
+                        .unwrap_or(false)
+                    {
+                        match crossterm::event::read() {
+                            Ok(event) => {
+                                if input_tx.blocking_send(InputEvent::Event(event)).is_err() {
+                                    break; // Channel closed, exit thread
+                                }
+                            }
+                            Err(_) => break,
                         }
-                        Err(_) => break,
+                    }
+
+                    // Check if we should shutdown (channel closed)
+                    if input_tx.is_closed() {
+                        break;
                     }
                 }
             });
 
-            // Read from stdin and write to container
-            loop {
-                if event::poll(std::time::Duration::from_millis(1))? {
-                    match event::read()? {
-                        Event::Key(key_event) => {
-                            // Check for Ctrl-D or Ctrl-C to potentially exit
-                            let bytes = match key_event.code {
-                                KeyCode::Char('d')
-                                    if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-                                {
-                                    vec![4] // EOT
+            // Spawn async task to read from container and write to stdout
+            let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+            let output_handle = tokio::spawn(async move {
+                let mut stdout = tokio::io::stdout();
+                loop {
+                    tokio::select! {
+                        biased;
+                        _ = shutdown_rx.recv() => break,
+                        result = output.next() => {
+                            match result {
+                                Some(Ok(output)) => {
+                                    let bytes = output.into_bytes();
+                                    if stdout.write_all(&bytes).await.is_err() {
+                                        break;
+                                    }
+                                    if stdout.flush().await.is_err() {
+                                        break;
+                                    }
                                 }
-                                KeyCode::Char('c')
-                                    if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-                                {
-                                    vec![3] // ETX
-                                }
-                                KeyCode::Char(c)
-                                    if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-                                {
-                                    // Convert Ctrl+letter to control character
-                                    vec![(c as u8) & 0x1f]
-                                }
-                                KeyCode::Char(c) => c.to_string().into_bytes(),
-                                KeyCode::Enter => vec![13],
-                                KeyCode::Backspace => vec![127],
-                                KeyCode::Tab => vec![9],
-                                KeyCode::Esc => vec![27],
-                                KeyCode::Up => vec![27, 91, 65],
-                                KeyCode::Down => vec![27, 91, 66],
-                                KeyCode::Right => vec![27, 91, 67],
-                                KeyCode::Left => vec![27, 91, 68],
-                                KeyCode::Home => vec![27, 91, 72],
-                                KeyCode::End => vec![27, 91, 70],
-                                KeyCode::Delete => vec![27, 91, 51, 126],
-                                _ => continue,
-                            };
-
-                            if input.write_all(&bytes).await.is_err() {
-                                break;
-                            }
-                            if input.flush().await.is_err() {
-                                break;
+                                Some(Err(_)) | None => break,
                             }
                         }
-                        Event::Resize(cols, rows) => {
-                            // Resize the TTY
-                            let resize_options = ResizeExecOptions {
-                                height: rows,
-                                width: cols,
-                            };
-                            let _ = host.docker.resize_exec(&exec_id, resize_options).await;
-                        }
-                        _ => {}
                     }
                 }
+            });
 
-                // Check if output task has finished (shell exited)
-                if output_handle.is_finished() {
-                    break;
+            // Main async loop to process input events and send to container
+            let exec_id_clone = exec_id.clone();
+            let docker_clone = host.docker.clone();
+            loop {
+                tokio::select! {
+                    biased;
+                    // Check if output task finished (shell exited)
+                    _ = async {
+                        while !output_handle.is_finished() {
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        }
+                    } => {
+                        break;
+                    }
+                    // Process input events from the blocking thread
+                    event = input_rx.recv() => {
+                        match event {
+                            Some(InputEvent::Event(Event::Key(key_event))) => {
+                                let Some(bytes) = key_to_bytes(key_event) else {
+                                    continue;
+                                };
+
+                                if input.write_all(&bytes).await.is_err() {
+                                    break;
+                                }
+                                if input.flush().await.is_err() {
+                                    break;
+                                }
+                            }
+                            Some(InputEvent::Event(Event::Resize(cols, rows))) => {
+                                let resize_options = ResizeExecOptions {
+                                    height: rows,
+                                    width: cols,
+                                };
+                                let _ = docker_clone.resize_exec(&exec_id_clone, resize_options).await;
+                            }
+                            Some(InputEvent::Event(_)) => {}
+                            None => break, // Input channel closed
+                        }
+                    }
                 }
             }
 
-            // Wait for output task to complete
+            // Signal output task to shutdown and wait for completion
+            let _ = shutdown_tx.send(()).await;
             let _ = output_handle.await;
+
+            // Input thread will exit when channel is dropped
+            drop(input_rx);
+            let _ = input_handle.join();
         }
         StartExecResults::Detached => {
             return Err("Exec started in detached mode unexpectedly".into());
@@ -182,4 +209,39 @@ pub async fn run_shell_session(
     terminal::enable_raw_mode()?;
 
     Ok(())
+}
+
+/// Input events from the blocking crossterm thread
+enum InputEvent {
+    Event(Event),
+}
+
+/// Convert a key event to bytes to send to the container
+fn key_to_bytes(key_event: KeyEvent) -> Option<Vec<u8>> {
+    use KeyCode::*;
+
+    Some(match key_event.code {
+        Char(c) if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+            if c == 'd' {
+                return Some(vec![4]);
+            } // Special case common ones
+            if c == 'c' {
+                return Some(vec![3]);
+            }
+            vec![(c as u8) & 0x1f]
+        }
+        Char(c) => c.to_string().into_bytes(),
+        Enter => vec![b'\r'],
+        Backspace => vec![0x7f],
+        Tab => vec![b'\t'],
+        Esc => vec![0x1b],
+        Up => b"\x1b[A".to_vec(),
+        Down => b"\x1b[B".to_vec(),
+        Right => b"\x1b[C".to_vec(),
+        Left => b"\x1b[D".to_vec(),
+        Home => b"\x1b[H".to_vec(),
+        End => b"\x1b[F".to_vec(),
+        Delete => b"\x1b[3~".to_vec(),
+        _ => return None,
+    })
 }
