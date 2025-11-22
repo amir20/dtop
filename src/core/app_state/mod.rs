@@ -5,7 +5,9 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
 
-use crate::core::types::{AppEvent, Container, ContainerKey, HostId, SortState, ViewState};
+use crate::core::types::{
+    AppEvent, Container, ContainerKey, HostId, RenderAction, SortState, ViewState,
+};
 use crate::docker::connection::DockerHost;
 
 // Import all the event handler modules
@@ -93,8 +95,8 @@ impl AppState {
         }
     }
 
-    /// Processes a single event and returns whether UI should be redrawn
-    pub fn handle_event(&mut self, event: AppEvent) -> bool {
+    /// Processes a single event and returns what action to take
+    pub fn handle_event(&mut self, event: AppEvent) -> RenderAction {
         // Log stats and log lines at TRACE level since they're very frequent, everything else at DEBUG
         match &event {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
@@ -115,10 +117,10 @@ impl AppState {
             AppEvent::ContainerHealthChanged(key, health) => {
                 self.handle_container_health_changed(key, health)
             }
-            AppEvent::Resize => true, // Always redraw on resize
+            AppEvent::Resize => RenderAction::Render, // Always redraw on resize
             AppEvent::Quit => {
                 self.should_quit = true;
-                false
+                RenderAction::None
             }
             AppEvent::SelectPrevious => self.handle_select_previous(),
             AppEvent::SelectNext => self.handle_select_next(),
@@ -148,11 +150,12 @@ impl AppState {
                 self.handle_connection_error(host_id, error)
             }
             AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
+            AppEvent::StartShell(key) => RenderAction::StartShell(key),
         }
     }
 
     /// Handles a connection error by storing it with a timestamp
-    fn handle_connection_error(&mut self, host_id: HostId, error: String) -> bool {
+    fn handle_connection_error(&mut self, host_id: HostId, error: String) -> RenderAction {
         // Store the error with current timestamp
         self.connection_errors
             .insert(host_id, (error, Instant::now()));
@@ -161,11 +164,11 @@ impl AppState {
         self.connection_errors
             .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
 
-        true // Redraw to show the error
+        RenderAction::Render // Redraw to show the error
     }
 
     /// Handles a new Docker host connection by adding it to the connected hosts
-    fn handle_host_connected(&mut self, docker_host: DockerHost) -> bool {
+    fn handle_host_connected(&mut self, docker_host: DockerHost) -> RenderAction {
         use tracing::debug;
 
         let host_id = docker_host.host_id.clone();
@@ -175,6 +178,6 @@ impl AppState {
         // Clear any connection error for this host
         self.connection_errors.remove(&host_id);
 
-        false // No need to force redraw, container list will update via normal events
+        RenderAction::None // No need to force redraw, container list will update via normal events
     }
 }

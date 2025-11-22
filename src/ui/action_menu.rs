@@ -116,6 +116,7 @@ fn action_icon(action: ContainerAction) -> &'static str {
         ContainerAction::Stop => "■",
         ContainerAction::Restart => "↻",
         ContainerAction::Remove => "🗑",
+        ContainerAction::Shell => ">_",
     }
 }
 

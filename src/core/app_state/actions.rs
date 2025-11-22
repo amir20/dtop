@@ -1,20 +1,20 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerAction, ContainerKey, ViewState};
+use crate::core::types::{ContainerAction, ContainerKey, RenderAction, ViewState};
 
 impl AppState {
-    pub(super) fn handle_show_action_menu(&mut self) -> bool {
+    pub(super) fn handle_show_action_menu(&mut self) -> RenderAction {
         // Only handle in ContainerList view
         if self.view_state != ViewState::ContainerList {
-            return false;
+            return RenderAction::None;
         }
 
         // Get the selected container
         let Some(selected_idx) = self.table_state.selected() else {
-            return false;
+            return RenderAction::None;
         };
 
         let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
-            return false;
+            return RenderAction::None;
         };
 
         // Switch to action menu view
@@ -23,13 +23,13 @@ impl AppState {
         // Reset action menu selection to first item
         self.action_menu_state.select(Some(0));
 
-        true // Force draw - view changed
+        RenderAction::Render // Force draw - view changed
     }
 
-    pub(super) fn handle_cancel_action_menu(&mut self) -> bool {
+    pub(super) fn handle_cancel_action_menu(&mut self) -> RenderAction {
         // Only handle when in action menu view
         if !matches!(self.view_state, ViewState::ActionMenu(_)) {
-            return false;
+            return RenderAction::None;
         }
 
         // Switch back to container list view
@@ -38,90 +38,101 @@ impl AppState {
         // Clear action menu selection
         self.action_menu_state.select(None);
 
-        true // Force draw - view changed
+        RenderAction::Render // Force draw - view changed
     }
 
-    pub(super) fn handle_select_action_up(&mut self) -> bool {
+    pub(super) fn handle_select_action_up(&mut self) -> RenderAction {
         // Only handle in action menu view
         let ViewState::ActionMenu(ref container_key) = self.view_state else {
-            return false;
+            return RenderAction::None;
         };
 
         // Get the container to determine available actions
         let Some(container) = self.containers.get(container_key) else {
-            return false;
+            return RenderAction::None;
         };
 
         let available_actions = ContainerAction::available_for_state(&container.state);
 
         if available_actions.is_empty() {
-            return false;
+            return RenderAction::None;
         }
 
         // Move selection up
         let current = self.action_menu_state.selected().unwrap_or(0);
         if current > 0 {
             self.action_menu_state.select(Some(current - 1));
-            true // Force draw
+            RenderAction::Render // Force draw
         } else {
-            false
+            RenderAction::None
         }
     }
 
-    pub(super) fn handle_select_action_down(&mut self) -> bool {
+    pub(super) fn handle_select_action_down(&mut self) -> RenderAction {
         // Only handle in action menu view
         let ViewState::ActionMenu(ref container_key) = self.view_state else {
-            return false;
+            return RenderAction::None;
         };
 
         // Get the container to determine available actions
         let Some(container) = self.containers.get(container_key) else {
-            return false;
+            return RenderAction::None;
         };
 
         let available_actions = ContainerAction::available_for_state(&container.state);
 
         if available_actions.is_empty() {
-            return false;
+            return RenderAction::None;
         }
 
         // Move selection down
         let current = self.action_menu_state.selected().unwrap_or(0);
         if current < available_actions.len() - 1 {
             self.action_menu_state.select(Some(current + 1));
-            true // Force draw
+            RenderAction::Render // Force draw
         } else {
-            false
+            RenderAction::None
         }
     }
 
-    pub(super) fn handle_execute_action(&mut self) -> bool {
+    pub(super) fn handle_execute_action(&mut self) -> RenderAction {
         // Only handle in action menu view
         let ViewState::ActionMenu(ref container_key) = self.view_state else {
-            return false;
+            return RenderAction::None;
         };
 
         // Get the selected action
         let Some(selected_idx) = self.action_menu_state.selected() else {
-            return false;
+            return RenderAction::None;
         };
 
         // Get the container to determine available actions
         let Some(container) = self.containers.get(container_key) else {
-            return false;
+            return RenderAction::None;
         };
 
         let available_actions = ContainerAction::available_for_state(&container.state);
 
         let Some(&action) = available_actions.get(selected_idx) else {
-            return false;
+            return RenderAction::None;
         };
 
         // Get the Docker host for this container
         let Some(host) = self.connected_hosts.get(&container_key.host_id) else {
             // Silently fail if host not found
-            return false;
+            return RenderAction::None;
         };
+
+        // Handle Shell action specially - it needs to take over the terminal
+        if action == ContainerAction::Shell {
+            let container_key_clone = container_key.clone();
+
+            // Close the action menu immediately
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+
+            return RenderAction::StartShell(container_key_clone);
+        }
 
         // Spawn async task to execute the action
         let host_clone = host.clone();
@@ -142,28 +153,28 @@ impl AppState {
         self.view_state = ViewState::ContainerList;
         self.action_menu_state.select(None);
 
-        true // Force draw
+        RenderAction::Render // Force draw
     }
 
     pub(super) fn handle_action_in_progress(
         &mut self,
         _key: ContainerKey,
         _action: ContainerAction,
-    ) -> bool {
+    ) -> RenderAction {
         // TODO: Could show a loading indicator in the UI in the future
         // For now, just let Docker events update the container state
-        false // Don't force redraw for progress events
+        RenderAction::None // Don't force redraw for progress events
     }
 
     pub(super) fn handle_action_success(
         &mut self,
         _key: ContainerKey,
         _action: ContainerAction,
-    ) -> bool {
+    ) -> RenderAction {
         // TODO: Could show a success toast/notification in the UI in the future
         // The container state will be updated by Docker events
         // so we don't need to manually update it here
-        false // Don't force redraw - Docker events will trigger updates
+        RenderAction::None // Don't force redraw - Docker events will trigger updates
     }
 
     pub(super) fn handle_action_error(
@@ -171,9 +182,9 @@ impl AppState {
         _key: ContainerKey,
         _action: ContainerAction,
         _error: String,
-    ) -> bool {
+    ) -> RenderAction {
         // TODO: Could show an error toast/notification in the UI in the future
         // For now, silently fail - the container state won't change on error
-        false // Don't force redraw for error messages
+        RenderAction::None // Don't force redraw for error messages
     }
 }

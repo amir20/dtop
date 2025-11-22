@@ -3,37 +3,37 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerKey, ViewState};
+use crate::core::types::{ContainerKey, RenderAction, ViewState};
 use crate::docker::logs::LogEntry;
 
 /// Style for log timestamps (yellow + bold)
 const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
 impl AppState {
-    pub(super) fn handle_enter_pressed(&mut self) -> bool {
+    pub(super) fn handle_enter_pressed(&mut self) -> RenderAction {
         // Handle Enter based on current view state
         match self.view_state {
             ViewState::SearchMode => {
                 // Apply filter and return to ContainerList view
                 self.view_state = ViewState::ContainerList;
-                return true; // Force redraw to show filter bar
+                return RenderAction::Render; // Force redraw to show filter bar
             }
             ViewState::ContainerList => {
                 // Open logs for selected container
             }
             _ => {
                 // Ignore Enter in other views
-                return false;
+                return RenderAction::None;
             }
         }
 
         // Get the selected container
         let Some(selected_idx) = self.table_state.selected() else {
-            return false;
+            return RenderAction::None;
         };
 
         let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
-            return false;
+            return RenderAction::None;
         };
 
         // Switch to log view
@@ -66,14 +66,14 @@ impl AppState {
             self.log_stream_handle = Some(handle);
         }
 
-        true // Force draw - view changed
+        RenderAction::Render // Force draw - view changed
     }
 
-    pub(super) fn handle_exit_log_view(&mut self) -> bool {
+    pub(super) fn handle_exit_log_view(&mut self) -> RenderAction {
         // If help is shown, close it first
         if self.show_help {
             self.show_help = false;
-            return true; // Force redraw
+            return RenderAction::Render; // Force redraw
         }
 
         // Handle Escape based on current view state
@@ -87,7 +87,7 @@ impl AppState {
             }
             _ => {
                 // Ignore Escape in other views
-                return false;
+                return RenderAction::None;
             }
         }
 
@@ -103,29 +103,29 @@ impl AppState {
         // Switch back to container list view
         self.view_state = ViewState::ContainerList;
 
-        true // Force draw - view changed
+        RenderAction::Render // Force draw - view changed
     }
 
-    pub(super) fn handle_scroll_up(&mut self) -> bool {
+    pub(super) fn handle_scroll_up(&mut self) -> RenderAction {
         // Only handle scroll in log view
         if !matches!(self.view_state, ViewState::LogView(_)) {
-            return false;
+            return RenderAction::None;
         }
 
         // Scroll up (decrease offset)
         if self.log_scroll_offset > 0 {
             self.log_scroll_offset = self.log_scroll_offset.saturating_sub(1);
             self.is_at_bottom = false; // User scrolled away from bottom
-            return true; // Force draw
+            return RenderAction::Render; // Force draw
         }
 
-        false
+        RenderAction::None
     }
 
-    pub(super) fn handle_scroll_down(&mut self) -> bool {
+    pub(super) fn handle_scroll_down(&mut self) -> RenderAction {
         // Only handle scroll in log view
         if !matches!(self.view_state, ViewState::LogView(_)) {
-            return false;
+            return RenderAction::None;
         }
 
         // Only scroll if we have a log container
@@ -134,13 +134,17 @@ impl AppState {
             self.log_scroll_offset = self.log_scroll_offset.saturating_add(1);
 
             // Will be clamped in UI and is_at_bottom will be recalculated there
-            return true; // Force draw
+            return RenderAction::Render; // Force draw
         }
 
-        false
+        RenderAction::None
     }
 
-    pub(super) fn handle_log_line(&mut self, key: ContainerKey, log_entry: LogEntry) -> bool {
+    pub(super) fn handle_log_line(
+        &mut self,
+        key: ContainerKey,
+        log_entry: LogEntry,
+    ) -> RenderAction {
         // Only add log line if we're currently viewing this container's logs
         if let Some(current_key) = &self.current_log_container
             && current_key == &key
@@ -165,10 +169,10 @@ impl AppState {
                 // Scroll will be updated to show bottom in UI
             }
 
-            return true; // Force draw - new log line for currently viewed container
+            return RenderAction::Render; // Force draw - new log line for currently viewed container
         }
 
         // Ignore log lines for containers we're not viewing
-        false
+        RenderAction::None
     }
 }

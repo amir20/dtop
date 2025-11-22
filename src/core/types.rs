@@ -184,9 +184,23 @@ pub enum AppEvent {
     ConnectionError(HostId, String),
     /// A new Docker host has successfully connected
     HostConnected(crate::docker::connection::DockerHost),
+    /// Start a shell session in a container
+    #[allow(dead_code)] // Constructed in keyboard_worker via event sender
+    StartShell(ContainerKey),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
+
+/// Action to take after processing an event
+#[derive(Clone, Debug, PartialEq)]
+pub enum RenderAction {
+    /// Don't render
+    None,
+    /// Normal render
+    Render,
+    /// Start a shell session for a container
+    StartShell(ContainerKey),
+}
 
 /// Current view state of the application
 #[derive(Clone, Debug, PartialEq)]
@@ -208,6 +222,7 @@ pub enum ContainerAction {
     Stop,
     Restart,
     Remove,
+    Shell,
 }
 
 impl ContainerAction {
@@ -218,6 +233,7 @@ impl ContainerAction {
             ContainerAction::Stop => "Stop",
             ContainerAction::Restart => "Restart",
             ContainerAction::Remove => "Remove",
+            ContainerAction::Shell => "Shell",
         }
     }
 
@@ -225,6 +241,7 @@ impl ContainerAction {
     pub fn available_for_state(state: &ContainerState) -> Vec<ContainerAction> {
         match state {
             ContainerState::Running => vec![
+                ContainerAction::Shell,
                 ContainerAction::Stop,
                 ContainerAction::Restart,
                 ContainerAction::Remove,

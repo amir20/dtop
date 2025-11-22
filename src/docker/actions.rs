@@ -23,6 +23,11 @@ pub async fn execute_container_action(
         ContainerAction::Stop => stop_container(&host, &container_key.container_id).await,
         ContainerAction::Restart => restart_container(&host, &container_key.container_id).await,
         ContainerAction::Remove => remove_container(&host, &container_key.container_id).await,
+        ContainerAction::Shell => {
+            // Shell is handled separately in main.rs via StartShell event
+            // This path should never be reached
+            return;
+        }
     };
 
     // Send result event
