@@ -1,4 +1,4 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, MouseEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -26,19 +26,6 @@ pub fn keyboard_worker(tx: EventSender, paused: Arc<AtomicBool>) {
                 Event::Resize(_, _) => {
                     let _ = tx.blocking_send(AppEvent::Resize);
                 }
-                Event::Mouse(mouse) => match mouse.kind {
-                    MouseEventKind::ScrollUp => {
-                        // Send both events - handler will decide based on view state
-                        let _ = tx.blocking_send(AppEvent::SelectPrevious);
-                        let _ = tx.blocking_send(AppEvent::ScrollUp);
-                    }
-                    MouseEventKind::ScrollDown => {
-                        // Send both events - handler will decide based on view state
-                        let _ = tx.blocking_send(AppEvent::SelectNext);
-                        let _ = tx.blocking_send(AppEvent::ScrollDown);
-                    }
-                    _ => {}
-                },
                 _ => {}
             }
         }
