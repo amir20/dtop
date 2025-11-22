@@ -171,8 +171,8 @@ src/
 
 6. **Keyboard Worker** (`ui/input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms
-   - Handles: 'q'/Ctrl-C (quit), Enter (view logs/action), Esc (exit view), Up/Down (navigate/scroll)
-   - Arrow keys: Left (cancel action menu), Right (show action menu), '/' (search mode)
+   - Handles: 'q'/Ctrl-C (quit), Enter (show action menu/execute), Esc (exit view/cancel), Up/Down (navigate/scroll)
+   - Arrow keys: Right (view logs), Left (exit log view), '/' (search mode)
    - Separate thread because crossterm's event polling is blocking
 
 7. **Container Actions** (`docker/actions.rs::execute_container_action`)
@@ -211,8 +211,9 @@ Container-related events use structured types to identify containers across host
 - `Resize` - Terminal was resized
 - `SelectPrevious` - Move selection up (Up arrow in container list)
 - `SelectNext` - Move selection down (Down arrow in container list)
-- `EnterPressed` - User pressed Enter to view logs
-- `ExitLogView` - User pressed Escape to exit log view
+- `EnterPressed` - User pressed Enter to show action menu or execute action
+- `ExitLogView` - User pressed Left arrow to exit log view
+- `ShowLogView` - User pressed Right arrow to view logs
 - `ScrollUp` - Scroll up in log view (Up arrow)
 - `ScrollDown` - Scroll down in log view (Down arrow)
 - `LogLine(ContainerKey, LogEntry)` - New log line received from streaming logs
@@ -221,11 +222,9 @@ Container-related events use structured types to identify containers across host
 - `CycleSortField` - User pressed 's' to cycle through sort fields
 - `SetSortField(SortField)` - User pressed a specific key to set sort field (u/n/c/m)
 - `ToggleShowAll` - User pressed 'a' to toggle showing all containers (including stopped)
-- `ShowActionMenu` - User pressed Right arrow to show action menu
-- `CancelActionMenu` - User pressed Left arrow/Esc to cancel action menu
+- `CancelActionMenu` - User pressed Esc to cancel action menu or exit views
 - `SelectActionUp` - Navigate up in action menu (Up arrow)
 - `SelectActionDown` - Navigate down in action menu (Down arrow)
-- `ExecuteAction` - Execute selected action (Enter in action menu)
 - `ActionInProgress(ContainerKey, ContainerAction)` - Container action started
 - `ActionSuccess(ContainerKey, ContainerAction)` - Container action completed successfully
 - `ActionError(ContainerKey, ContainerAction, String)` - Container action failed
@@ -578,8 +577,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 
 **Container List View:**
 - `↑/↓` - Navigate between containers
-- `Enter` - View logs for selected container
-- `→` - Show action menu for selected container
+- `Enter` - Open action menu for selected container
+- `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application
 - `o` - Open Dozzle for selected container (if configured and not in SSH session)
 - `?` - Toggle help popup
@@ -593,14 +592,14 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 
 **Log View:**
 - `↑/↓` - Scroll through logs manually
-- `Esc` - Return to container list
+- `←/h` or `Esc` - Return to container list
 - `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)
 
 **Action Menu:**
 - `↑/↓` - Navigate between available actions
 - `Enter` - Execute selected action
-- `Esc` or `←` - Cancel and return to container list
+- `Esc` - Cancel and return to container list
 - Available actions depend on container state (e.g., running containers can be stopped/restarted)
 
 **Search Mode:**
