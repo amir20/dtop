@@ -46,13 +46,13 @@ impl Config {
 
     /// Get list of potential config file paths in priority order
     fn get_config_paths() -> Vec<PathBuf> {
-        let mut paths = Vec::new();
-
         // 1. Relative paths (current directory)
-        paths.push(PathBuf::from("config.yaml"));
-        paths.push(PathBuf::from("config.yml"));
-        paths.push(PathBuf::from(".dtop.yaml"));
-        paths.push(PathBuf::from(".dtop.yml"));
+        let mut paths = vec![
+            PathBuf::from("config.yaml"),
+            PathBuf::from("config.yml"),
+            PathBuf::from(".dtop.yaml"),
+            PathBuf::from(".dtop.yml"),
+        ];
 
         // 2. ~/.config/dtop/config.{yaml,yml}
         if let Some(home) = dirs::home_dir() {
