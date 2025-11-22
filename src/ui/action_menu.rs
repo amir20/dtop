@@ -73,7 +73,7 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
     let list_items: Vec<ListItem> = available_actions
         .iter()
         .map(|action| {
-            let icon = action_icon(*action);
+            let icon = styles.icons.action(*action);
             let text = format!(" {}  {}", icon, action.display_name());
             ListItem::new(text).style(Style::default().fg(Color::White))
         })
@@ -107,17 +107,6 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
         .alignment(Alignment::Center);
 
     f.render_widget(footer, footer_area);
-}
-
-/// Returns an icon for the given action
-fn action_icon(action: ContainerAction) -> &'static str {
-    match action {
-        ContainerAction::Start => "▶",
-        ContainerAction::Stop => "■",
-        ContainerAction::Restart => "↻",
-        ContainerAction::Remove => "🗑",
-        ContainerAction::Shell => ">_",
-    }
 }
 
 /// Truncates a string to the specified length, adding ellipsis if needed

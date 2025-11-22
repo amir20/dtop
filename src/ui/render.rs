@@ -12,6 +12,7 @@ use crate::core::types::ViewState;
 use crate::ui::action_menu::render_action_menu;
 use crate::ui::container_list::render_container_list;
 use crate::ui::help::render_help_popup;
+use crate::ui::icons::{IconStyle, Icons};
 use crate::ui::log_view::render_log_view;
 
 /// Pre-allocated styles to avoid recreation every frame
@@ -23,6 +24,7 @@ pub struct UiStyles {
     pub border: Style,
     pub selected: Style,
     pub search_bar: Style,
+    pub icons: Icons,
 }
 
 impl Default for UiStyles {
@@ -41,6 +43,17 @@ impl Default for UiStyles {
             search_bar: Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
+            icons: Icons::default(),
+        }
+    }
+}
+
+impl UiStyles {
+    /// Create UiStyles with a specific icon style
+    pub fn with_icon_style(icon_style: IconStyle) -> Self {
+        Self {
+            icons: Icons::new(icon_style),
+            ..Default::default()
         }
     }
 }

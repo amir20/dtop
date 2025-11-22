@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::core::types::{ContainerState, HealthStatus};
 use crate::ui::render::UiStyles;
 
 /// Renders a centered help popup
@@ -71,27 +72,54 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
-            Span::styled("  ✓ ", Style::default().fg(Color::Green)),
+            Span::styled(
+                format!("  {} ", styles.icons.health(&HealthStatus::Healthy)),
+                Style::default().fg(Color::Green),
+            ),
             Span::raw("Healthy  "),
-            Span::styled("✖ ", Style::default().fg(Color::Red)),
+            Span::styled(
+                format!("{} ", styles.icons.health(&HealthStatus::Unhealthy)),
+                Style::default().fg(Color::Red),
+            ),
             Span::raw("Unhealthy  "),
-            Span::styled("◐ ", Style::default().fg(Color::Yellow)),
+            Span::styled(
+                format!("{} ", styles.icons.health(&HealthStatus::Starting)),
+                Style::default().fg(Color::Yellow),
+            ),
             Span::raw("Starting"),
         ]),
         Line::from(vec![
-            Span::styled("  ▶ ", Style::default().fg(Color::Green)),
+            Span::styled(
+                format!("  {} ", styles.icons.state(&ContainerState::Running)),
+                Style::default().fg(Color::Green),
+            ),
             Span::raw("Running  "),
-            Span::styled("⏸ ", Style::default().fg(Color::Yellow)),
+            Span::styled(
+                format!("{} ", styles.icons.state(&ContainerState::Paused)),
+                Style::default().fg(Color::Yellow),
+            ),
             Span::raw("Paused  "),
-            Span::styled("■ ", Style::default().fg(Color::Red)),
+            Span::styled(
+                format!("{} ", styles.icons.state(&ContainerState::Exited)),
+                Style::default().fg(Color::Red),
+            ),
             Span::raw("Exited"),
         ]),
         Line::from(vec![
-            Span::styled("  ↻ ", Style::default().fg(Color::Yellow)),
+            Span::styled(
+                format!("  {} ", styles.icons.state(&ContainerState::Restarting)),
+                Style::default().fg(Color::Yellow),
+            ),
             Span::raw("Restarting  "),
-            Span::styled("◆ ", Style::default().fg(Color::Cyan)),
+            Span::styled(
+                format!("{} ", styles.icons.state(&ContainerState::Created)),
+                Style::default().fg(Color::Cyan),
+            ),
             Span::raw("Created  "),
-            Span::styled("? ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("{} ", styles.icons.state(&ContainerState::Unknown)),
+                Style::default().fg(Color::Gray),
+            ),
             Span::raw("Unknown"),
         ]),
         Line::from(""),
