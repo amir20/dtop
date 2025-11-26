@@ -169,14 +169,12 @@ fn render_error_notifications(f: &mut Frame, state: &mut AppState, styles: &UiSt
     let mut y_offset = 0;
 
     for (host_id, (error_msg, _)) in &state.connection_errors {
-        // Shorten the error message if it's too long
-        let display_msg = if error_msg.len() > 80 {
-            format!("{}...", &error_msg[..77])
+        // Shorten the error message if it's too long and build error text directly
+        let error_text = if error_msg.len() > 80 {
+            format!("✗ {}: {}...", host_id, &error_msg[..77])
         } else {
-            error_msg.clone()
+            format!("✗ {}: {}", host_id, error_msg)
         };
-
-        let error_text = format!("✗ {}: {}", host_id, display_msg);
         let error_width = (error_text.len() + 4).min(80) as u16; // +4 for borders and padding
         let error_height = 3; // Border + text + border
 
