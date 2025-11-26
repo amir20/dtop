@@ -37,8 +37,11 @@ pub fn render_log_view(
         0
     };
 
-    // Calculate visible height (subtract 1 for top)
+    // Calculate visible height (subtract 1 for top border)
     let visible_height = size.height.saturating_sub(1) as usize;
+
+    // Store viewport height for page up/down calculations
+    state.last_viewport_height = visible_height;
 
     // Calculate max scroll position
     let max_scroll = if num_lines > visible_height {

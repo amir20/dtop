@@ -47,6 +47,14 @@ fn handle_key_event(key: KeyEvent, tx: &EventSender) {
         KeyCode::Char('q') => {
             let _ = tx.blocking_send(AppEvent::Quit);
         }
+        // Ctrl+U for page up in log view
+        KeyCode::Char('u') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageUp);
+        }
+        // Ctrl+D for page down in log view
+        KeyCode::Char('d') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageDown);
+        }
         KeyCode::Char('/') => {
             let _ = tx.blocking_send(AppEvent::EnterSearchMode);
         }
@@ -99,6 +107,22 @@ fn handle_key_event(key: KeyEvent, tx: &EventSender) {
         }
         KeyCode::Left | KeyCode::Char('h') => {
             let _ = tx.blocking_send(AppEvent::ExitLogView);
+        }
+        // g for scroll to top (vim/less style)
+        KeyCode::Char('g') => {
+            let _ = tx.blocking_send(AppEvent::ScrollToTop);
+        }
+        // G for scroll to bottom (vim/less style)
+        KeyCode::Char('G') => {
+            let _ = tx.blocking_send(AppEvent::ScrollToBottom);
+        }
+        // Space for page down (less style)
+        KeyCode::Char(' ') => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageDown);
+        }
+        // b for page up (less style)
+        KeyCode::Char('b') => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageUp);
         }
         _ => {}
     }

@@ -10,20 +10,20 @@ dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)
                         │                                                                      │                        
                         │                                                                      │                        
                         │ Navigation                                                           │                        
-                        │   ↑/↓ or j/k  Navigate containers or scroll logs                     │                        
+                        │   ↑/↓ or j/k  Navigate containers or scroll logs (1 line)            │                        
                         │   Enter       Open action menu for container                         │                        
                         │   →/l         View logs for selected container                       │                        
                         │   ←/h         Exit log view                                          │                        
                         │   Esc         Close action menu, search, or help                     │                        
+                        │                                                                      │                        
+                        │ Log View Scrolling                                                   │                        
+                        │   g           Scroll to top                                          │                        
+                        │   G           Scroll to bottom                                       │                        
+                        │   Ctrl+U / b  Page up                                                │                        
+                        │   Ctrl+D / Space  Page down                                          │                        
                         │   o           Open container in Dozzle (if configured and available) │                        
                         │   a/A         Toggle showing all containers (including stopped)      │                        
                         │   /           Filter containers by name, id or host                  │                        
                         │                                                                      │                        
                         │ Sorting                                                              │                        
-                        │   u/U         Sort by Created (press again to toggle asc/desc)       │                        
-                        │   n/N         Sort by Name (press again to toggle asc/desc)          │                        
-                        │   c/C         Sort by CPU usage (press again to toggle asc/desc)     │                        
-                        │   m/M         Sort by Memory usage (press again to toggle asc/desc)  │                        
-                        │   s           Cycle through sort fields                              │                        
-                        │                                                                      │                        
                         └──────────────────────────────────────────────────────────────────────┘

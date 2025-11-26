@@ -152,6 +152,57 @@ impl AppState {
         RenderAction::None
     }
 
+    pub(super) fn handle_scroll_to_top(&mut self) -> RenderAction {
+        // Only handle in log view
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+
+        // Scroll to top
+        self.log_scroll_offset = 0;
+        self.is_at_bottom = false;
+        RenderAction::Render
+    }
+
+    pub(super) fn handle_scroll_to_bottom(&mut self) -> RenderAction {
+        // Only handle in log view
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+
+        // Set is_at_bottom - the actual offset will be calculated in render
+        self.is_at_bottom = true;
+        RenderAction::Render
+    }
+
+    pub(super) fn handle_scroll_page_up(&mut self) -> RenderAction {
+        // Only handle in log view
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+
+        // Scroll up by half page (similar to vim's Ctrl+U)
+        // We'll use the last known viewport height stored in AppState
+        let page_size = self.last_viewport_height / 2;
+        self.log_scroll_offset = self.log_scroll_offset.saturating_sub(page_size);
+        self.is_at_bottom = false;
+        RenderAction::Render
+    }
+
+    pub(super) fn handle_scroll_page_down(&mut self) -> RenderAction {
+        // Only handle in log view
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+
+        // Scroll down by half page (similar to vim's Ctrl+D)
+        // We'll use the last known viewport height stored in AppState
+        let page_size = self.last_viewport_height / 2;
+        self.log_scroll_offset = self.log_scroll_offset.saturating_add(page_size);
+        // Will be clamped in UI and is_at_bottom will be recalculated there
+        RenderAction::Render
+    }
+
     pub(super) fn handle_log_batch(
         &mut self,
         key: ContainerKey,

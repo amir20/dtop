@@ -44,11 +44,22 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  ↑/↓ or j/k  Navigate containers or scroll logs"),
+        Line::from("  ↑/↓ or j/k  Navigate containers or scroll logs (1 line)"),
         Line::from("  Enter       Open action menu for container"),
         Line::from("  →/l         View logs for selected container"),
         Line::from("  ←/h         Exit log view"),
         Line::from("  Esc         Close action menu, search, or help"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Log View Scrolling",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  g           Scroll to top"),
+        Line::from("  G           Scroll to bottom"),
+        Line::from("  Ctrl+U / b  Page up"),
+        Line::from("  Ctrl+D / Space  Page down"),
         Line::from("  o           Open container in Dozzle (if configured and available)"),
         Line::from("  a/A         Toggle showing all containers (including stopped)"),
         Line::from("  /           Filter containers by name, id or host"),
