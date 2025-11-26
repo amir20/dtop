@@ -101,6 +101,7 @@ impl AppState {
         match &event {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
             AppEvent::LogLine(_, _) => tracing::trace!("Handling log line: {:?}", event),
+            AppEvent::LogBatch(_, _) => tracing::debug!("Handling log batch: {:?}", event),
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
@@ -129,6 +130,7 @@ impl AppState {
             AppEvent::ShowLogView => self.handle_show_log_view(),
             AppEvent::ScrollUp => self.handle_scroll_up(),
             AppEvent::ScrollDown => self.handle_scroll_down(),
+            AppEvent::LogBatch(key, log_batch) => self.handle_log_batch(key, log_batch),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
