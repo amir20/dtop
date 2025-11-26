@@ -80,14 +80,13 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
     }
 
     // Send all historical logs as one batch
-    if !historical_logs.is_empty() {
-        if tx
+    if !historical_logs.is_empty()
+        && tx
             .send(AppEvent::LogBatch(key.clone(), historical_logs))
             .await
             .is_err()
-        {
-            return; // Channel closed
-        }
+    {
+        return; // Channel closed
     }
 
     // Phase 2: Start streaming new logs from after the last timestamp
@@ -106,14 +105,13 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         match log_result {
             Ok(log_output) => {
                 let log_line = log_output.to_string().replace('\r', "");
-                if let Some(log_entry) = LogEntry::parse(&log_line) {
-                    if tx
+                if let Some(log_entry) = LogEntry::parse(&log_line)
+                    && tx
                         .send(AppEvent::LogLine(key.clone(), log_entry))
                         .await
                         .is_err()
-                    {
-                        break; // Channel closed, stop streaming
-                    }
+                {
+                    break; // Channel closed, stop streaming
                 }
             }
             Err(_) => break,
