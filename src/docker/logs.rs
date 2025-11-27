@@ -46,18 +46,88 @@ impl LogEntry {
     }
 }
 
+/// Fetches older logs for pagination
+/// Fetches logs before a specific timestamp
+pub async fn fetch_older_logs(
+    host: DockerHost,
+    container_id: String,
+    before_timestamp: DateTime<Utc>,
+    batch_size: usize,
+    tx: EventSender,
+) {
+    let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
+
+    // Fetch logs before the given timestamp
+    // Note: We use 'until' to get logs before the timestamp, but we can't use 'tail' with it
+    // because 'tail' gets the LAST N logs from the entire log history, not from the filtered set.
+    // So we fetch all logs up to the timestamp, then take the last N ourselves.
+    let options = Some(LogsOptions {
+        follow: false,
+        stdout: true,
+        stderr: true,
+        timestamps: true,
+        until: (before_timestamp.timestamp() - 1) as i32, // -1 to exclude the boundary
+        ..Default::default()
+    });
+
+    let mut log_stream = host.docker.logs(&container_id, options);
+    let mut all_logs = Vec::new();
+
+    // Collect all logs up to the 'until' timestamp
+    while let Some(log_result) = log_stream.next().await {
+        match log_result {
+            Ok(log_output) => {
+                let log_line = log_output.to_string().replace('\r', "");
+                if let Some(log_entry) = LogEntry::parse(&log_line) {
+                    all_logs.push(log_entry);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    tracing::debug!(
+        "Fetched {} logs before timestamp {}, taking last {}",
+        all_logs.len(),
+        before_timestamp,
+        batch_size
+    );
+
+    // Take only the last N logs (most recent before the timestamp)
+    let has_more_history = all_logs.len() > batch_size;
+    let logs = if all_logs.len() > batch_size {
+        // Take the last batch_size logs
+        all_logs.split_off(all_logs.len() - batch_size)
+    } else {
+        all_logs
+    };
+
+    tracing::debug!(
+        "Sending {} logs, has_more_history: {}",
+        logs.len(),
+        has_more_history
+    );
+
+    // Send the batch (even if empty, to signal completion)
+    let _ = tx
+        .send(AppEvent::LogBatchPrepend(key, logs, has_more_history))
+        .await;
+}
+
 /// Streams logs from a container in real-time
-/// First fetches all historical logs in a batch, then streams new logs line by line
+/// Fetches recent logs initially (for pagination), then streams new logs line by line
 pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: EventSender) {
     let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
 
-    // Phase 1: Fetch all historical logs without follow
+    const INITIAL_BATCH_SIZE: usize = 1000;
+
+    // Phase 1: Fetch initial batch (most recent 1000 logs)
     let historical_options = Some(LogsOptions {
-        follow: false,           // Don't follow, just get existing logs
-        stdout: true,            // Include stdout
-        stderr: true,            // Include stderr
-        timestamps: true,        // Include timestamps
-        tail: "all".to_string(), // Get all logs from the beginning
+        follow: false,                           // Don't follow, just get existing logs
+        stdout: true,                            // Include stdout
+        stderr: true,                            // Include stderr
+        timestamps: true,                        // Include timestamps
+        tail: format!("{}", INITIAL_BATCH_SIZE), // Get most recent N logs
         ..Default::default()
     });
 
@@ -65,7 +135,7 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
     let mut historical_logs = Vec::new();
     let mut last_timestamp: Option<DateTime<Utc>> = None;
 
-    // Collect all historical logs
+    // Collect initial batch of logs
     while let Some(log_result) = historical_stream.next().await {
         match log_result {
             Ok(log_output) => {
@@ -79,10 +149,18 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         }
     }
 
-    // Send all historical logs as one batch
+    // Determine if there might be more historical logs
+    // If we got a full batch, assume there might be more
+    let has_more_history = historical_logs.len() >= INITIAL_BATCH_SIZE;
+
+    // Send initial batch as LogBatchPrepend
     if !historical_logs.is_empty()
         && tx
-            .send(AppEvent::LogBatch(key.clone(), historical_logs))
+            .send(AppEvent::LogBatchPrepend(
+                key.clone(),
+                historical_logs,
+                has_more_history,
+            ))
             .await
             .is_err()
     {

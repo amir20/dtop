@@ -1,4 +1,3 @@
-use ratatui::text::Text;
 use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -6,7 +5,7 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Container, ContainerKey, HostId, RenderAction, SortState, ViewState,
+    AppEvent, Container, ContainerKey, HostId, LogState, RenderAction, SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -31,18 +30,12 @@ pub struct AppState {
     pub table_state: TableState,
     /// Current view (container list or log view)
     pub view_state: ViewState,
-    /// Currently viewed container key (for log view)
-    pub current_log_container: Option<ContainerKey>,
-    /// Cached formatted log text (to avoid reformatting on every render)
-    pub formatted_log_text: Text<'static>,
-    /// Current scroll position (number of lines scrolled from top)
-    pub log_scroll_offset: usize,
+    /// Log state for the currently viewed container (None if not viewing logs)
+    pub log_state: Option<LogState>,
     /// Whether the user is at the bottom of the logs (for auto-scroll behavior)
     pub is_at_bottom: bool,
     /// Last known viewport height for page up/down calculations
     pub last_viewport_height: usize,
-    /// Handle to the currently running log stream task
-    pub log_stream_handle: Option<tokio::task::JoinHandle<()>>,
     /// Connected Docker hosts for log streaming
     pub connected_hosts: HashMap<String, DockerHost>,
     /// Event sender for spawning log streams
@@ -80,12 +73,9 @@ impl AppState {
             should_quit: false,
             table_state: TableState::default(),
             view_state: ViewState::ContainerList,
-            current_log_container: None,
-            formatted_log_text: Text::default(),
-            log_scroll_offset: 0,
+            log_state: None,
             is_at_bottom: true,
             last_viewport_height: 20, // Default to 20 lines (will be updated on first render)
-            log_stream_handle: None,
             connected_hosts,
             event_tx,
             is_ssh_session,
@@ -138,6 +128,10 @@ impl AppState {
             AppEvent::ScrollPageUp => self.handle_scroll_page_up(),
             AppEvent::ScrollPageDown => self.handle_scroll_page_down(),
             AppEvent::LogBatch(key, log_batch) => self.handle_log_batch(key, log_batch),
+            AppEvent::LogBatchPrepend(key, log_entries, has_more_history) => {
+                self.handle_log_batch_prepend(key, log_entries, has_more_history)
+            }
+            AppEvent::RequestOlderLogs => self.handle_request_older_logs(),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
