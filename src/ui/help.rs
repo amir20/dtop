@@ -13,9 +13,9 @@ use crate::ui::render::UiStyles;
 pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
     let area = f.area();
 
-    // Create a centered popup (60% width, 70% height)
-    let popup_width = (area.width as f32 * 0.6) as u16;
-    let popup_height = (area.height as f32 * 0.7) as u16;
+    // Create a centered popup (80% width, 50% height for compact layout)
+    let popup_width = (area.width as f32 * 0.8) as u16;
+    let popup_height = (area.height as f32 * 0.5) as u16;
 
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
@@ -35,7 +35,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
 
     f.render_widget(block, popup_area);
 
-    // Create help content
+    // Create help content - compact layout
     let help_text = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -44,11 +44,15 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  ↑/↓ or j/k  Navigate containers or scroll logs (1 line)"),
-        Line::from("  Enter       Open action menu for container"),
-        Line::from("  →/l         View logs for selected container"),
-        Line::from("  ←/h         Exit log view"),
-        Line::from("  Esc         Close action menu, search, or help"),
+        Line::from(
+            "  ↑/↓, j/k    Navigate/scroll (1 line)    →/l    View logs      ←/h    Exit logs",
+        ),
+        Line::from(
+            "  Enter       Action menu                 Esc    Close menu     ?      Toggle help",
+        ),
+        Line::from(
+            "  a           Show all containers         /      Filter         o      Open Dozzle",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Log View Scrolling",
@@ -56,13 +60,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  g           Scroll to top"),
-        Line::from("  G           Scroll to bottom"),
-        Line::from("  Ctrl+U / b  Page up"),
-        Line::from("  Ctrl+D / Space  Page down"),
-        Line::from("  o           Open container in Dozzle (if configured and available)"),
-        Line::from("  a/A         Toggle showing all containers (including stopped)"),
-        Line::from("  /           Filter containers by name, id or host"),
+        Line::from(
+            "  g/G         Top/Bottom       Ctrl+U, b       Page up        Ctrl+D, Space   Page down",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Sorting",
@@ -70,21 +70,20 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
-        Line::from("  u/U         Sort by Created (press again to toggle asc/desc)"),
-        Line::from("  n/N         Sort by Name (press again to toggle asc/desc)"),
-        Line::from("  c/C         Sort by CPU usage (press again to toggle asc/desc)"),
-        Line::from("  m/M         Sort by Memory usage (press again to toggle asc/desc)"),
-        Line::from("  s           Cycle through sort fields"),
+        Line::from("  u/U         Uptime       n/N         Name           c/C             CPU"),
+        Line::from(
+            "  m/M         Memory       s           Cycle          (press again to toggle asc/desc)",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Container Status Icons",
+            "Status Icons",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(vec![
             Span::styled(
-                format!("  {} ", styles.icons.health(&HealthStatus::Healthy)),
+                format!("{} ", styles.icons.health(&HealthStatus::Healthy)),
                 Style::default().fg(Color::Green),
             ),
             Span::raw("Healthy  "),
@@ -97,11 +96,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 format!("{} ", styles.icons.health(&HealthStatus::Starting)),
                 Style::default().fg(Color::Yellow),
             ),
-            Span::raw("Starting"),
-        ]),
-        Line::from(vec![
+            Span::raw("Starting  "),
             Span::styled(
-                format!("  {} ", styles.icons.state(&ContainerState::Running)),
+                format!("{} ", styles.icons.state(&ContainerState::Running)),
                 Style::default().fg(Color::Green),
             ),
             Span::raw("Running  "),
@@ -116,26 +113,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             ),
             Span::raw("Exited"),
         ]),
-        Line::from(vec![
-            Span::styled(
-                format!("  {} ", styles.icons.state(&ContainerState::Restarting)),
-                Style::default().fg(Color::Yellow),
-            ),
-            Span::raw("Restarting  "),
-            Span::styled(
-                format!("{} ", styles.icons.state(&ContainerState::Created)),
-                Style::default().fg(Color::Cyan),
-            ),
-            Span::raw("Created  "),
-            Span::styled(
-                format!("{} ", styles.icons.state(&ContainerState::Unknown)),
-                Style::default().fg(Color::Gray),
-            ),
-            Span::raw("Unknown"),
-        ]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Resource Usage Colors",
+            "Colors",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
