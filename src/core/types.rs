@@ -147,6 +147,16 @@ pub enum AppEvent {
     ScrollUp,
     /// User scrolled down in log view
     ScrollDown,
+    /// User scrolled to top of log view (g)
+    ScrollToTop,
+    /// User scrolled to bottom of log view (G)
+    ScrollToBottom,
+    /// User scrolled page up in log view (Ctrl+U, b)
+    ScrollPageUp,
+    /// User scrolled page down in log view (Ctrl+D, Space)
+    ScrollPageDown,
+    /// Batch of historical log lines loaded at once (no UI updates per line)
+    LogBatch(ContainerKey, Vec<LogEntry>),
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
     /// User pressed 'o' to open Dozzle

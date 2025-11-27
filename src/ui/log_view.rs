@@ -37,8 +37,11 @@ pub fn render_log_view(
         0
     };
 
-    // Calculate visible height (subtract 1 for top)
+    // Calculate visible height (subtract 1 for top border)
     let visible_height = size.height.saturating_sub(1) as usize;
+
+    // Store viewport height for page up/down calculations
+    state.last_viewport_height = visible_height;
 
     // Calculate max scroll position
     let max_scroll = if num_lines > visible_height {
@@ -62,9 +65,22 @@ pub fn render_log_view(
     // Update scroll offset to actual (for proper clamping)
     state.log_scroll_offset = actual_scroll;
 
-    // Create log widget with scrolling using cached formatted text
-    // We clone here, but this is still more efficient than creating individual spans
-    let log_widget = Paragraph::new(state.formatted_log_text.clone())
+    // Only clone the visible portion of logs to improve scrolling performance
+    // Calculate visible range based on scroll position and terminal height
+    let visible_start = actual_scroll;
+    let visible_end = (actual_scroll + size.height as usize).min(num_lines);
+
+    // Extract only the visible lines (cheap slice + small clone vs full clone)
+    let visible_lines = if visible_start < state.formatted_log_text.lines.len() {
+        state.formatted_log_text.lines[visible_start..visible_end].to_vec()
+    } else {
+        vec![]
+    };
+
+    let visible_text = ratatui::text::Text::from(visible_lines);
+
+    // Create log widget with only visible text, no scroll needed since we pre-sliced
+    let log_widget = Paragraph::new(visible_text)
         .block(
             Block::default()
                 .title(format!(
@@ -79,8 +95,7 @@ pub fn render_log_view(
                 ))
                 .style(styles.border),
         )
-        .wrap(Wrap { trim: false })
-        .scroll((actual_scroll as u16, 0));
+        .wrap(Wrap { trim: false });
 
     f.render_widget(log_widget, size);
 }

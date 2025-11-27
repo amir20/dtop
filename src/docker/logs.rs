@@ -47,47 +47,74 @@ impl LogEntry {
 }
 
 /// Streams logs from a container in real-time
-/// Sends each log line as it arrives via the event channel
+/// First fetches all historical logs in a batch, then streams new logs line by line
 pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: EventSender) {
     let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
 
-    // Configure log options to stream logs
-    let options = Some(LogsOptions {
-        follow: true,            // Stream logs in real-time
+    // Phase 1: Fetch all historical logs without follow
+    let historical_options = Some(LogsOptions {
+        follow: false,           // Don't follow, just get existing logs
         stdout: true,            // Include stdout
         stderr: true,            // Include stderr
-        tail: "100".to_string(), // Start with last 100 lines
         timestamps: true,        // Include timestamps
+        tail: "all".to_string(), // Get all logs from the beginning
         ..Default::default()
     });
 
-    let mut log_stream = host.docker.logs(&container_id, options);
+    let mut historical_stream = host.docker.logs(&container_id, historical_options);
+    let mut historical_logs = Vec::new();
+    let mut last_timestamp: Option<DateTime<Utc>> = None;
+
+    // Collect all historical logs
+    while let Some(log_result) = historical_stream.next().await {
+        match log_result {
+            Ok(log_output) => {
+                let log_line = log_output.to_string().replace('\r', "");
+                if let Some(log_entry) = LogEntry::parse(&log_line) {
+                    last_timestamp = Some(log_entry.timestamp);
+                    historical_logs.push(log_entry);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    // Send all historical logs as one batch
+    if !historical_logs.is_empty()
+        && tx
+            .send(AppEvent::LogBatch(key.clone(), historical_logs))
+            .await
+            .is_err()
+    {
+        return; // Channel closed
+    }
+
+    // Phase 2: Start streaming new logs from after the last timestamp
+    let streaming_options = Some(LogsOptions {
+        follow: true, // Stream logs in real-time
+        stdout: true, // Include stdout
+        stderr: true, // Include stderr
+        timestamps: true,
+        since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0), // Start after last historical log
+        ..Default::default()
+    });
+
+    let mut log_stream = host.docker.logs(&container_id, streaming_options);
 
     while let Some(log_result) = log_stream.next().await {
         match log_result {
             Ok(log_output) => {
-                // Convert log output to string and strip carriage returns
-                // Jellyfin and other apps use \r for progress updates, which causes artifacts
                 let log_line = log_output.to_string().replace('\r', "");
-
-                // Parse the log line into a LogEntry
-                if let Some(log_entry) = LogEntry::parse(&log_line) {
-                    // Send log entry event
-                    if tx
+                if let Some(log_entry) = LogEntry::parse(&log_line)
+                    && tx
                         .send(AppEvent::LogLine(key.clone(), log_entry))
                         .await
                         .is_err()
-                    {
-                        // Channel closed, stop streaming
-                        break;
-                    }
+                {
+                    break; // Channel closed, stop streaming
                 }
-                // If parsing fails, we skip this log line
             }
-            Err(_) => {
-                // Error reading logs, stop streaming
-                break;
-            }
+            Err(_) => break,
         }
     }
 }

@@ -39,6 +39,8 @@ pub struct AppState {
     pub log_scroll_offset: usize,
     /// Whether the user is at the bottom of the logs (for auto-scroll behavior)
     pub is_at_bottom: bool,
+    /// Last known viewport height for page up/down calculations
+    pub last_viewport_height: usize,
     /// Handle to the currently running log stream task
     pub log_stream_handle: Option<tokio::task::JoinHandle<()>>,
     /// Connected Docker hosts for log streaming
@@ -82,6 +84,7 @@ impl AppState {
             formatted_log_text: Text::default(),
             log_scroll_offset: 0,
             is_at_bottom: true,
+            last_viewport_height: 20, // Default to 20 lines (will be updated on first render)
             log_stream_handle: None,
             connected_hosts,
             event_tx,
@@ -101,6 +104,7 @@ impl AppState {
         match &event {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
             AppEvent::LogLine(_, _) => tracing::trace!("Handling log line: {:?}", event),
+            AppEvent::LogBatch(_, _) => tracing::debug!("Handling log batch: {:?}", event),
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
@@ -129,6 +133,11 @@ impl AppState {
             AppEvent::ShowLogView => self.handle_show_log_view(),
             AppEvent::ScrollUp => self.handle_scroll_up(),
             AppEvent::ScrollDown => self.handle_scroll_down(),
+            AppEvent::ScrollToTop => self.handle_scroll_to_top(),
+            AppEvent::ScrollToBottom => self.handle_scroll_to_bottom(),
+            AppEvent::ScrollPageUp => self.handle_scroll_page_up(),
+            AppEvent::ScrollPageDown => self.handle_scroll_page_down(),
+            AppEvent::LogBatch(key, log_batch) => self.handle_log_batch(key, log_batch),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
