@@ -46,127 +46,72 @@ impl LogEntry {
     }
 }
 
-/// Fetches older logs for pagination using density-based adaptive algorithm
-///
-/// This function calculates log density from the existing batch (time span between
-/// oldest and newest timestamps) to estimate an optimal time window for fetching
-/// the next batch. If the initial window doesn't yield enough logs, it exponentially
-/// expands the window until enough logs are found or max attempts is reached.
+/// Fetches older logs for pagination
+/// Fetches logs before a specific timestamp
 pub async fn fetch_older_logs(
     host: DockerHost,
     container_id: String,
     before_timestamp: DateTime<Utc>,
-    newest_timestamp: DateTime<Utc>,
-    container_created: Option<DateTime<Utc>>,
     batch_size: usize,
     tx: EventSender,
 ) {
-    const EXPANSION_FACTOR: i32 = 2;
-    const DENSITY_BUFFER: f64 = 1.2; // 20% buffer
-    const FALLBACK_WINDOW_MINUTES: i64 = 5;
-
     let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
 
-    // Calculate log density from existing batch to estimate optimal time window
-    let time_span = newest_timestamp.signed_duration_since(before_timestamp);
-    let initial_window_duration = if time_span.num_seconds() > 0 {
-        // The existing batch spans this time, so to get another batch_size logs,
-        // we need approximately the same time span, plus a 20% buffer
-        let seconds_needed = (time_span.num_seconds() as f64 * DENSITY_BUFFER) as i64;
-        chrono::Duration::seconds(seconds_needed)
+    // Fetch logs before the given timestamp
+    // Note: We use 'until' to get logs before the timestamp, but we can't use 'tail' with it
+    // because 'tail' gets the LAST N logs from the entire log history, not from the filtered set.
+    // So we fetch all logs up to the timestamp, then take the last N ourselves.
+    let options = Some(LogsOptions {
+        follow: false,
+        stdout: true,
+        stderr: true,
+        timestamps: true,
+        until: (before_timestamp.timestamp() - 1) as i32, // -1 to exclude the boundary
+        ..Default::default()
+    });
+
+    let mut log_stream = host.docker.logs(&container_id, options);
+    let mut all_logs = Vec::new();
+
+    // Collect all logs up to the 'until' timestamp
+    while let Some(log_result) = log_stream.next().await {
+        match log_result {
+            Ok(log_output) => {
+                let log_line = log_output.to_string().replace('\r', "");
+                if let Some(log_entry) = LogEntry::parse(&log_line) {
+                    all_logs.push(log_entry);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    tracing::debug!(
+        "Fetched {} logs before timestamp {}, taking last {}",
+        all_logs.len(),
+        before_timestamp,
+        batch_size
+    );
+
+    // Take only the last N logs (most recent before the timestamp)
+    let has_more_history = all_logs.len() > batch_size;
+    let logs = if all_logs.len() > batch_size {
+        // Take the last batch_size logs
+        all_logs.split_off(all_logs.len() - batch_size)
     } else {
-        // Fallback if we can't calculate density (single log or all same timestamp)
-        chrono::Duration::minutes(FALLBACK_WINDOW_MINUTES)
+        all_logs
     };
 
     tracing::debug!(
-        "Log density calculation: time_span={}s, batch_size={}, estimated_window={}s",
-        time_span.num_seconds(),
-        batch_size,
-        initial_window_duration.num_seconds()
+        "Sending {} logs, has_more_history: {}",
+        logs.len(),
+        has_more_history
     );
 
-    let mut current_duration = initial_window_duration;
-    let mut attempt = 0;
-
-    loop {
-        attempt += 1;
-        let mut since_timestamp = before_timestamp - current_duration;
-        let mut reached_container_start = false;
-
-        // Check if we've gone past the container creation time
-        // If so, clamp to container creation and mark this as the final fetch
-        if let Some(created) = container_created
-            && since_timestamp < created
-        {
-            tracing::debug!(
-                "Window start ({}) is before container creation ({}), clamping to container start",
-                since_timestamp,
-                created
-            );
-            since_timestamp = created;
-            reached_container_start = true;
-        }
-
-        let options = Some(LogsOptions {
-            follow: false,
-            stdout: true,
-            stderr: true,
-            timestamps: true,
-            since: since_timestamp.timestamp() as i32,
-            until: (before_timestamp.timestamp() - 1) as i32, // -1 to exclude boundary
-            ..Default::default()
-        });
-
-        let mut log_stream = host.docker.logs(&container_id, options);
-        let mut batch_logs = Vec::new();
-
-        // Collect logs within the time window
-        while let Some(log_result) = log_stream.next().await {
-            match log_result {
-                Ok(log_output) => {
-                    let log_line = log_output.to_string().replace('\r', "");
-                    if let Some(log_entry) = LogEntry::parse(&log_line) {
-                        batch_logs.push(log_entry);
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-
-        tracing::debug!(
-            "Attempt {}: Fetched {} logs with {}s window (since {} until {})",
-            attempt + 1,
-            batch_logs.len(),
-            current_duration.num_seconds(),
-            since_timestamp,
-            before_timestamp
-        );
-
-        // If we reached container start, return all logs we found (don't trim)
-        if reached_container_start {
-            tracing::debug!(
-                "Reached container start, returning all {} logs",
-                batch_logs.len()
-            );
-            let _ = tx
-                .send(AppEvent::LogBatchPrepend(key, batch_logs, false))
-                .await;
-            return;
-        }
-
-        // Check if we have enough logs
-        if batch_logs.len() >= batch_size {
-            // Success: take the last batch_size logs (most recent)
-            let start_idx = batch_logs.len() - batch_size;
-            let logs = batch_logs.split_off(start_idx);
-            let _ = tx.send(AppEvent::LogBatchPrepend(key, logs, true)).await;
-            return;
-        }
-
-        // Keep expanding the window for next attempt
-        current_duration = current_duration * EXPANSION_FACTOR;
-    }
+    // Send the batch (even if empty, to signal completion)
+    let _ = tx
+        .send(AppEvent::LogBatchPrepend(key, logs, has_more_history))
+        .await;
 }
 
 /// Streams logs from a container in real-time
