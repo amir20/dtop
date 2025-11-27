@@ -3,7 +3,7 @@ use ratatui::{
     Frame,
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Paragraph, Wrap},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
 use crate::core::app_state::AppState;
@@ -137,4 +137,16 @@ pub fn render_log_view(
         .wrap(Wrap { trim: false });
 
     f.render_widget(log_widget, size);
+
+    // Render scrollbar on the right side
+    let mut scrollbar_state = ScrollbarState::default()
+        .content_length(num_lines)
+        .position(actual_scroll);
+
+    let scrollbar = Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+
+    f.render_stateful_widget(scrollbar, size, &mut scrollbar_state);
 }
