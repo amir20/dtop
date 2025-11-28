@@ -321,6 +321,11 @@ impl AppState {
             return RenderAction::None;
         };
 
+        let Some(newest_ts) = state.newest_timestamp else {
+            tracing::debug!("No newest timestamp, skipping pagination");
+            return RenderAction::None;
+        };
+
         tracing::debug!(
             "Requesting older logs before timestamp: {}, total_loaded: {}",
             oldest_ts,
@@ -330,15 +335,25 @@ impl AppState {
         // Mark as fetching to prevent duplicate requests
         state.fetching_older = true;
 
-        // Spawn task to fetch older logs
+        // Spawn task to fetch older logs (using density-based pagination)
         let key = state.container_key.clone();
         if let Some(host) = self.connected_hosts.get(&key.host_id) {
             let host_clone = host.clone();
             let container_id = key.container_id.clone();
+            let container_created = self.containers.get(&key).and_then(|c| c.created);
             let tx_clone = self.event_tx.clone();
 
             tokio::spawn(async move {
-                fetch_older_logs(host_clone, container_id, oldest_ts, 1000, tx_clone).await;
+                fetch_older_logs(
+                    host_clone,
+                    container_id,
+                    oldest_ts,
+                    newest_ts,
+                    container_created,
+                    1000,
+                    tx_clone,
+                )
+                .await;
             });
         }
 
