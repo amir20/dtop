@@ -300,12 +300,34 @@ mod tests {
         // Create log entries instead of formatted text
         use crate::core::types::LogState;
         use crate::docker::logs::LogEntry;
+        use chrono::{Local, TimeZone, Utc};
+
+        // Create timestamps in local timezone, then convert to UTC for consistent display
+        // This ensures tests work regardless of the machine's timezone
+        let base_time = Local.with_ymd_and_hms(2025, 10, 29, 10, 15, 30).unwrap();
+        let base_utc = base_time.with_timezone(&Utc);
 
         let log_entries = vec![
-            LogEntry::parse("2025-10-29T10:15:30Z Starting server on port 8080").unwrap(),
-            LogEntry::parse("2025-10-29T10:15:31Z Database connection established").unwrap(),
-            LogEntry::parse("2025-10-29T10:15:32Z Listening for requests...").unwrap(),
-            LogEntry::parse("2025-10-29T10:15:33Z GET /api/users 200 OK").unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Starting server on port 8080",
+                base_utc.format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Database connection established",
+                (base_utc + chrono::Duration::seconds(1)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Listening for requests...",
+                (base_utc + chrono::Duration::seconds(2)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z GET /api/users 200 OK",
+                (base_utc + chrono::Duration::seconds(3)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
         ];
 
         let mut log_state = LogState::new(key.clone(), None);
@@ -344,11 +366,28 @@ mod tests {
         // Create log state with log content
         use crate::core::types::LogState;
         use crate::docker::logs::LogEntry;
+        use chrono::{Local, TimeZone, Utc};
+
+        // Create timestamps in local timezone, then convert to UTC for consistent display
+        let base_time = Local.with_ymd_and_hms(2025, 10, 29, 10, 15, 30).unwrap();
+        let base_utc = base_time.with_timezone(&Utc);
 
         let log_entries = vec![
-            LogEntry::parse("2025-10-29T10:15:30Z Log line 1").unwrap(),
-            LogEntry::parse("2025-10-29T10:15:31Z Log line 2").unwrap(),
-            LogEntry::parse("2025-10-29T10:15:32Z Log line 3").unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Log line 1",
+                base_utc.format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Log line 2",
+                (base_utc + chrono::Duration::seconds(1)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Log line 3",
+                (base_utc + chrono::Duration::seconds(2)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
         ];
 
         let mut log_state = LogState::new(key.clone(), None);
