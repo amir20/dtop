@@ -60,18 +60,15 @@ pub fn render_log_view(
     // Get number of log entries
     let num_lines = log_state.log_entries.len();
 
-    // Calculate visible height (subtract 1 for top border)
-    let visible_height = size.height.saturating_sub(1) as usize;
+    // Calculate visible height (subtract 2 for top and bottom border)
+    let visible_height = size.height.saturating_sub(2) as usize;
 
     // Store viewport height for page up/down calculations
     state.last_viewport_height = visible_height;
 
-    // Calculate max scroll position
-    let max_scroll = if num_lines > visible_height {
-        num_lines.saturating_sub(visible_height)
-    } else {
-        0
-    };
+    // Calculate max scroll position (first line that can be at top of viewport)
+    // If we have 100 lines and can show 20, max_scroll is 80 (lines 80-99 visible)
+    let max_scroll = num_lines.saturating_sub(visible_height);
 
     // Determine actual scroll offset
     let actual_scroll = if state.is_at_bottom {
@@ -89,9 +86,9 @@ pub fn render_log_view(
     log_state.scroll_offset = actual_scroll;
 
     // Only format the visible portion of log entries for performance
-    // Calculate visible range based on scroll position and terminal height
+    // Calculate visible range based on scroll position and viewport height
     let visible_start = actual_scroll;
-    let visible_end = (actual_scroll + size.height as usize).min(num_lines);
+    let visible_end = (actual_scroll + visible_height).min(num_lines);
 
     // Format only the visible log entries into lines
     let visible_lines: Vec<_> = if visible_start < log_state.log_entries.len() {
@@ -141,8 +138,8 @@ pub fn render_log_view(
     // Render scrollbar on the right side
     let mut scrollbar_state = ScrollbarState::default()
         .content_length(num_lines)
-        .viewport_content_length(state.last_viewport_height)
-        .position(actual_scroll + state.last_viewport_height);
+        .viewport_content_length(visible_height)
+        .position(visible_end);
 
     let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
 
