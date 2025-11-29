@@ -3,7 +3,7 @@ use ratatui::{
     Frame,
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Paragraph, Wrap},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
 use crate::core::app_state::AppState;
@@ -137,4 +137,20 @@ pub fn render_log_view(
         .wrap(Wrap { trim: false });
 
     f.render_widget(log_widget, size);
+
+    // Render scrollbar on the right side
+    // Use fixed content length of 100 and calculate position as percentage
+    let scrollbar_position = if let Some(progress) = log_state.calculate_progress(actual_scroll) {
+        (progress) as usize
+    } else {
+        0
+    };
+
+    let mut scrollbar_state = ScrollbarState::default()
+        .content_length(100)
+        .position(scrollbar_position);
+
+    let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
+
+    f.render_stateful_widget(scrollbar, size, &mut scrollbar_state);
 }
