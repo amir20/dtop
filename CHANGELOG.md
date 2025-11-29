@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2025-11-29
+
+### Features
+
+- Changes scrollback to all so that everything is loaded and adds page up and down keyboard shortcuts (#154)
+- Adds pagination to logs (#158)
+- Adds scrollbar to the right of log view (#159)
+- Improves position of scrollbar (#163)
+
 ## [0.5.0] - 2025-11-22
 
 ### Features
