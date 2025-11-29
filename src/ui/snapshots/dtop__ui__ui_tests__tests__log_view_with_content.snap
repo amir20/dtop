@@ -2,8 +2,8 @@
 source: src/ui/ui_tests.rs
 expression: output
 ---
-Logs: nginx (local) - Press ESC to return [AUTO]                                                                        
-2025-10-29T10:15:30Z Server started on port 80                                                                          
-2025-10-29T10:15:31Z Accepting connections                                                                              
-2025-10-29T10:15:32Z GET /health 200 OK                                                                                 
-2025-10-29T10:15:33Z GET /api/users 200 OK
+Logs: nginx (local) - Press ESC to return [LIVE]                                                                        
+2025-10-29 10:15:30 Starting server on port 8080                                                                        
+2025-10-29 10:15:31 Database connection established                                                                     
+2025-10-29 10:15:32 Listening for requests...                                                                           
+2025-10-29 10:15:33 GET /api/users 200 OK

@@ -155,8 +155,9 @@ pub enum AppEvent {
     ScrollPageUp,
     /// User scrolled page down in log view (Ctrl+D, Space)
     ScrollPageDown,
-    /// Batch of historical log lines loaded at once (no UI updates per line)
-    LogBatch(ContainerKey, Vec<LogEntry>),
+    /// Batch of historical logs to prepend (initial load AND pagination)
+    /// bool indicates if there are more historical logs available before this batch
+    LogBatchPrepend(ContainerKey, Vec<LogEntry>, bool),
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
     /// User pressed 'o' to open Dozzle
@@ -176,13 +177,10 @@ pub enum AppEvent {
     /// Navigate down in action menu
     SelectActionDown,
     /// Action is in progress
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionInProgress(ContainerKey, ContainerAction),
     /// Action completed successfully
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionSuccess(ContainerKey, ContainerAction),
     /// Action failed with error
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionError(ContainerKey, ContainerAction, String),
     /// User pressed '/' to enter search mode
     EnterSearchMode,
@@ -192,9 +190,6 @@ pub enum AppEvent {
     ConnectionError(HostId, String),
     /// A new Docker host has successfully connected
     HostConnected(crate::docker::connection::DockerHost),
-    /// Start a shell session in a container
-    #[allow(dead_code)] // Constructed in keyboard_worker via event sender
-    StartShell(ContainerKey),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;
@@ -344,5 +339,93 @@ impl SortField {
             SortField::Cpu => SortDirection::Descending,    // Highest first
             SortField::Memory => SortDirection::Descending, // Highest first
         }
+    }
+}
+
+/// Log state for the currently viewed container
+#[derive(Debug)]
+pub struct LogState {
+    /// Which container these logs are for
+    pub container_key: ContainerKey,
+
+    /// Raw log entries with timestamps (used for progress calculation and formatting)
+    pub log_entries: Vec<crate::docker::logs::LogEntry>,
+
+    /// Current scroll offset (line number from top)
+    pub scroll_offset: usize,
+
+    /// Handle to the log streaming task (for cancellation)
+    pub stream_handle: Option<tokio::task::JoinHandle<()>>,
+
+    /// Timestamp of the oldest log currently loaded (for pagination cursor)
+    pub oldest_timestamp: Option<DateTime<Utc>>,
+
+    /// Timestamp of the newest log (for progress bar calculation)
+    pub newest_timestamp: Option<DateTime<Utc>>,
+
+    /// Whether there are more logs to fetch before oldest_timestamp
+    pub has_more_history: bool,
+
+    /// Total number of logs loaded so far
+    pub total_loaded: usize,
+
+    /// Timestamp when the container was created (for progress bar calculation)
+    pub container_created_at: Option<DateTime<Utc>>,
+
+    /// Track if we're currently fetching older logs (prevent duplicate requests)
+    pub fetching_older: bool,
+}
+
+impl LogState {
+    /// Create a new LogState for a container
+    pub fn new(container_key: ContainerKey, container_created_at: Option<DateTime<Utc>>) -> Self {
+        Self {
+            container_key,
+            log_entries: Vec::new(),
+            scroll_offset: 0,
+            stream_handle: None,
+            oldest_timestamp: None,
+            newest_timestamp: None,
+            has_more_history: false,
+            total_loaded: 0,
+            container_created_at,
+            fetching_older: false,
+        }
+    }
+
+    /// Calculate what percentage of log history the current visible page represents
+    /// 0% = viewing logs from container creation time (top), 100% = viewing current/newest logs (bottom)
+    /// Returns None if we can't calculate (missing timestamps)
+    pub fn calculate_progress(&self, visible_line_index: usize) -> Option<f64> {
+        let container_created = self.container_created_at?;
+        let newest_loaded = self.newest_timestamp?;
+
+        // Get the timestamp of the currently visible log entry
+        let visible_timestamp = if visible_line_index < self.log_entries.len() {
+            self.log_entries[visible_line_index].timestamp
+        } else if !self.log_entries.is_empty() {
+            // If index is out of range, use the last entry
+            self.log_entries.last()?.timestamp
+        } else {
+            return None;
+        };
+
+        // Calculate time range from container creation to newest log
+        let total_duration = (newest_loaded - container_created).num_seconds() as f64;
+
+        // Avoid division by zero
+        if total_duration <= 0.0 {
+            return Some(100.0);
+        }
+
+        // Calculate how far the visible timestamp is from container creation
+        let visible_offset = (visible_timestamp - container_created).num_seconds() as f64;
+
+        // Percentage: how far through the log history we are
+        // 0% = at container creation (visible_timestamp = container_created)
+        // 100% = at newest logs (visible_timestamp = newest_loaded)
+        let percentage = (visible_offset / total_duration) * 100.0;
+
+        Some(percentage.clamp(0.0, 100.0))
     }
 }

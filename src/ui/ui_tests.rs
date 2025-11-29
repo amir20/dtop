@@ -261,8 +261,12 @@ mod tests {
 
         // Switch to log view
         state.view_state = ViewState::LogView(key.clone());
-        state.current_log_container = Some(key);
         state.is_at_bottom = true;
+
+        // Create empty log state
+        use crate::core::types::LogState;
+        let log_state = LogState::new(key.clone(), None);
+        state.log_state = Some(log_state);
 
         let backend = TestBackend::new(120, 25);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -291,35 +295,44 @@ mod tests {
 
         // Switch to log view and add some log lines
         state.view_state = ViewState::LogView(key.clone());
-        state.current_log_container = Some(key);
         state.is_at_bottom = true;
 
-        // Manually create formatted log text (simulating what would come from log entries)
-        use ratatui::style::{Color, Modifier, Style};
-        use ratatui::text::{Line, Span, Text};
+        // Create log entries instead of formatted text
+        use crate::core::types::LogState;
+        use crate::docker::logs::LogEntry;
+        use chrono::{Local, TimeZone, Utc};
 
-        let timestamp_style = Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD);
-        let lines = vec![
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:30Z", timestamp_style),
-                Span::raw(" Server started on port 80"),
-            ]),
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:31Z", timestamp_style),
-                Span::raw(" Accepting connections"),
-            ]),
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:32Z", timestamp_style),
-                Span::raw(" GET /health 200 OK"),
-            ]),
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:33Z", timestamp_style),
-                Span::raw(" GET /api/users 200 OK"),
-            ]),
+        // Create timestamps in local timezone, then convert to UTC for consistent display
+        // This ensures tests work regardless of the machine's timezone
+        let base_time = Local.with_ymd_and_hms(2025, 10, 29, 10, 15, 30).unwrap();
+        let base_utc = base_time.with_timezone(&Utc);
+
+        let log_entries = vec![
+            LogEntry::parse(&format!(
+                "{}Z Starting server on port 8080",
+                base_utc.format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Database connection established",
+                (base_utc + chrono::Duration::seconds(1)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Listening for requests...",
+                (base_utc + chrono::Duration::seconds(2)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z GET /api/users 200 OK",
+                (base_utc + chrono::Duration::seconds(3)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
         ];
-        state.formatted_log_text = Text::from(lines);
+
+        let mut log_state = LogState::new(key.clone(), None);
+        log_state.log_entries = log_entries;
+        state.log_state = Some(log_state);
 
         let backend = TestBackend::new(120, 25);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -348,32 +361,39 @@ mod tests {
 
         // Switch to log view with manual scroll
         state.view_state = ViewState::LogView(key.clone());
-        state.current_log_container = Some(key);
         state.is_at_bottom = false; // Manual scroll mode
-        state.log_scroll_offset = 5;
 
-        // Add log content
-        use ratatui::style::{Color, Modifier, Style};
-        use ratatui::text::{Line, Span, Text};
+        // Create log state with log content
+        use crate::core::types::LogState;
+        use crate::docker::logs::LogEntry;
+        use chrono::{Local, TimeZone, Utc};
 
-        let timestamp_style = Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD);
-        let lines = vec![
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:30Z", timestamp_style),
-                Span::raw(" Log line 1"),
-            ]),
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:31Z", timestamp_style),
-                Span::raw(" Log line 2"),
-            ]),
-            Line::from(vec![
-                Span::styled("2025-10-29T10:15:32Z", timestamp_style),
-                Span::raw(" Log line 3"),
-            ]),
+        // Create timestamps in local timezone, then convert to UTC for consistent display
+        let base_time = Local.with_ymd_and_hms(2025, 10, 29, 10, 15, 30).unwrap();
+        let base_utc = base_time.with_timezone(&Utc);
+
+        let log_entries = vec![
+            LogEntry::parse(&format!(
+                "{}Z Log line 1",
+                base_utc.format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Log line 2",
+                (base_utc + chrono::Duration::seconds(1)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
+            LogEntry::parse(&format!(
+                "{}Z Log line 3",
+                (base_utc + chrono::Duration::seconds(2)).format("%Y-%m-%dT%H:%M:%S")
+            ))
+            .unwrap(),
         ];
-        state.formatted_log_text = Text::from(lines);
+
+        let mut log_state = LogState::new(key.clone(), None);
+        log_state.log_entries = log_entries;
+        log_state.scroll_offset = 5;
+        state.log_state = Some(log_state);
 
         let backend = TestBackend::new(120, 25);
         let mut terminal = Terminal::new(backend).unwrap();

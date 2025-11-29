@@ -1,12 +1,35 @@
+use chrono::Local;
 use ratatui::{
     Frame,
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
     widgets::{Block, Paragraph, Wrap},
 };
 
 use crate::core::app_state::AppState;
 use crate::core::types::ContainerKey;
+use crate::docker::logs::LogEntry;
 
 use super::render::UiStyles;
+
+/// Style for log timestamps (yellow + bold)
+const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+
+/// Format a log entry into a Line with timestamp and ANSI-parsed content
+fn format_log_entry(log_entry: &LogEntry) -> Line<'static> {
+    let local_timestamp = log_entry.timestamp.with_timezone(&Local);
+    let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+    // Create a line with timestamp + ANSI-parsed content
+    let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
+
+    // Append all spans from the ANSI-parsed text (should be a single line)
+    if let Some(text_line) = log_entry.text.lines.first() {
+        line_spans.extend(text_line.spans.iter().cloned());
+    }
+
+    Line::from(line_spans)
+}
 
 /// Renders the log view for a specific container
 pub fn render_log_view(
@@ -18,6 +41,15 @@ pub fn render_log_view(
 ) {
     let size = area;
 
+    let Some(log_state) = &mut state.log_state else {
+        return; // No logs to display
+    };
+
+    // Verify we're viewing the correct container
+    if &log_state.container_key != container_key {
+        return;
+    }
+
     // Get container info
     let container_name = state
         .containers
@@ -25,17 +57,8 @@ pub fn render_log_view(
         .map(|c| c.name.as_str())
         .unwrap_or("Unknown");
 
-    // Get number of log lines for this container (only if it matches current_log_container)
-    // Use the cached formatted text instead of reformatting on every render
-    let num_lines = if let Some(key) = &state.current_log_container {
-        if key == container_key {
-            state.formatted_log_text.lines.len()
-        } else {
-            0
-        }
-    } else {
-        0
-    };
+    // Get number of log entries
+    let num_lines = log_state.log_entries.len();
 
     // Calculate visible height (subtract 1 for top border)
     let visible_height = size.height.saturating_sub(1) as usize;
@@ -56,28 +79,50 @@ pub fn render_log_view(
         max_scroll
     } else {
         // Use manual scroll position, but clamp to max
-        state.log_scroll_offset.min(max_scroll)
+        log_state.scroll_offset.min(max_scroll)
     };
 
     // Update is_at_bottom based on actual position
     state.is_at_bottom = actual_scroll >= max_scroll;
 
     // Update scroll offset to actual (for proper clamping)
-    state.log_scroll_offset = actual_scroll;
+    log_state.scroll_offset = actual_scroll;
 
-    // Only clone the visible portion of logs to improve scrolling performance
+    // Only format the visible portion of log entries for performance
     // Calculate visible range based on scroll position and terminal height
     let visible_start = actual_scroll;
     let visible_end = (actual_scroll + size.height as usize).min(num_lines);
 
-    // Extract only the visible lines (cheap slice + small clone vs full clone)
-    let visible_lines = if visible_start < state.formatted_log_text.lines.len() {
-        state.formatted_log_text.lines[visible_start..visible_end].to_vec()
+    // Format only the visible log entries into lines
+    let visible_lines: Vec<_> = if visible_start < log_state.log_entries.len() {
+        log_state.log_entries[visible_start..visible_end]
+            .iter()
+            .map(format_log_entry)
+            .collect()
     } else {
         vec![]
     };
 
-    let visible_text = ratatui::text::Text::from(visible_lines);
+    let visible_text = Text::from(visible_lines);
+
+    // Determine status indicator - show only one of: [Loading...], [LIVE], or [XX%]
+    let status_indicator = if log_state.fetching_older {
+        // Show loading indicator when fetching older logs
+        "[Loading...]".to_string()
+    } else if state.is_at_bottom {
+        // At bottom in auto-scroll mode, show LIVE
+        "[LIVE]".to_string()
+    } else if let Some(progress) = log_state.calculate_progress(actual_scroll) {
+        // Not at bottom, show progress percentage
+        if log_state.has_more_history || progress > 0.0 {
+            format!("[{:.0}%]", progress)
+        } else {
+            // At the very beginning (0%)
+            "[0%]".to_string()
+        }
+    } else {
+        String::new()
+    };
 
     // Create log widget with only visible text, no scroll needed since we pre-sliced
     let log_widget = Paragraph::new(visible_text)
@@ -85,13 +130,7 @@ pub fn render_log_view(
             Block::default()
                 .title(format!(
                     "Logs: {} ({}) - Press ESC to return {}",
-                    container_name,
-                    container_key.host_id,
-                    if state.is_at_bottom {
-                        "[AUTO]"
-                    } else {
-                        "[MANUAL]"
-                    }
+                    container_name, container_key.host_id, status_indicator
                 ))
                 .style(styles.border),
         )
