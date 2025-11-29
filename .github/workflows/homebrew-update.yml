@@ -134,16 +134,42 @@ jobs:
             homepage "https://github.com/amir20/dtop"
 
             postflight do
-              # Remove quarantine attribute on macOS
-              if system_command("/usr/bin/which", args: ["xattr"], must_succeed: false).success?
-                system_command("/usr/bin/xattr",
-                              args: ["-d", "com.apple.quarantine", "#{staged_path}/dtop"],
-                              must_succeed: false,
-                              sudo: false)
+              # Remove quarantine attribute on macOS only
+              on_macos do
+                if system_command("/usr/bin/which", args: ["xattr"], must_succeed: false).success?
+                  on_intel do
+                    system_command("/usr/bin/xattr",
+                                  args: ["-d", "com.apple.quarantine", "#{staged_path}/dtop-x86_64-apple-darwin/dtop"],
+                                  must_succeed: false,
+                                  sudo: false)
+                  end
+                  on_arm do
+                    system_command("/usr/bin/xattr",
+                                  args: ["-d", "com.apple.quarantine", "#{staged_path}/dtop-aarch64-apple-darwin/dtop"],
+                                  must_succeed: false,
+                                  sudo: false)
+                  end
+                end
               end
             end
 
-            binary "dtop"
+            on_intel do
+              on_macos do
+                binary "dtop-x86_64-apple-darwin/dtop"
+              end
+              on_linux do
+                binary "dtop-x86_64-unknown-linux-gnu/dtop"
+              end
+            end
+
+            on_arm do
+              on_macos do
+                binary "dtop-aarch64-apple-darwin/dtop"
+              end
+              on_linux do
+                binary "dtop-aarch64-unknown-linux-gnu/dtop"
+              end
+            end
           end
           EOF
 
