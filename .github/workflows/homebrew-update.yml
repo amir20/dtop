@@ -1,21 +1,46 @@
 name: Update Homebrew Cask
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update (e.g., 0.6.0 or v0.6.0)'
+        required: true
+        type: string
 
 jobs:
   update-homebrew:
     runs-on: ubuntu-latest
+    # Only run if:
+    # - Manual dispatch, OR
+    # - Release workflow succeeded and was triggered by a tag
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     steps:
       - name: Extract version from tag
         id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use the input version
+            TAG="${{ inputs.version }}"
+            echo "Using manually provided version: $TAG"
+          else
+            # Automated trigger - get the tag from the Release workflow
+            TAG=$(gh api /repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.head_branch')
+            echo "Extracted tag from workflow run: $TAG"
+          fi
+
           # Remove 'v' prefix from tag if present
-          VERSION="${GITHUB_REF#refs/tags/}"
-          VERSION="${VERSION#v}"
+          VERSION="${TAG#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted version: $VERSION"
+          echo "Final version: $VERSION"
 
       - name: Wait for release assets
         run: |
