@@ -136,6 +136,12 @@ jobs:
             on_intel do
               on_macos do
                 binary "dtop-x86_64-apple-darwin/dtop"
+
+                postflight do
+                  system_command "/usr/bin/xattr",
+                                args: ["-d", "com.apple.quarantine", "#{staged_path}/dtop-x86_64-apple-darwin/dtop"],
+                                must_succeed: false
+                end
               end
               on_linux do
                 binary "dtop-x86_64-unknown-linux-gnu/dtop"
@@ -145,6 +151,12 @@ jobs:
             on_arm do
               on_macos do
                 binary "dtop-aarch64-apple-darwin/dtop"
+
+                postflight do
+                  system_command "/usr/bin/xattr",
+                                args: ["-d", "com.apple.quarantine", "#{staged_path}/dtop-aarch64-apple-darwin/dtop"],
+                                must_succeed: false
+                end
               end
               on_linux do
                 binary "dtop-aarch64-unknown-linux-gnu/dtop"
