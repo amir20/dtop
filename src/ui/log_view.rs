@@ -139,16 +139,10 @@ pub fn render_log_view(
     f.render_widget(log_widget, size);
 
     // Render scrollbar on the right side
-    // Use fixed content length of 100 and calculate position as percentage
-    let scrollbar_position = if let Some(progress) = log_state.calculate_progress(actual_scroll) {
-        (progress) as usize
-    } else {
-        0
-    };
-
     let mut scrollbar_state = ScrollbarState::default()
-        .content_length(100)
-        .position(scrollbar_position);
+        .content_length(num_lines)
+        .viewport_content_length(state.last_viewport_height)
+        .position(actual_scroll + state.last_viewport_height);
 
     let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
 
