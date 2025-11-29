@@ -3,27 +3,27 @@ source: src/ui/ui_tests.rs
 expression: output
 ---
 Logs: nginx (local) - Press ESC to return [LIVE]                                                                       ▲
-2025-10-29 10:15:30 Log line 1                                                                                         █
-2025-10-29 10:15:31 Log line 2                                                                                         █
+2025-10-29 10:15:30 Log line 1                                                                                         ║
+2025-10-29 10:15:31 Log line 2                                                                                         ║
 2025-10-29 10:15:32 Log line 3                                                                                         █
                                                                                                                        █
                                                                                                                        █
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
-                                                                                                                       ║
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
+                                                                                                                       █
                                                                                                                        ▼
