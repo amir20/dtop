@@ -155,17 +155,9 @@ pub enum AppEvent {
     ScrollPageUp,
     /// User scrolled page down in log view (Ctrl+D, Space)
     ScrollPageDown,
-    /// Batch of historical log lines loaded at once (no UI updates per line)
-    /// DEPRECATED: Use LogBatchPrepend instead
-    #[allow(dead_code)]
-    LogBatch(ContainerKey, Vec<LogEntry>),
     /// Batch of historical logs to prepend (initial load AND pagination)
     /// bool indicates if there are more historical logs available before this batch
     LogBatchPrepend(ContainerKey, Vec<LogEntry>, bool),
-    /// Request to fetch older logs (user scrolled to top)
-    /// Generated internally, not constructed directly
-    #[allow(dead_code)]
-    RequestOlderLogs,
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
     /// User pressed 'o' to open Dozzle

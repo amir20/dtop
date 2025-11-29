@@ -127,11 +127,9 @@ impl AppState {
             AppEvent::ScrollToBottom => self.handle_scroll_to_bottom(),
             AppEvent::ScrollPageUp => self.handle_scroll_page_up(),
             AppEvent::ScrollPageDown => self.handle_scroll_page_down(),
-            AppEvent::LogBatch(key, log_batch) => self.handle_log_batch(key, log_batch),
             AppEvent::LogBatchPrepend(key, log_entries, has_more_history) => {
                 self.handle_log_batch_prepend(key, log_entries, has_more_history)
             }
-            AppEvent::RequestOlderLogs => self.handle_request_older_logs(),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
