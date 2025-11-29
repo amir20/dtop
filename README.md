@@ -37,6 +37,13 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
 
+### Homebrew
+
+Install using Homebrew (macOS and Linux):
+
+```sh
+brew install --cask amir20/homebrew-dtop/dtop
+```
 
 ### Docker
 `dtop` is released as a docker image. You can pull it from Github.

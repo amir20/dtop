@@ -318,6 +318,64 @@
                 </h2>
 
                 <div class="space-y-5 max-w-3xl mx-auto">
+                    <!-- Homebrew -->
+                    <div>
+                        <div class="flex items-center mb-2">
+                            <span class="text-terminal-cyan mr-2 font-mono"
+                                >$</span
+                            >
+                            <h3
+                                class="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
+                            >
+                                Homebrew
+                            </h3>
+                        </div>
+                        <div
+                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors relative group"
+                        >
+                            <code
+                                >brew install --cask
+                                amir20/homebrew-dtop/dtop</code
+                            >
+                            <button
+                                @click="copyToClipboard('brew install --cask amir20/homebrew-dtop/dtop', 'homebrew')"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Copy to clipboard"
+                                title="Copy to clipboard"
+                            >
+                                <svg
+                                    x-show="!isCopied('homebrew')"
+                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    ></path>
+                                </svg>
+                                <svg
+                                    x-show="isCopied('homebrew')"
+                                    x-cloak
+                                    class="w-5 h-5 text-terminal-green"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M5 13l4 4L19 7"
+                                    ></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Cargo -->
                     <div>
                         <div class="flex items-center mb-2">
