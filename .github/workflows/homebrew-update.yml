@@ -5,8 +5,6 @@ on:
     workflows: ["Release"]
     types:
       - completed
-    branches:
-      - master
   workflow_dispatch:
     inputs:
       version:
