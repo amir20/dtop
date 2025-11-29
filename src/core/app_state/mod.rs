@@ -94,7 +94,7 @@ impl AppState {
         match &event {
             AppEvent::ContainerStat(_, _) => tracing::trace!("Handling stat update: {:?}", event),
             AppEvent::LogLine(_, _) => tracing::trace!("Handling log line: {:?}", event),
-            AppEvent::LogBatch(_, _) => tracing::debug!("Handling log batch: {:?}", event),
+
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
@@ -127,11 +127,9 @@ impl AppState {
             AppEvent::ScrollToBottom => self.handle_scroll_to_bottom(),
             AppEvent::ScrollPageUp => self.handle_scroll_page_up(),
             AppEvent::ScrollPageDown => self.handle_scroll_page_down(),
-            AppEvent::LogBatch(key, log_batch) => self.handle_log_batch(key, log_batch),
             AppEvent::LogBatchPrepend(key, log_entries, has_more_history) => {
                 self.handle_log_batch_prepend(key, log_entries, has_more_history)
             }
-            AppEvent::RequestOlderLogs => self.handle_request_older_logs(),
             AppEvent::LogLine(key, log_line) => self.handle_log_line(key, log_line),
             AppEvent::OpenDozzle => self.handle_open_dozzle(),
             AppEvent::ToggleHelp => self.handle_toggle_help(),
@@ -152,7 +150,6 @@ impl AppState {
                 self.handle_connection_error(host_id, error)
             }
             AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
-            AppEvent::StartShell(key) => RenderAction::StartShell(key),
         }
     }
 

@@ -155,17 +155,9 @@ pub enum AppEvent {
     ScrollPageUp,
     /// User scrolled page down in log view (Ctrl+D, Space)
     ScrollPageDown,
-    /// Batch of historical log lines loaded at once (no UI updates per line)
-    /// DEPRECATED: Use LogBatchPrepend instead
-    #[allow(dead_code)]
-    LogBatch(ContainerKey, Vec<LogEntry>),
     /// Batch of historical logs to prepend (initial load AND pagination)
     /// bool indicates if there are more historical logs available before this batch
     LogBatchPrepend(ContainerKey, Vec<LogEntry>, bool),
-    /// Request to fetch older logs (user scrolled to top)
-    /// Generated internally, not constructed directly
-    #[allow(dead_code)]
-    RequestOlderLogs,
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
     /// User pressed 'o' to open Dozzle
@@ -185,13 +177,10 @@ pub enum AppEvent {
     /// Navigate down in action menu
     SelectActionDown,
     /// Action is in progress
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionInProgress(ContainerKey, ContainerAction),
     /// Action completed successfully
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionSuccess(ContainerKey, ContainerAction),
     /// Action failed with error
-    #[allow(dead_code)] // Will be used in Phase 2
     ActionError(ContainerKey, ContainerAction, String),
     /// User pressed '/' to enter search mode
     EnterSearchMode,
@@ -201,9 +190,6 @@ pub enum AppEvent {
     ConnectionError(HostId, String),
     /// A new Docker host has successfully connected
     HostConnected(crate::docker::connection::DockerHost),
-    /// Start a shell session in a container
-    #[allow(dead_code)] // Constructed in keyboard_worker via event sender
-    StartShell(ContainerKey),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

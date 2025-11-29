@@ -211,16 +211,6 @@ impl AppState {
         RenderAction::Render
     }
 
-    pub(super) fn handle_log_batch(
-        &mut self,
-        key: ContainerKey,
-        log_entries: Vec<LogEntry>,
-    ) -> RenderAction {
-        // Legacy handler for old LogBatch events (will be deprecated)
-        // Delegate to LogBatchPrepend with has_more_history = false
-        self.handle_log_batch_prepend(key, log_entries, false)
-    }
-
     pub(super) fn handle_log_line(
         &mut self,
         key: ContainerKey,
