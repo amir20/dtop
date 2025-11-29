@@ -87,31 +87,25 @@ pub async fn fetch_older_logs(
     );
 
     let mut current_duration = initial_window_duration;
-    let mut collected_logs: Vec<LogEntry> = Vec::new();
     let mut attempt = 0;
 
     loop {
         attempt += 1;
-        let since_timestamp = before_timestamp - current_duration;
+        let mut since_timestamp = before_timestamp - current_duration;
+        let mut reached_container_start = false;
 
         // Check if we've gone past the container creation time
+        // If so, clamp to container creation and mark this as the final fetch
         if let Some(created) = container_created
             && since_timestamp < created
         {
             tracing::debug!(
-                "Window start ({}) is before container creation ({}), reached container start",
+                "Window start ({}) is before container creation ({}), clamping to container start",
                 since_timestamp,
                 created
             );
-            // We've reached the beginning, return what we have
-            let _ = tx
-                .send(AppEvent::LogBatchPrepend(
-                    key.clone(),
-                    collected_logs,
-                    false,
-                ))
-                .await;
-            return;
+            since_timestamp = created;
+            reached_container_start = true;
         }
 
         let options = Some(LogsOptions {
@@ -149,20 +143,28 @@ pub async fn fetch_older_logs(
             before_timestamp
         );
 
-        // Check if we have enough logs
-        if batch_logs.len() >= batch_size {
-            // Success: take the last batch_size logs (most recent)
-            let start_idx = batch_logs.len() - batch_size;
-            collected_logs = batch_logs.split_off(start_idx);
+        // If we reached container start, return all logs we found (don't trim)
+        if reached_container_start {
+            tracing::debug!(
+                "Reached container start, returning all {} logs",
+                batch_logs.len()
+            );
             let _ = tx
-                .send(AppEvent::LogBatchPrepend(key, collected_logs, true))
+                .send(AppEvent::LogBatchPrepend(key, batch_logs, false))
                 .await;
             return;
         }
 
-        // Keep the logs we found and expand window for next attempt
-        // Note: We keep expanding even if we found some logs, until we get enough
-        collected_logs = batch_logs;
+        // Check if we have enough logs
+        if batch_logs.len() >= batch_size {
+            // Success: take the last batch_size logs (most recent)
+            let start_idx = batch_logs.len() - batch_size;
+            let logs = batch_logs.split_off(start_idx);
+            let _ = tx.send(AppEvent::LogBatchPrepend(key, logs, true)).await;
+            return;
+        }
+
+        // Keep expanding the window for next attempt
         current_duration = current_duration * EXPANSION_FACTOR;
     }
 }
