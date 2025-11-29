@@ -86,7 +86,7 @@ jobs:
           echo "SHA256 checksums calculated successfully"
 
       - name: Checkout homebrew-dtop repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: amir20/homebrew-dtop
           token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
