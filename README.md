@@ -1,10 +1,8 @@
 <div align="center">
-  <img src="docs/dtop-icon.svg" alt="dtop logo" width="150" height="150">
-  <h1>dtop</h1>
+  <img src="docs/dtop-icon.svg" alt="dtop logo" width="150" height="150">  
 </div>
 
-> [!IMPORTANT]
-> `dtop` has been rewritten in Rust on the `master` branch. The Go version is available on the `v1` branch. Version v0.3.x is the first release of the Rust version. There are some breaking changes compared to the previous version.
+# 🖥️ dtop
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
