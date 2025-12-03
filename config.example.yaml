@@ -18,12 +18,30 @@ hosts:
   # - host: ssh://root@146.190.3.114
   #   dozzle: https://l.dozzle.dev/
 
-  # More examples:
+  # Host with filters (only show running containers named nginx)
+  # - host: local
+  #   filter:
+  #     - status=running
+  #     - name=nginx
+
+  # Host with label filters (production environment only)
   # - host: ssh://user@server1
+  #   dozzle: https://dozzle.server1.com/
+  #   filter:
+  #     - label=environment=production
+  #     - status=running
+
+  # More examples:
   # - host: ssh://user@server2:2222
   #   dozzle: https://dozzle.server2.com/
+  #   filter:
+  #     - ancestor=ubuntu:24.04  # Only containers from Ubuntu 24.04 image
   # - host: tcp://192.168.1.100:2375  # TCP connection (unencrypted)
+  #   filter:
+  #     - health=healthy  # Only healthy containers
   # - host: tls://192.168.1.100:2376  # TLS connection (encrypted, requires DOCKER_CERT_PATH)
+  #   filter:
+  #     - network=bridge  # Only containers on bridge network
 # Icon style for the UI
 # Options: "unicode" (default, works everywhere) or "nerd" (requires Nerd Font)
 # icons: unicode

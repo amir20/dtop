@@ -10,6 +10,10 @@ pub struct HostConfig {
     /// Optional Dozzle URL for this host
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dozzle: Option<String>,
+
+    /// Optional filters for this host (e.g., ["status=running", "name=nginx"])
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Vec<String>>,
     // Future fields can be added here as optional fields
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub custom_name: Option<String>,
@@ -75,14 +79,32 @@ impl Config {
 
     /// Merge config with command line arguments
     /// CLI args take precedence over config file values
-    pub fn merge_with_cli_hosts(mut self, cli_hosts: Vec<String>, cli_default: bool) -> Self {
+    pub fn merge_with_cli_hosts(
+        mut self,
+        cli_hosts: Vec<String>,
+        cli_default: bool,
+        cli_filters: Vec<String>,
+    ) -> Self {
         // Use CLI hosts if explicitly provided, OR if config file is empty
         if !cli_default || self.hosts.is_empty() {
-            // Convert CLI strings to HostConfig structs (no dozzle URL from CLI)
+            // Convert CLI strings to HostConfig structs
             self.hosts = cli_hosts
                 .into_iter()
-                .map(|host| HostConfig { host, dozzle: None })
+                .map(|host| HostConfig {
+                    host,
+                    dozzle: None,
+                    filter: if cli_filters.is_empty() {
+                        None
+                    } else {
+                        Some(cli_filters.clone())
+                    },
+                })
                 .collect();
+        } else if !cli_filters.is_empty() {
+            // Config file hosts are being used, but CLI filters override per-host filters
+            for host_config in &mut self.hosts {
+                host_config.filter = Some(cli_filters.clone());
+            }
         }
         self
     }
@@ -104,11 +126,13 @@ mod tests {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
                 dozzle: None,
+                filter: None,
             }],
             icons: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["ssh://user@server2".to_string()], false);
+        let merged =
+            config.merge_with_cli_hosts(vec!["ssh://user@server2".to_string()], false, vec![]);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "ssh://user@server2");
     }
@@ -119,11 +143,12 @@ mod tests {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
                 dozzle: Some("https://dozzle.example.com".to_string()),
+                filter: None,
             }],
             icons: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
+        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![]);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "ssh://user@server1");
         // Config file's dozzle URL is preserved
@@ -140,7 +165,7 @@ mod tests {
             icons: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true);
+        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![]);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "local");
     }
@@ -185,9 +210,11 @@ hosts:
         let host = HostConfig {
             host: "local".to_string(),
             dozzle: None,
+            filter: None,
         };
         assert_eq!(host.host, "local");
         assert_eq!(host.dozzle, None);
+        assert_eq!(host.filter, None);
     }
 
     #[test]
@@ -195,8 +222,48 @@ hosts:
         let host = HostConfig {
             host: "ssh://user@host".to_string(),
             dozzle: Some("https://dozzle.example.com".to_string()),
+            filter: None,
         };
         assert_eq!(host.host, "ssh://user@host");
         assert_eq!(host.dozzle.as_deref(), Some("https://dozzle.example.com"));
+    }
+
+    #[test]
+    fn test_merge_cli_filters_override_config() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: Some(vec!["status=running".to_string()]),
+            }],
+            icons: None,
+        };
+
+        let cli_filters = vec!["name=nginx".to_string()];
+        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, cli_filters);
+        assert_eq!(merged.hosts.len(), 1);
+        assert_eq!(
+            merged.hosts[0].filter.as_ref().unwrap(),
+            &vec!["name=nginx".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_config_filters_preserved_when_no_cli_filters() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: Some(vec!["status=running".to_string()]),
+            }],
+            icons: None,
+        };
+
+        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![]);
+        assert_eq!(merged.hosts.len(), 1);
+        assert_eq!(
+            merged.hosts[0].filter.as_ref().unwrap(),
+            &vec!["status=running".to_string()]
+        );
     }
 }

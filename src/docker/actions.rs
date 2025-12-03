@@ -1,7 +1,3 @@
-use bollard::query_parameters::{
-    RemoveContainerOptions, RestartContainerOptions, StartContainerOptions, StopContainerOptions,
-};
-
 use crate::core::types::{AppEvent, ContainerAction, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
 
@@ -17,12 +13,12 @@ pub async fn execute_container_action(
         .send(AppEvent::ActionInProgress(container_key.clone(), action))
         .await;
 
-    // Execute the action
+    // Execute the action using DockerHost methods
     let result = match action {
-        ContainerAction::Start => start_container(&host, &container_key.container_id).await,
-        ContainerAction::Stop => stop_container(&host, &container_key.container_id).await,
-        ContainerAction::Restart => restart_container(&host, &container_key.container_id).await,
-        ContainerAction::Remove => remove_container(&host, &container_key.container_id).await,
+        ContainerAction::Start => host.start_container(&container_key.container_id).await,
+        ContainerAction::Stop => host.stop_container(&container_key.container_id).await,
+        ContainerAction::Restart => host.restart_container(&container_key.container_id).await,
+        ContainerAction::Remove => host.remove_container(&container_key.container_id).await,
         ContainerAction::Shell => {
             // Shell is handled separately in main.rs via StartShell event
             // This path should never be reached
@@ -43,54 +39,4 @@ pub async fn execute_container_action(
                 .await;
         }
     }
-}
-
-/// Starts a container
-async fn start_container(host: &DockerHost, container_id: &str) -> Result<(), String> {
-    let options = StartContainerOptions { detach_keys: None };
-
-    host.docker
-        .start_container(container_id, Some(options))
-        .await
-        .map_err(|e| format!("Failed to start container: {}", e))
-}
-
-/// Stops a container with a 10-second timeout
-async fn stop_container(host: &DockerHost, container_id: &str) -> Result<(), String> {
-    let options = StopContainerOptions {
-        signal: None,
-        t: Some(10), // 10 second timeout before force kill
-    };
-
-    host.docker
-        .stop_container(container_id, Some(options))
-        .await
-        .map_err(|e| format!("Failed to stop container: {}", e))
-}
-
-/// Restarts a container with a 10-second timeout
-async fn restart_container(host: &DockerHost, container_id: &str) -> Result<(), String> {
-    let options = RestartContainerOptions {
-        signal: None,
-        t: Some(10), // 10 second timeout before force kill
-    };
-
-    host.docker
-        .restart_container(container_id, Some(options))
-        .await
-        .map_err(|e| format!("Failed to restart container: {}", e))
-}
-
-/// Removes a container (with force option if needed)
-async fn remove_container(host: &DockerHost, container_id: &str) -> Result<(), String> {
-    let options = RemoveContainerOptions {
-        force: true, // Force removal even if running
-        v: false,    // Don't remove volumes
-        link: false,
-    };
-
-    host.docker
-        .remove_container(container_id, Some(options))
-        .await
-        .map_err(|e| format!("Failed to remove container: {}", e))
 }

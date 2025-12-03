@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use url::Url;
 
 use crate::cli::config::{Config, HostConfig};
+use crate::cli::filters::parse_filters;
 use crate::core::types::AppEvent;
 use crate::docker::connection::{DockerHost, connect_docker, container_manager};
 
@@ -153,9 +155,17 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
 
     debug!("Successfully created Docker client for host: {}", host_spec);
 
+    // Parse filters if provided
+    let filters = if let Some(ref filter_list) = host_config.filter {
+        parse_filters(filter_list)
+            .map_err(|e| format!("Failed to parse filters for host '{}': {}", host_spec, e))?
+    } else {
+        HashMap::new()
+    };
+
     // Create host ID and DockerHost instance
     let host_id = create_host_id(host_spec);
-    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone());
+    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
