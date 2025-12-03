@@ -58,6 +58,29 @@ struct Args {
     ///   nerd     - Nerd Font icons (requires Nerd Font installed)
     #[arg(short = 'i', long)]
     icons: Option<String>,
+
+    /// Filter containers (can be specified multiple times)
+    ///
+    /// Examples:
+    ///   --filter status=running
+    ///   --filter name=nginx
+    ///   --filter label=com.example.version=1.0
+    ///   --filter ancestor=ubuntu:24.04
+    ///
+    /// Multiple filters of the same type use OR logic:
+    ///   --filter status=running --filter status=paused
+    ///
+    /// Different filter types use AND logic:
+    ///   --filter status=running --filter name=nginx
+    ///
+    /// Available filters:
+    ///   id, name, label, status, ancestor, before, since,
+    ///   volume, network, publish, expose, health, exited
+    ///
+    /// Note: Some filters only work with container listing, not events.
+    /// Warnings will be shown if a filter is incompatible with events.
+    #[arg(short = 'f', long = "filter", verbatim_doc_comment)]
+    filter: Vec<String>,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -105,16 +128,16 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Merge config with CLI args (CLI takes precedence)
     let merged_config = if cli_provided {
         // User explicitly provided --host, use CLI args
-        config.merge_with_cli_hosts(args.host.clone(), false)
+        config.merge_with_cli_hosts(args.host.clone(), false, args.filter.clone())
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
         if let Some(path) = config_path {
             eprintln!("Loaded config from: {}", path.display());
         }
-        config
+        config.merge_with_cli_hosts(vec!["local".to_string()], true, args.filter.clone())
     } else {
         // Neither CLI nor config provided hosts, use default "local"
-        config.merge_with_cli_hosts(vec!["local".to_string()], true)
+        config.merge_with_cli_hosts(vec!["local".to_string()], true, args.filter.clone())
     };
 
     // Determine icon style (CLI takes precedence over config)
@@ -235,9 +258,7 @@ async fn run_event_loop(
                     keyboard_paused.store(true, Ordering::Relaxed);
 
                     // Run shell session - this blocks until shell exits
-                    if let Err(e) =
-                        docker::shell::run_shell_session(host, &container_key.container_id).await
-                    {
+                    if let Err(e) = host.run_shell_session(&container_key.container_id).await {
                         tracing::error!("Shell session error: {}", e);
                     }
 
