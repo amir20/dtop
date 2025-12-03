@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.5] - 2025-12-03
+
+### Features
+
+- Supports --filter to filter containers (#172)
+
 ## [0.6.0] - 2025-11-29
 
 ### Features
