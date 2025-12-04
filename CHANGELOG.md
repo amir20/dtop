@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6] - 2025-12-04
+
+### Features
+
+- Adds color to help (#173)
+
 ## [0.6.5] - 2025-12-03
 
 ### Features
