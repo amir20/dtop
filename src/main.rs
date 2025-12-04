@@ -4,6 +4,7 @@ mod docker;
 mod ui;
 
 use clap::Parser;
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -27,9 +28,27 @@ use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, render_ui};
 
+/// Returns custom styles for CLI help output
+fn get_styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::Green.on_default() | Effects::BOLD)
+        .usage(AnsiColor::Cyan.on_default() | Effects::BOLD)
+        .literal(AnsiColor::BrightBlue.on_default())
+        .placeholder(AnsiColor::Yellow.on_default())
+        .error(AnsiColor::Red.on_default() | Effects::BOLD)
+        .valid(AnsiColor::Green.on_default())
+        .invalid(AnsiColor::Red.on_default())
+}
+
 /// Docker container monitoring TUI
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    about,
+    long_about = None,
+    styles = get_styles()
+)]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
