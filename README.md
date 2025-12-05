@@ -171,13 +171,34 @@ Options:
 Here's an example configuration:
 
 ```yaml
+# Monitor production servers with filters and Dozzle integration
+hosts:
+  - host: ssh://user@prod-server1
+    dozzle: https://dozzle.prod-server1.com/
+    filter:
+      - status=running
+      - label=environment=production
+
+  - host: ssh://user@prod-server2
+    dozzle: https://dozzle.prod-server2.com/
+    filter:
+      - status=running
+      - label=environment=production
+
+# Use Nerd Font icons for better visuals
+icons: nerd
+```
+
+**Or monitor specific application stacks:**
+
+```yaml
+# Development environment - only show healthy web services
 hosts:
   - host: local
-    dozzle: http://localhost:3100/ # this is optional
-  - host: tcp://host2:2375
-    dozzle: http://host2:3100/
-  - host: ssh://user@host
-    dozzle: http://host:8080/
+    filter:
+      - label=app=web
+      - status=running
+      - health=healthy
 ```
 
 See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.example.yaml) for more examples.
