@@ -54,6 +54,8 @@ pub struct AppState {
     pub search_input: Input,
     /// Connection errors to display (host_id -> (error_message, timestamp))
     pub connection_errors: HashMap<HostId, (String, Instant)>,
+    /// Last time containers were sorted (for throttling)
+    pub last_sort_time: Instant,
 }
 
 impl AppState {
@@ -86,6 +88,7 @@ impl AppState {
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
             connection_errors: HashMap::new(),
+            last_sort_time: Instant::now(),
         }
     }
 

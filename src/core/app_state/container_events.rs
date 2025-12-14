@@ -15,8 +15,8 @@ impl AppState {
             self.sorted_container_keys.push(key);
         }
 
-        // Sort using current sort field
-        self.sort_containers();
+        // Force immediate sort when loading initial container list
+        self.force_sort_containers();
 
         // Select first row if we have containers
         if !self.containers.is_empty() {
@@ -31,8 +31,8 @@ impl AppState {
         self.containers.insert(key.clone(), container);
         self.sorted_container_keys.push(key);
 
-        // Re-sort the entire list with current sort field
-        self.sort_containers();
+        // Force immediate sort when new container is added
+        self.force_sort_containers();
 
         // Select first row if this is the first container
         if self.containers.len() == 1 {

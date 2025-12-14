@@ -29,8 +29,8 @@ impl AppState {
         // Clear the search input
         self.search_input.reset();
 
-        // Re-sort/filter containers without search term
-        self.sort_containers();
+        // Force immediate re-sort/filter when exiting search mode
+        self.force_sort_containers();
 
         // Adjust selection after clearing filter
         let container_count = self.sorted_container_keys.len();
@@ -69,8 +69,8 @@ impl AppState {
         self.search_input
             .handle_event(&crossterm::event::Event::Key(key_event));
 
-        // Re-filter and sort containers based on new search input
-        self.sort_containers();
+        // Force immediate re-filter and sort as user types
+        self.force_sort_containers();
 
         // Adjust selection after filtering
         let container_count = self.sorted_container_keys.len();
