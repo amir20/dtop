@@ -1,5 +1,9 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerState, RenderAction, SortDirection, SortField, ViewState};
+use std::time::Duration;
+
+/// Minimum time between sorts to avoid re-sorting on every frame
+const SORT_THROTTLE_DURATION: Duration = Duration::from_secs(3);
 
 impl AppState {
     pub(super) fn handle_cycle_sort_field(&mut self) -> RenderAction {
@@ -11,8 +15,8 @@ impl AppState {
         // Cycle to next sort field with default direction
         self.sort_state = crate::core::types::SortState::new(self.sort_state.field.next());
 
-        // Re-sort the container list
-        self.sort_containers();
+        // Force immediate re-sort when user changes sort field
+        self.force_sort_containers();
 
         RenderAction::Render // Force redraw - sort order changed
     }
@@ -30,8 +34,8 @@ impl AppState {
             self.sort_state = crate::core::types::SortState::new(field);
         }
 
-        // Re-sort the container list
-        self.sort_containers();
+        // Force immediate re-sort when user changes sort field
+        self.force_sort_containers();
 
         RenderAction::Render // Force redraw - sort order changed
     }
@@ -45,8 +49,8 @@ impl AppState {
         // Toggle the show_all_containers flag
         self.show_all_containers = !self.show_all_containers;
 
-        // Re-sort/filter the container list
-        self.sort_containers();
+        // Force immediate re-sort/filter when user toggles visibility
+        self.force_sort_containers();
 
         // Adjust selection if needed after filtering
         let container_count = self.sorted_container_keys.len();
@@ -62,7 +66,25 @@ impl AppState {
     }
 
     /// Sorts the container keys based on the current sort field and direction
-    pub(super) fn sort_containers(&mut self) {
+    /// If force is false, will only sort if enough time has passed since last sort
+    pub fn sort_containers(&mut self) {
+        self.sort_containers_internal(false);
+    }
+
+    /// Forces an immediate sort regardless of throttle duration
+    pub fn force_sort_containers(&mut self) {
+        self.sort_containers_internal(true);
+    }
+
+    /// Internal sorting implementation with throttling control
+    fn sort_containers_internal(&mut self, force: bool) {
+        // Check if we should skip sorting due to throttle (unless forced)
+        if !force && self.last_sort_time.elapsed() < SORT_THROTTLE_DURATION {
+            return;
+        }
+
+        // Update last sort time
+        self.last_sort_time = std::time::Instant::now();
         // Get the search filter (case-insensitive)
         let search_filter = self.search_input.value().to_lowercase();
         let has_search_filter = !search_filter.is_empty();
