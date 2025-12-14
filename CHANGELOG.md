@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.7] - 2025-12-14
+
+### Features
+
+- Adds a flag to show all containers by default (#179)
+- Always sorts when showing containers (#177)
+
 ## [0.6.6] - 2025-12-04
 
 ### Features
