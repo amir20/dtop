@@ -17,6 +17,8 @@ cargo run -- --host tls://host:2376         # Run with remote Docker host via TL
 cargo run -- --host local --host ssh://user@host1 --host tcp://host2:2375  # Multiple hosts
 cargo run -- --filter status=running        # Filter to show only running containers
 cargo run -- --filter name=nginx --filter label=env=prod  # Multiple filters
+cargo run -- --all                           # Show all containers (including stopped/exited)
+cargo run -- -a                              # Short version of --all
 
 # Self-update
 cargo run -- update                          # Update dtop to the latest version
@@ -72,6 +74,10 @@ hosts:
 
 # Icon style: "unicode" (default) or "nerd" (requires Nerd Font)
 icons: unicode
+
+# Show all containers (default: false, shows only running containers)
+# Set to true to show all containers including stopped, exited, and paused containers
+all: false
 ```
 
 Each host entry is a struct with:
@@ -82,8 +88,32 @@ Each host entry is a struct with:
 
 Global config options:
 - `icons`: Icon style to use ("unicode" or "nerd")
+- `all`: Show all containers including stopped/exited (default: false)
 
 See `config.example.yaml` for a complete example.
+
+### Show All Containers
+
+The `--all` / `-a` flag controls whether to show all containers or only running containers:
+
+- **CLI**: `--all` or `-a` flag (boolean, follows `docker ps -a` convention)
+- **Config file**: `all: true/false` in YAML
+
+**Behavior:**
+- By default, only running containers are shown
+- The `--all` flag enables showing all containers (including stopped, exited, paused)
+- The flag is **one-way enable only**: it can enable showing all containers but cannot disable it
+- If config has `all: true`, the CLI flag cannot override it back to false
+- Users can always toggle the view with the 'a' key in the UI
+
+**Examples:**
+```bash
+dtop --all              # Show all containers
+dtop -a                 # Short version
+dtop                    # Show running only (unless config has all: true)
+```
+
+**Note:** This design matches Docker's `docker ps -a` behavior where the flag is a simple boolean enable.
 
 ### Container Filtering
 

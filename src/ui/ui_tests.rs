@@ -41,7 +41,7 @@ mod tests {
     /// Helper function to create a mock AppState for testing
     fn create_test_app_state() -> AppState {
         let (tx, _rx) = mpsc::channel(100);
-        AppState::new(HashMap::new(), tx)
+        AppState::new(HashMap::new(), tx, false)
     }
 
     /// Helper function to create a test container

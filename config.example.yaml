@@ -46,3 +46,9 @@ hosts:
 # Options: "unicode" (default, works everywhere) or "nerd" (requires Nerd Font)
 # icons: unicode
 # icons: nerd
+
+# Show all containers (default: false, shows only running containers)
+# Set to true to show all containers including stopped, exited, and paused containers
+# This is equivalent to using the --all/-a flag or pressing 'a' in the UI
+# all: false
+# all: true
