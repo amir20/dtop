@@ -640,7 +640,10 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - Keyboard polling is 200ms to balance responsiveness and CPU
 - Styles are pre-allocated in `UiStyles::default()` to avoid allocations during rendering
 - Container references (not clones) are used when building UI rows
-- Containers are pre-sorted once when added/removed, not on every frame
+- **Container sorting is throttled to once every 3 seconds** to avoid re-sorting on every render frame (stats updates are constant)
+  - User-initiated sort changes (field selection, search, toggle filters) bypass throttle for immediate response
+  - Container add/remove events also bypass throttle to maintain correctness
+  - This reduces sorting from ~2/sec to ~0.33/sec during normal operation (~83% reduction)
 - Exponential smoothing (alpha=0.3) reduces noise in stats without heavy computation
 - Failed host connections are logged but don't prevent other hosts from being monitored
 - Log streaming is only active when viewing a container's logs (stopped when exiting log view)
