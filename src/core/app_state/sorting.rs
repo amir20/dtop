@@ -67,8 +67,6 @@ impl AppState {
         let search_filter = self.search_input.value().to_lowercase();
         let has_search_filter = !search_filter.is_empty();
 
-        tracing::info!("Sorting containers");
-
         // Rebuild sorted_container_keys from containers, filtering by running state and search term
         self.sorted_container_keys = self
             .containers
