@@ -100,6 +100,15 @@ struct Args {
     /// Warnings will be shown if a filter is incompatible with events.
     #[arg(short = 'f', long = "filter", verbatim_doc_comment)]
     filter: Vec<String>,
+
+    /// Show all containers (default shows only running containers)
+    ///
+    /// By default, dtop only shows running containers.
+    /// Use this flag to show all containers including stopped, exited, and paused containers.
+    ///
+    /// This is equivalent to pressing 'a' in the UI to toggle show all.
+    #[arg(short = 'a', long = "all", verbatim_doc_comment)]
+    all: bool,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -147,16 +156,26 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Merge config with CLI args (CLI takes precedence)
     let merged_config = if cli_provided {
         // User explicitly provided --host, use CLI args
-        config.merge_with_cli_hosts(args.host.clone(), false, args.filter.clone())
+        config.merge_with_cli_hosts(args.host.clone(), false, args.filter.clone(), args.all)
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
         if let Some(path) = config_path {
             eprintln!("Loaded config from: {}", path.display());
         }
-        config.merge_with_cli_hosts(vec!["local".to_string()], true, args.filter.clone())
+        config.merge_with_cli_hosts(
+            vec!["local".to_string()],
+            true,
+            args.filter.clone(),
+            args.all,
+        )
     } else {
         // Neither CLI nor config provided hosts, use default "local"
-        config.merge_with_cli_hosts(vec!["local".to_string()], true, args.filter.clone())
+        config.merge_with_cli_hosts(
+            vec!["local".to_string()],
+            true,
+            args.filter.clone(),
+            args.all,
+        )
     };
 
     // Determine icon style (CLI takes precedence over config)
@@ -170,6 +189,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         // Default to unicode
         IconStyle::Unicode
     };
+
+    // Determine show_all setting (CLI or config, defaults to false)
+    let show_all = merged_config.all.unwrap_or(false);
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
@@ -207,6 +229,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         connected_hosts,
         keyboard_paused,
         icon_style,
+        show_all,
     )
     .await?;
 
@@ -257,8 +280,9 @@ async fn run_event_loop(
     connected_hosts: HashMap<String, DockerHost>,
     keyboard_paused: Arc<AtomicBool>,
     icon_style: IconStyle,
+    show_all: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = AppState::new(connected_hosts, tx);
+    let mut state = AppState::new(connected_hosts, tx, show_all);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 
