@@ -82,7 +82,7 @@ impl Config {
     }
 
     /// Merge config with command line arguments
-    /// CLI args take precedence over config file values
+    /// CLI args take precedence over config file values (with exceptions noted below)
     pub fn merge_with_cli_hosts(
         mut self,
         cli_hosts: Vec<String>,
@@ -112,11 +112,13 @@ impl Config {
             }
         }
 
-        // CLI 'all' flag takes precedence over config file, but only when set to true
-        // This matches docker ps -a behavior: the flag can only enable, not disable
+        // CLI 'all' flag can only enable showing all containers, not disable it
+        // This matches docker ps -a behavior: it's a simple boolean flag
+        // If config has all: true, users must edit config or use 'a' key in UI to toggle
         if cli_all {
             self.all = Some(true);
         }
+        // When cli_all is false, config value is preserved (config is not overridden)
 
         self
     }
