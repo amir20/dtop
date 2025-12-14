@@ -125,7 +125,9 @@ Options:
   -i, --icons <ICONS>
           Icon style to use for the UI
           
-          Options: unicode  - Standard Unicode icons (default, works everywhere) nerd     - Nerd Font icons (requires Nerd Font installed)
+          Options:
+            unicode  - Standard Unicode icons (default, works everywhere)
+            nerd     - Nerd Font icons (requires Nerd Font installed)
 
   -f, --filter <FILTER>
           Filter containers (can be specified multiple times)
@@ -149,11 +151,24 @@ Options:
           Note: Some filters only work with container listing, not events.
           Warnings will be shown if a filter is incompatible with events.
 
+  -a, --all
+          Show all containers (default shows only running containers)
+          
+          By default, dtop only shows running containers.
+          Use this flag to show all containers including stopped, exited, and paused containers.
+          
+          Note: This flag can only enable showing all containers, not disable it.
+          If your config file has 'all: true', you'll need to edit the config file
+          or press 'a' in the UI to toggle back to showing only running containers.
+          
+          This is equivalent to pressing 'a' in the UI to toggle show all.
+
   -h, --help
           Print help (see a summary with '-h')
 
   -V, --version
           Print version
+
 ```
 
 ## Configuration File
