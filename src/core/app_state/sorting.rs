@@ -62,10 +62,12 @@ impl AppState {
     }
 
     /// Sorts the container keys based on the current sort field and direction
-    pub(super) fn sort_containers(&mut self) {
+    pub fn sort_containers(&mut self) {
         // Get the search filter (case-insensitive)
         let search_filter = self.search_input.value().to_lowercase();
         let has_search_filter = !search_filter.is_empty();
+
+        tracing::info!("Sorting containers");
 
         // Rebuild sorted_container_keys from containers, filtering by running state and search term
         self.sorted_container_keys = self

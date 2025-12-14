@@ -24,6 +24,8 @@ pub fn render_container_list(
     // Determine if we should show progress bars based on terminal width
     let show_progress_bars = width >= 128;
 
+    app_state.sort_containers();
+
     // Use pre-sorted list instead of sorting every frame
     let rows: Vec<Row> = app_state
         .sorted_container_keys
