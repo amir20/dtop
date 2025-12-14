@@ -112,12 +112,11 @@ impl Config {
             }
         }
 
-        // CLI 'all' flag takes precedence over config file
-        // If CLI flag is set (true), use it; otherwise keep config value
+        // CLI 'all' flag takes precedence over config file, but only when set to true
+        // This matches docker ps -a behavior: the flag can only enable, not disable
         if cli_all {
             self.all = Some(true);
         }
-        // If CLI flag is false and config has no value, it remains None (defaults to false)
 
         self
     }
@@ -307,7 +306,7 @@ hosts:
     }
 
     #[test]
-    fn test_config_all_preserved_when_cli_false() {
+    fn test_config_all_preserved_when_cli_not_set() {
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
@@ -318,7 +317,7 @@ hosts:
             all: Some(true), // Config says true
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false); // CLI says false
+        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false); // CLI not set
         assert_eq!(merged.all, Some(true)); // Config value should be preserved when CLI is false
     }
 

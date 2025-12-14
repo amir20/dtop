@@ -75,7 +75,7 @@ struct Args {
     /// Options:
     ///   unicode  - Standard Unicode icons (default, works everywhere)
     ///   nerd     - Nerd Font icons (requires Nerd Font installed)
-    #[arg(short = 'i', long)]
+    #[arg(short = 'i', long, verbatim_doc_comment)]
     icons: Option<String>,
 
     /// Filter containers (can be specified multiple times)
@@ -105,6 +105,10 @@ struct Args {
     ///
     /// By default, dtop only shows running containers.
     /// Use this flag to show all containers including stopped, exited, and paused containers.
+    ///
+    /// Note: This flag can only enable showing all containers, not disable it.
+    /// If your config file has 'all: true', you'll need to edit the config file
+    /// or press 'a' in the UI to toggle back to showing only running containers.
     ///
     /// This is equivalent to pressing 'a' in the UI to toggle show all.
     #[arg(short = 'a', long = "all", verbatim_doc_comment)]
