@@ -64,10 +64,74 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Pass the key event to tui-input to handle character input, backspace, etc.
-        use tui_input::backend::crossterm::EventHandler;
-        self.search_input
-            .handle_event(&crossterm::event::Event::Key(key_event));
+        // Manually handle key events to avoid crossterm version conflicts
+        // tui-input depends on crossterm 0.28, but we use 0.29
+        match key_event.code {
+            KeyCode::Char(c) => {
+                // Insert character at cursor position
+                let current_value = self.search_input.value();
+                let cursor = self.search_input.visual_cursor();
+                let mut new_value = String::with_capacity(current_value.len() + 1);
+                new_value.push_str(&current_value[..cursor]);
+                new_value.push(c);
+                new_value.push_str(&current_value[cursor..]);
+                self.search_input = tui_input::Input::new(new_value).with_cursor(cursor + 1);
+            }
+            KeyCode::Backspace => {
+                // Delete character before cursor
+                let current_value = self.search_input.value();
+                let cursor = self.search_input.visual_cursor();
+                if cursor > 0 {
+                    let mut new_value = String::with_capacity(current_value.len());
+                    new_value.push_str(&current_value[..cursor - 1]);
+                    new_value.push_str(&current_value[cursor..]);
+                    self.search_input = tui_input::Input::new(new_value).with_cursor(cursor - 1);
+                }
+            }
+            KeyCode::Delete => {
+                // Delete character at cursor
+                let current_value = self.search_input.value();
+                let cursor = self.search_input.visual_cursor();
+                if cursor < current_value.len() {
+                    let mut new_value = String::with_capacity(current_value.len());
+                    new_value.push_str(&current_value[..cursor]);
+                    new_value.push_str(&current_value[cursor + 1..]);
+                    self.search_input = tui_input::Input::new(new_value).with_cursor(cursor);
+                }
+            }
+            KeyCode::Left => {
+                // Move cursor left
+                let cursor = self.search_input.visual_cursor();
+                if cursor > 0 {
+                    self.search_input = tui_input::Input::new(self.search_input.value().to_string())
+                        .with_cursor(cursor - 1);
+                }
+            }
+            KeyCode::Right => {
+                // Move cursor right
+                let current_value = self.search_input.value();
+                let cursor = self.search_input.visual_cursor();
+                if cursor < current_value.len() {
+                    self.search_input = tui_input::Input::new(current_value.to_string())
+                        .with_cursor(cursor + 1);
+                }
+            }
+            KeyCode::Home => {
+                // Move cursor to start
+                self.search_input = tui_input::Input::new(self.search_input.value().to_string())
+                    .with_cursor(0);
+            }
+            KeyCode::End => {
+                // Move cursor to end
+                let len = self.search_input.value().len();
+                self.search_input = tui_input::Input::new(self.search_input.value().to_string())
+                    .with_cursor(len);
+            }
+            _ => {
+                // Ignore other keys
+                return RenderAction::None;
+            }
+        }
 
         // Force immediate re-filter and sort as user types
         self.force_sort_containers();

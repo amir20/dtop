@@ -13,8 +13,8 @@ default = ["self-update"]
 self-update = ["dep:self_update"]
 
 [dependencies]
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = "0.30"
+crossterm = "0.29"
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
 bollard = {version= "0.19.4", features = ["ssh", "ssl"]}
@@ -25,7 +25,7 @@ serde_yaml = "0.9"
 dirs = "6.0"
 chrono = "0.4"
 open = "5.3"
-ansi-to-tui = "7.0"
+ansi-to-tui = "8.0.0-beta.0"
 timeago = "0.5"
 url = "2.5"
 tui-input = "0.14"
