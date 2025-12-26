@@ -1,6 +1,8 @@
 //! TUI input library supporting multiple backends.
 //!
-//! See examples in the [GitHub repo](https://github.com/sayanarijit/tui-input/tree/main/examples).
+//! Vendored from: <https://github.com/sayanarijit/tui-input>
+//! License: MIT (see LICENSE file in this directory)
+//! Copyright (c) 2021 Arijit Basu
 
 mod core;
 
