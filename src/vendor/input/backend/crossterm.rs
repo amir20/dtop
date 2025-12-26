@@ -1,9 +1,7 @@
 use ratatui::crossterm;
 
 use super::super::{Input, InputRequest, StateChanged};
-use crossterm::event::{
-    Event as CrosstermEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-};
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::{
     cursor::MoveTo,
     queue,
@@ -49,12 +47,8 @@ pub fn to_input_request(evt: &CrosstermEvent) -> Option<InputRequest> {
 
                 (Delete, KeyModifiers::CONTROL) => Some(DeleteNextWord),
                 (Char('k'), KeyModifiers::CONTROL) => Some(DeleteTillEnd),
-                (Char('a'), KeyModifiers::CONTROL) | (Home, KeyModifiers::NONE) => {
-                    Some(GoToStart)
-                }
-                (Char('e'), KeyModifiers::CONTROL) | (End, KeyModifiers::NONE) => {
-                    Some(GoToEnd)
-                }
+                (Char('a'), KeyModifiers::CONTROL) | (Home, KeyModifiers::NONE) => Some(GoToStart),
+                (Char('e'), KeyModifiers::CONTROL) | (End, KeyModifiers::NONE) => Some(GoToEnd),
                 (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
                 (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
                 (_, _) => None,

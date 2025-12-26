@@ -1,8 +1,8 @@
+use crate::vendor::input::Input;
 use ratatui::widgets::{ListState, TableState};
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::sync::mpsc;
-use crate::vendor::input::Input;
 
 use crate::core::types::{
     AppEvent, Container, ContainerKey, HostId, LogState, RenderAction, SortState, ViewState,

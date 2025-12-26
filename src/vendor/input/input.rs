@@ -125,10 +125,7 @@ impl Input {
                         .value
                         .chars()
                         .take(self.cursor)
-                        .chain(
-                            std::iter::once(c)
-                                .chain(self.value.chars().skip(self.cursor)),
-                        )
+                        .chain(std::iter::once(c).chain(self.value.chars().skip(self.cursor)))
                         .collect();
                 }
                 self.cursor += 1;
