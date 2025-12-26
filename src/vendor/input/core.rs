@@ -2,6 +2,8 @@
 //!
 //! # Example: Without any backend
 //!
+// Allow cfg for serde feature that doesn't exist in dtop
+#![allow(unexpected_cfgs)]
 //! ```ignore
 //! use tui_input::{Input, InputRequest, StateChanged};
 //!

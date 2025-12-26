@@ -2,7 +2,7 @@
 //!
 //! See examples in the [GitHub repo](https://github.com/sayanarijit/tui-input/tree/main/examples).
 
-mod input;
+mod core;
 
 pub mod backend;
-pub use input::{Input, InputRequest, InputResponse, StateChanged};
+pub use core::{Input, InputRequest, StateChanged};

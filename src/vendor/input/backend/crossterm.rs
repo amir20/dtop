@@ -59,6 +59,7 @@ pub fn to_input_request(evt: &CrosstermEvent) -> Option<InputRequest> {
 }
 
 /// Renders the input UI at the given position with the given width.
+#[allow(dead_code)]
 pub fn write<W: Write>(
     stdout: &mut W,
     value: &str,
