@@ -546,7 +546,7 @@ mod tests {
 
         // Enter search mode with some input
         state.view_state = ViewState::SearchMode;
-        state.search_input = tui_input::Input::new("ngi".to_string());
+        state.search_input = crate::vendor::input::Input::new("ngi".to_string());
 
         let backend = TestBackend::new(120, 25);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -593,7 +593,7 @@ mod tests {
 
         // Set up filter but not in search mode (user exited search mode with filter active)
         state.view_state = ViewState::ContainerList;
-        state.search_input = tui_input::Input::new("nginx".to_string());
+        state.search_input = crate::vendor::input::Input::new("nginx".to_string());
 
         let backend = TestBackend::new(120, 25);
         let mut terminal = Terminal::new(backend).unwrap();

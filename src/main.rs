@@ -3,6 +3,12 @@ mod core;
 mod docker;
 mod ui;
 
+// Vendor modules (input widgets)
+#[path = "vendor"]
+mod vendor {
+    pub mod input;
+}
+
 use clap::Parser;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{

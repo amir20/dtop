@@ -64,8 +64,8 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Pass the key event to tui-input to handle character input, backspace, etc.
-        use tui_input::backend::crossterm::EventHandler;
+        // Pass the key event to vendored tui-input to handle character input, backspace, etc.
+        use crate::vendor::input::backend::crossterm::EventHandler;
         self.search_input
             .handle_event(&crossterm::event::Event::Key(key_event));
 
