@@ -13,7 +13,7 @@ default = ["self-update"]
 self-update = ["dep:self_update"]
 
 [dependencies]
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
