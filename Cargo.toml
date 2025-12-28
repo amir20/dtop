@@ -28,7 +28,7 @@ open = "5.3"
 ansi-to-tui = "7.0"
 timeago = "0.5"
 url = "2.5"
-tui-input = "0.14"
+tui-input = "0.15"
 self_update = { version = "0.42", default-features = false, features = ["archive-tar", "compression-flate2", "rustls"], optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
