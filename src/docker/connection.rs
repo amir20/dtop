@@ -487,6 +487,7 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
             host,
             120, // timeout in seconds
             API_DEFAULT_VERSION,
+            None, // no custom socket path
         )
         .map_err(|e| {
             error!("SSH Docker connection failed for '{}': {:?}", host, e);
