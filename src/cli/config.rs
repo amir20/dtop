@@ -33,6 +33,10 @@ pub struct Config {
     /// Show all containers (default shows only running containers)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub all: Option<bool>,
+
+    /// Default sort field (uptime, name, cpu, memory)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort: Option<String>,
 }
 
 impl Config {
@@ -89,6 +93,7 @@ impl Config {
         cli_default: bool,
         cli_filters: Vec<String>,
         cli_all: bool,
+        cli_sort: Option<String>,
     ) -> Self {
         // Use CLI hosts if explicitly provided, OR if config file is empty
         if !cli_default || self.hosts.is_empty() {
@@ -120,6 +125,12 @@ impl Config {
         }
         // When cli_all is false, config value is preserved (config is not overridden)
 
+        // CLI sort takes precedence over config sort
+        if cli_sort.is_some() {
+            self.sort = cli_sort;
+        }
+        // When cli_sort is None, config value is preserved
+
         self
     }
 }
@@ -144,6 +155,7 @@ mod tests {
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -151,6 +163,7 @@ mod tests {
             false,
             vec![],
             false,
+            None,
         );
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "ssh://user@server2");
@@ -166,9 +179,11 @@ mod tests {
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false);
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "ssh://user@server1");
         // Config file's dozzle URL is preserved
@@ -184,9 +199,11 @@ mod tests {
             hosts: vec![],
             icons: None,
             all: None,
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false);
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(merged.hosts[0].host, "local");
     }
@@ -259,11 +276,12 @@ hosts:
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
         let cli_filters = vec!["name=nginx".to_string()];
         let merged =
-            config.merge_with_cli_hosts(vec!["local".to_string()], true, cli_filters, false);
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, cli_filters, false, None);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(
             merged.hosts[0].filter.as_ref().unwrap(),
@@ -281,9 +299,11 @@ hosts:
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false);
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None);
         assert_eq!(merged.hosts.len(), 1);
         assert_eq!(
             merged.hosts[0].filter.as_ref().unwrap(),
@@ -301,9 +321,11 @@ hosts:
             }],
             icons: None,
             all: Some(false), // Config says false
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], true); // CLI says true
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], true, None); // CLI says true
         assert_eq!(merged.all, Some(true)); // CLI should win
     }
 
@@ -317,9 +339,11 @@ hosts:
             }],
             icons: None,
             all: Some(true), // Config says true
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false); // CLI not set
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None); // CLI not set
         assert_eq!(merged.all, Some(true)); // Config value should be preserved when CLI is false
     }
 
@@ -333,9 +357,64 @@ hosts:
             }],
             icons: None,
             all: None, // No config value
+            sort: None,
         };
 
-        let merged = config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false); // CLI false
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None); // CLI false
         assert_eq!(merged.all, None); // Should remain None (will default to false in main.rs)
+    }
+
+    #[test]
+    fn test_cli_sort_overrides_config() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: None,
+            }],
+            icons: None,
+            all: None,
+            sort: Some("name".to_string()), // Config says name
+        };
+
+        let merged = config.merge_with_cli_hosts(
+            vec!["local".to_string()],
+            true,
+            vec![],
+            false,
+            Some("cpu".to_string()), // CLI says cpu
+        );
+        assert_eq!(merged.sort, Some("cpu".to_string())); // CLI should win
+    }
+
+    #[test]
+    fn test_config_sort_preserved_when_cli_not_set() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: None,
+            }],
+            icons: None,
+            all: None,
+            sort: Some("memory".to_string()), // Config says memory
+        };
+
+        let merged =
+            config.merge_with_cli_hosts(vec!["local".to_string()], true, vec![], false, None); // CLI not set
+        assert_eq!(merged.sort, Some("memory".to_string())); // Config value should be preserved
+    }
+
+    #[test]
+    fn test_yaml_deserialization_with_sort() {
+        let yaml = r#"
+hosts:
+  - host: local
+sort: cpu
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.hosts.len(), 1);
+        assert_eq!(config.sort, Some("cpu".to_string()));
     }
 }

@@ -19,6 +19,8 @@ cargo run -- --filter status=running        # Filter to show only running contai
 cargo run -- --filter name=nginx --filter label=env=prod  # Multiple filters
 cargo run -- --all                           # Show all containers (including stopped/exited)
 cargo run -- -a                              # Short version of --all
+cargo run -- --sort name                     # Sort containers by name
+cargo run -- -s cpu                          # Sort containers by CPU usage
 
 # Self-update
 cargo run -- update                          # Update dtop to the latest version
@@ -78,6 +80,9 @@ icons: unicode
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
+
+# Default sort field: "uptime" (default), "name", "cpu", or "memory"
+sort: uptime
 ```
 
 Each host entry is a struct with:
@@ -89,6 +94,7 @@ Each host entry is a struct with:
 Global config options:
 - `icons`: Icon style to use ("unicode" or "nerd")
 - `all`: Show all containers including stopped/exited (default: false)
+- `sort`: Default sort field for container list ("uptime", "name", "cpu", "memory")
 
 See `config.example.yaml` for a complete example.
 
@@ -114,6 +120,31 @@ dtop                    # Show running only (unless config has all: true)
 ```
 
 **Note:** This design matches Docker's `docker ps -a` behavior where the flag is a simple boolean enable.
+
+### Default Sort Field
+
+The `--sort` / `-s` option sets the default sort field for the container list:
+
+- **CLI**: `--sort <field>` or `-s <field>`
+- **Config file**: `sort: <field>` in YAML
+
+**Available sort fields:**
+- `uptime` (or `u`) - Sort by container creation time (default, newest first)
+- `name` (or `n`) - Sort by container name (alphabetically, ascending)
+- `cpu` (or `c`) - Sort by CPU usage (highest first)
+- `memory` (or `m`) - Sort by memory usage (highest first)
+
+**Behavior:**
+- Each field has a default sort direction (uptime/cpu/memory: descending, name: ascending)
+- CLI takes precedence over config file
+- Users can change the sort field and toggle direction in the UI with 's' or specific keys (u/n/c/m)
+
+**Examples:**
+```bash
+dtop --sort name        # Sort by name alphabetically
+dtop -s cpu             # Sort by CPU usage (highest first)
+dtop --sort memory      # Sort by memory usage
+```
 
 ### Container Filtering
 

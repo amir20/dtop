@@ -22,11 +22,18 @@ use tracing_subscriber::EnvFilter;
 use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
-use core::types::{AppEvent, RenderAction};
+use core::types::{AppEvent, RenderAction, SortField};
 use docker::connection::{DockerHost, container_manager};
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, render_ui};
+
+/// Configuration for the event loop
+struct EventLoopConfig {
+    icon_style: IconStyle,
+    show_all: bool,
+    sort_field: SortField,
+}
 
 /// Returns custom styles for CLI help output
 fn get_styles() -> Styles {
@@ -113,6 +120,20 @@ struct Args {
     /// This is equivalent to pressing 'a' in the UI to toggle show all.
     #[arg(short = 'a', long = "all", verbatim_doc_comment)]
     all: bool,
+
+    /// Default sort field for container list
+    ///
+    /// Options:
+    ///   uptime  - Sort by container uptime/creation time (default, newest first)
+    ///   name    - Sort by container name (alphabetically)
+    ///   cpu     - Sort by CPU usage (highest first)
+    ///   memory  - Sort by memory usage (highest first)
+    ///
+    /// You can also use short forms: u, n, c, m
+    ///
+    /// The sort direction can be toggled in the UI by pressing the same key again.
+    #[arg(short = 's', long = "sort", verbatim_doc_comment)]
+    sort: Option<String>,
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -160,7 +181,13 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Merge config with CLI args (CLI takes precedence)
     let merged_config = if cli_provided {
         // User explicitly provided --host, use CLI args
-        config.merge_with_cli_hosts(args.host.clone(), false, args.filter.clone(), args.all)
+        config.merge_with_cli_hosts(
+            args.host.clone(),
+            false,
+            args.filter.clone(),
+            args.all,
+            args.sort.clone(),
+        )
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
         if let Some(path) = config_path {
@@ -171,6 +198,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             true,
             args.filter.clone(),
             args.all,
+            args.sort.clone(),
         )
     } else {
         // Neither CLI nor config provided hosts, use default "local"
@@ -179,6 +207,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             true,
             args.filter.clone(),
             args.all,
+            args.sort.clone(),
         )
     };
 
@@ -196,6 +225,13 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Determine show_all setting (CLI or config, defaults to false)
     let show_all = merged_config.all.unwrap_or(false);
+
+    // Determine sort field (CLI or config, defaults to Uptime)
+    let sort_field = merged_config
+        .sort
+        .as_ref()
+        .and_then(|s| s.parse::<SortField>().ok())
+        .unwrap_or(SortField::Uptime);
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
@@ -232,8 +268,11 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         tx.clone(),
         connected_hosts,
         keyboard_paused,
-        icon_style,
-        show_all,
+        EventLoopConfig {
+            icon_style,
+            show_all,
+            sort_field,
+        },
     )
     .await?;
 
@@ -283,15 +322,14 @@ async fn run_event_loop(
     tx: mpsc::Sender<AppEvent>,
     connected_hosts: HashMap<String, DockerHost>,
     keyboard_paused: Arc<AtomicBool>,
-    icon_style: IconStyle,
-    show_all: bool,
+    config: EventLoopConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = AppState::new(connected_hosts, tx, show_all);
+    let mut state = AppState::new(connected_hosts, tx, config.show_all, config.sort_field);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 
     // Pre-allocate styles to avoid recreation every frame
-    let styles = UiStyles::with_icon_style(icon_style);
+    let styles = UiStyles::with_icon_style(config.icon_style);
 
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting

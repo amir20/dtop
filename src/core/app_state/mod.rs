@@ -5,7 +5,8 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Container, ContainerKey, HostId, LogState, RenderAction, SortState, ViewState,
+    AppEvent, Container, ContainerKey, HostId, LogState, RenderAction, SortField, SortState,
+    ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -64,6 +65,7 @@ impl AppState {
         connected_hosts: HashMap<String, DockerHost>,
         event_tx: mpsc::Sender<AppEvent>,
         show_all: bool,
+        sort_field: SortField,
     ) -> Self {
         // Detect if running in SSH session
         let is_ssh_session = std::env::var("SSH_CLIENT").is_ok()
@@ -83,7 +85,7 @@ impl AppState {
             event_tx,
             is_ssh_session,
             show_help: false,
-            sort_state: SortState::default(), // Default to Created descending
+            sort_state: SortState::new(sort_field), // Use configured sort field with default direction
             show_all_containers: show_all,
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),

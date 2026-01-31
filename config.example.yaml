@@ -52,3 +52,13 @@ hosts:
 # This is equivalent to using the --all/-a flag or pressing 'a' in the UI
 # all: false
 # all: true
+
+# Default sort field for the container list
+# Options: "uptime" (default), "name", "cpu", "memory"
+# You can also use short forms: "u", "n", "c", "m"
+# The sort direction uses the field's default (uptime/cpu/memory: descending, name: ascending)
+# You can change the direction in the UI by pressing the same sort key again
+# sort: uptime
+# sort: name
+# sort: cpu
+# sort: memory

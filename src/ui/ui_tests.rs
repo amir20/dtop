@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::core::app_state::AppState;
-    use crate::core::types::{Container, ContainerKey, ContainerState, ContainerStats, ViewState};
+    use crate::core::types::{
+        Container, ContainerKey, ContainerState, ContainerStats, SortField, ViewState,
+    };
     use crate::ui::render::{UiStyles, render_ui};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -41,7 +43,7 @@ mod tests {
     /// Helper function to create a mock AppState for testing
     fn create_test_app_state() -> AppState {
         let (tx, _rx) = mpsc::channel(100);
-        AppState::new(HashMap::new(), tx, false)
+        AppState::new(HashMap::new(), tx, false, SortField::Uptime)
     }
 
     /// Helper function to create a test container
