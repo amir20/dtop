@@ -155,6 +155,7 @@ mod tests {
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -178,6 +179,7 @@ mod tests {
             }],
             icons: None,
             all: None,
+            sort: None,
         };
 
         let merged =
