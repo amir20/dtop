@@ -320,6 +320,34 @@ pub enum SortField {
     Memory,
 }
 
+impl std::str::FromStr for SortField {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "uptime" | "u" => Ok(SortField::Uptime),
+            "name" | "n" => Ok(SortField::Name),
+            "cpu" | "c" => Ok(SortField::Cpu),
+            "memory" | "mem" | "m" => Ok(SortField::Memory),
+            _ => Err(format!(
+                "Invalid sort field '{}'. Valid options: uptime, name, cpu, memory",
+                s
+            )),
+        }
+    }
+}
+
+impl std::fmt::Display for SortField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SortField::Uptime => write!(f, "uptime"),
+            SortField::Name => write!(f, "name"),
+            SortField::Cpu => write!(f, "cpu"),
+            SortField::Memory => write!(f, "memory"),
+        }
+    }
+}
+
 impl SortField {
     /// Cycles to the next sort field
     pub fn next(self) -> Self {
@@ -427,5 +455,81 @@ impl LogState {
         let percentage = (visible_offset / total_duration) * 100.0;
 
         Some(percentage.clamp(0.0, 100.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sort_field_from_str_full_names() {
+        assert_eq!("uptime".parse::<SortField>().unwrap(), SortField::Uptime);
+        assert_eq!("name".parse::<SortField>().unwrap(), SortField::Name);
+        assert_eq!("cpu".parse::<SortField>().unwrap(), SortField::Cpu);
+        assert_eq!("memory".parse::<SortField>().unwrap(), SortField::Memory);
+    }
+
+    #[test]
+    fn test_sort_field_from_str_short_names() {
+        assert_eq!("u".parse::<SortField>().unwrap(), SortField::Uptime);
+        assert_eq!("n".parse::<SortField>().unwrap(), SortField::Name);
+        assert_eq!("c".parse::<SortField>().unwrap(), SortField::Cpu);
+        assert_eq!("m".parse::<SortField>().unwrap(), SortField::Memory);
+    }
+
+    #[test]
+    fn test_sort_field_from_str_case_insensitive() {
+        assert_eq!("UPTIME".parse::<SortField>().unwrap(), SortField::Uptime);
+        assert_eq!("Name".parse::<SortField>().unwrap(), SortField::Name);
+        assert_eq!("CPU".parse::<SortField>().unwrap(), SortField::Cpu);
+        assert_eq!("Memory".parse::<SortField>().unwrap(), SortField::Memory);
+        assert_eq!("MEM".parse::<SortField>().unwrap(), SortField::Memory);
+    }
+
+    #[test]
+    fn test_sort_field_from_str_invalid() {
+        assert!("invalid".parse::<SortField>().is_err());
+        assert!("".parse::<SortField>().is_err());
+        assert!("x".parse::<SortField>().is_err());
+    }
+
+    #[test]
+    fn test_sort_field_display() {
+        assert_eq!(SortField::Uptime.to_string(), "uptime");
+        assert_eq!(SortField::Name.to_string(), "name");
+        assert_eq!(SortField::Cpu.to_string(), "cpu");
+        assert_eq!(SortField::Memory.to_string(), "memory");
+    }
+
+    #[test]
+    fn test_sort_field_default_direction() {
+        assert_eq!(
+            SortField::Uptime.default_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            SortField::Name.default_direction(),
+            SortDirection::Ascending
+        );
+        assert_eq!(
+            SortField::Cpu.default_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            SortField::Memory.default_direction(),
+            SortDirection::Descending
+        );
+    }
+
+    #[test]
+    fn test_sort_state_new() {
+        let state = SortState::new(SortField::Name);
+        assert_eq!(state.field, SortField::Name);
+        assert_eq!(state.direction, SortDirection::Ascending);
+
+        let state = SortState::new(SortField::Cpu);
+        assert_eq!(state.field, SortField::Cpu);
+        assert_eq!(state.direction, SortDirection::Descending);
     }
 }
