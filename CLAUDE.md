@@ -46,6 +46,41 @@ git-cliff -o CHANGELOG.md                    # Write changelog to file
 # Docker build
 docker build -t dtop .
 docker run -v /var/run/docker.sock:/var/run/docker.sock -it dtop
+
+# Nix
+nix run .                                    # Run using pre-built binary (fast)
+nix run .#source                             # Run building from source
+nix build                                    # Build the package
+nix flake check                              # Verify flake is valid
+nix develop                                  # Enter dev shell with Rust tooling
+```
+
+## Nix Flake
+
+The project includes a Nix flake (`flake.nix`) for reproducible builds and easy installation.
+
+### Packages
+
+- `packages.default` - Pre-built binary from GitHub releases (instant install)
+- `packages.source` - Build from source using `buildRustPackage`
+
+### Updating Nix Hashes (for new releases)
+
+When releasing a new version, update the flake hashes:
+
+```bash
+./scripts/update-nix-hashes.sh <VERSION>
+# Example: ./scripts/update-nix-hashes.sh 0.6.8
+```
+
+This script requires Nix to be installed. It will:
+1. Update the version in `flake.nix`
+2. Fetch new release artifacts and compute their hashes
+3. Update all platform hashes automatically
+
+Test the updated flake with:
+```bash
+nix build && ./result/bin/dtop --version
 ```
 
 ## Configuration

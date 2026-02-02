@@ -67,6 +67,30 @@ Downloads the latest release from GitHub.
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh
 ```
 
+### Nix
+
+Run directly without installing:
+
+```sh
+nix run github:amir20/dtop
+```
+
+Or install to your profile:
+
+```sh
+nix profile install github:amir20/dtop
+```
+
+For NixOS or home-manager, add to your configuration:
+
+```nix
+# In your flake inputs
+inputs.dtop.url = "github:amir20/dtop";
+
+# Then use
+inputs.dtop.packages.${system}.default
+```
+
 ### Install from Source
 
 `dtop` is written in Rust can be installed using Cargo.
