@@ -12,6 +12,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   update-nix-flake:
     runs-on: ubuntu-latest
