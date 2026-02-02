@@ -1,0 +1,81 @@
+name: Update Nix Flake
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to update (e.g., 0.6.8 or v0.6.8)"
+        required: true
+        type: string
+
+jobs:
+  update-nix-flake:
+    runs-on: ubuntu-latest
+    # Only run if:
+    # - Manual dispatch, OR
+    # - Release workflow succeeded and was triggered by a tag
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use the input version
+            TAG="${{ inputs.version }}"
+            echo "Using manually provided version: $TAG"
+          else
+            # Automated trigger - get the tag from the Release workflow
+            TAG=$(gh api /repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.head_branch')
+            echo "Extracted tag from workflow run: $TAG"
+          fi
+
+          # Remove 'v' prefix from tag if present
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Final version: $VERSION"
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      # Cachix automatically downloads cached packages before builds and uploads
+      # newly built paths afterward. Useful if you add more Nix CI jobs later.
+      # Setup: create a cache at cachix.org, add CACHIX_AUTH_TOKEN to repo secrets.
+      # - name: Setup Cachix
+      #   uses: cachix/cachix-action@v15
+      #   with:
+      #     name: dtop
+      #     authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Update flake.nix hashes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ./scripts/update-nix-hashes.sh "$VERSION"
+
+      - name: Verify flake builds
+        run: |
+          nix build
+          ./result/bin/dtop --version
+
+      - name: Commit and push changes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add flake.nix
+          git commit -m "chore(nix): update flake to version $VERSION"
+          git push
+
+          echo "Successfully updated flake.nix to version $VERSION"
