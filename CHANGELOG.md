@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.8] - 2026-02-02
+
+### Features
+
+- Supports sort config in cli and config (#213)
+- *(nix)* Add flake for running pre-built binaries and building from source (#215)
+
 ## [0.6.7] - 2025-12-14
 
 ### Features
