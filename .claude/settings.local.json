@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git tag:*)",
+      "Bash(git describe:*)",
+      "Bash(gh run list:*)",
+      "mcp__acp__Edit",
+      "mcp__acp__Bash",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "Bash(ls:*)",
+      "Bash(cargo insta accept:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
