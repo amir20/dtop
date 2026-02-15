@@ -33,17 +33,20 @@ pub fn keyboard_worker(tx: EventSender, paused: Arc<AtomicBool>) {
 }
 
 fn handle_key_event(key: KeyEvent, tx: &EventSender) {
-    // Always send SearchKeyEvent first - AppState will handle it if search is active
+    // Ctrl+C / Ctrl+Q - always quit immediately (bypasses search mode)
+    if matches!(key.code, KeyCode::Char('q') | KeyCode::Char('c'))
+        && key.modifiers.contains(event::KeyModifiers::CONTROL)
+    {
+        let _ = tx.blocking_send(AppEvent::Quit);
+        return;
+    }
+
+    // Send SearchKeyEvent first - AppState will handle it if search is active
     let _ = tx.blocking_send(AppEvent::SearchKeyEvent(key));
 
     // Then send specific events for known shortcuts
     // (AppState will ignore these if search mode consumed the key)
     match key.code {
-        KeyCode::Char('q') | KeyCode::Char('c')
-            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
-        {
-            let _ = tx.blocking_send(AppEvent::Quit);
-        }
         KeyCode::Char('q') => {
             let _ = tx.blocking_send(AppEvent::Quit);
         }

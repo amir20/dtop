@@ -134,8 +134,11 @@ impl AppState {
         match self.sort_state.field {
             SortField::Uptime => {
                 self.sorted_container_keys.sort_by(|a, b| {
-                    let container_a = self.containers.get(a).unwrap();
-                    let container_b = self.containers.get(b).unwrap();
+                    let (Some(container_a), Some(container_b)) =
+                        (self.containers.get(a), self.containers.get(b))
+                    else {
+                        return std::cmp::Ordering::Equal;
+                    };
 
                     // First by host_id
                     match container_a.host_id.cmp(&container_b.host_id) {
@@ -160,8 +163,11 @@ impl AppState {
             }
             SortField::Name => {
                 self.sorted_container_keys.sort_by(|a, b| {
-                    let container_a = self.containers.get(a).unwrap();
-                    let container_b = self.containers.get(b).unwrap();
+                    let (Some(container_a), Some(container_b)) =
+                        (self.containers.get(a), self.containers.get(b))
+                    else {
+                        return std::cmp::Ordering::Equal;
+                    };
 
                     // First by host_id
                     match container_a.host_id.cmp(&container_b.host_id) {
@@ -180,8 +186,11 @@ impl AppState {
             }
             SortField::Cpu => {
                 self.sorted_container_keys.sort_by(|a, b| {
-                    let container_a = self.containers.get(a).unwrap();
-                    let container_b = self.containers.get(b).unwrap();
+                    let (Some(container_a), Some(container_b)) =
+                        (self.containers.get(a), self.containers.get(b))
+                    else {
+                        return std::cmp::Ordering::Equal;
+                    };
 
                     // First by host_id
                     match container_a.host_id.cmp(&container_b.host_id) {
@@ -204,8 +213,11 @@ impl AppState {
             }
             SortField::Memory => {
                 self.sorted_container_keys.sort_by(|a, b| {
-                    let container_a = self.containers.get(a).unwrap();
-                    let container_b = self.containers.get(b).unwrap();
+                    let (Some(container_a), Some(container_b)) =
+                        (self.containers.get(a), self.containers.get(b))
+                    else {
+                        return std::cmp::Ordering::Equal;
+                    };
 
                     // First by host_id
                     match container_a.host_id.cmp(&container_b.host_id) {
