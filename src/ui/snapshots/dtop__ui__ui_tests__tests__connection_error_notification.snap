@@ -2,7 +2,7 @@
 source: src/ui/ui_tests.rs
 expression: output
 ---
-dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)                           ┌─────────────────────────────────────────────────────────┐
+dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)                          ┌─────────────────────────────────────────────────────────┐
                                                                                  │✗ user@server1: Failed to connect: Connection refused    │
   ID             Name             CPU %                        Memory %          └─────────────────────────────────────────────────────────┘
                                                                                                                                             
