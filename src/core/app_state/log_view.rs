@@ -225,11 +225,14 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Store the raw log entry
-        state.log_entries.push(log_entry.clone());
+        // Extract timestamp before moving log_entry
+        let timestamp = log_entry.timestamp;
+
+        // Store the raw log entry (already owned, no clone needed)
+        state.log_entries.push(log_entry);
 
         // Update newest timestamp for progress calculation
-        state.newest_timestamp = Some(log_entry.timestamp);
+        state.newest_timestamp = Some(timestamp);
 
         RenderAction::Render
     }

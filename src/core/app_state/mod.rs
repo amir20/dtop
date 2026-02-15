@@ -119,6 +119,11 @@ impl AppState {
             }
             AppEvent::Resize => RenderAction::Render, // Always redraw on resize
             AppEvent::Quit => {
+                // Don't quit if in search mode - 'q' was meant as search input
+                // (Ctrl+C bypasses this by sending Quit before SearchKeyEvent)
+                if self.view_state == ViewState::SearchMode {
+                    return RenderAction::None;
+                }
                 self.should_quit = true;
                 RenderAction::None
             }

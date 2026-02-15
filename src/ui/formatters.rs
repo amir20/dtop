@@ -1,7 +1,10 @@
 //! Formatting utilities for displaying values in the UI
 
 use chrono::Utc;
+use std::sync::LazyLock;
 use timeago::Formatter;
+
+static TIMEAGO_FORMATTER: LazyLock<Formatter> = LazyLock::new(Formatter::new);
 
 const KB: f64 = 1024.0;
 const MB: f64 = KB * 1024.0;
@@ -42,9 +45,8 @@ pub fn format_bytes_per_sec(bytes_per_sec: f64) -> String {
 pub fn format_time_elapsed(created: Option<&chrono::DateTime<Utc>>) -> String {
     match created {
         Some(created_time) => {
-            let formatter = Formatter::new();
             let now = Utc::now();
-            formatter.convert_chrono(*created_time, now)
+            TIMEAGO_FORMATTER.convert_chrono(*created_time, now)
         }
         None => "Unknown".to_string(),
     }

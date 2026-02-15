@@ -109,11 +109,12 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
     f.render_widget(footer, footer_area);
 }
 
-/// Truncates a string to the specified length, adding ellipsis if needed
+/// Truncates a string to the specified character length, adding ellipsis if needed
 fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+    if s.chars().count() <= max_len {
         s.to_string()
     } else {
-        format!("{}…", &s[..max_len.saturating_sub(1)])
+        let truncated: String = s.chars().take(max_len.saturating_sub(1)).collect();
+        format!("{}…", truncated)
     }
 }

@@ -8,7 +8,7 @@ impl AppState {
             return RenderAction::None;
         }
 
-        let container_count = self.containers.len();
+        let container_count = self.sorted_container_keys.len();
         if container_count > 0 {
             let selected = self.table_state.selected().unwrap_or(0);
             if selected > 0 {
@@ -24,7 +24,7 @@ impl AppState {
             return RenderAction::None;
         }
 
-        let container_count = self.containers.len();
+        let container_count = self.sorted_container_keys.len();
         if container_count > 0 {
             let selected = self.table_state.selected().unwrap_or(0);
             if selected < container_count - 1 {
@@ -35,6 +35,10 @@ impl AppState {
     }
 
     pub(super) fn handle_toggle_help(&mut self) -> RenderAction {
+        // Don't toggle help in search mode - '?' was meant as search input
+        if self.view_state == ViewState::SearchMode {
+            return RenderAction::None;
+        }
         self.show_help = !self.show_help;
         RenderAction::Render // Force redraw to show/hide popup
     }
