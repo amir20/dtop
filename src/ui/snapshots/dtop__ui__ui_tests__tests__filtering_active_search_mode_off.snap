@@ -2,7 +2,7 @@
 source: src/ui/ui_tests.rs
 expression: output
 ---
-dtop vX.X.X - 2 containers ('?' for help, 'q' to quit)                                                                  
+dtop vX.X.X - 2 containers ('?' for help, 'q' to quit)                                                                 
                                                                                                                         
   ID             Name                                        CPU %   Memory  Net TX       Net RX       Created ▼        
                                                                                                                         
