@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.11] - 2026-02-19
+
+### Bug Fixes
+
+- Prevent panics and improve keyboard handling in search mode (#224)
+- *(deps)* Update rust crate timeago to 0.6 (#226)
+
 ## [0.6.8] - 2026-02-02
 
 ### Features
