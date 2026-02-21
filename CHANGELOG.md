@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.13] - 2026-02-21
+
+### Features
+
+- *(ui)* Add PageUp/PageDown/Home/End key bindings for log view (#230)
+
 ## [0.6.11] - 2026-02-19
 
 ### Bug Fixes
