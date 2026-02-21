@@ -61,7 +61,10 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from(
-            "  g/G         Top/Bottom       Ctrl+U, b       Page up        Ctrl+D, Space   Page down",
+            "  g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down",
+        ),
+        Line::from(
+            "  G/End       Bottom",
         ),
         Line::from(""),
         Line::from(vec![Span::styled(

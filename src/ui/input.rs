@@ -73,6 +73,22 @@ fn handle_key_event(key: KeyEvent, tx: &EventSender) {
             let _ = tx.blocking_send(AppEvent::ScrollDown);
             let _ = tx.blocking_send(AppEvent::SelectActionDown);
         }
+        // PageUp for page up in log view
+        KeyCode::PageUp => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageUp);
+        }
+        // PageDown for page down in log view
+        KeyCode::PageDown => {
+            let _ = tx.blocking_send(AppEvent::ScrollPageDown);
+        }
+        // Home for scroll to top in log view
+        KeyCode::Home => {
+            let _ = tx.blocking_send(AppEvent::ScrollToTop);
+        }
+        // End for scroll to bottom in log view
+        KeyCode::End => {
+            let _ = tx.blocking_send(AppEvent::ScrollToBottom);
+        }
         KeyCode::Enter => {
             // Send EnterPressed - handler will show action menu or execute action based on view state
             let _ = tx.blocking_send(AppEvent::EnterPressed);
