@@ -63,9 +63,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down",
         ),
-        Line::from(
-            "  G/End       Bottom",
-        ),
+        Line::from("  G/End       Bottom"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Sorting",
