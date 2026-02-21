@@ -11,7 +11,13 @@
       "Bash(ls:*)",
       "Bash(cargo insta accept:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh issue:*)",
+      "Bash(cargo build:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)",
+      "Bash(cargo fmt:*)"
     ],
     "deny": [],
     "ask": []
