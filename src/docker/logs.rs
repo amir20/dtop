@@ -2,7 +2,7 @@ use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
-use ratatui::text::Text;
+use ratatui::text::{Line, Text};
 
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
@@ -16,24 +16,26 @@ pub struct LogEntry {
     pub text: Text<'static>,
 }
 
-/// Timestamp format length: "2025-10-28 12:34:56" = 19 chars + 1 space separator = 20
-const TIMESTAMP_PREFIX_WIDTH: usize = 20;
-
 impl LogEntry {
-    /// Calculate how many visual rows this entry takes when rendered and wrapped to `width`.
-    /// Accounts for the timestamp prefix added during rendering.
-    pub fn visual_line_height(&self, width: usize) -> usize {
-        if width == 0 {
-            return 1;
+    /// Format this log entry into a styled Line with timestamp and ANSI-parsed content.
+    /// The result is suitable for rendering in a ratatui Paragraph.
+    pub fn format(&self) -> Line<'static> {
+        use chrono::Local;
+        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::text::Span;
+
+        const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+
+        let local_timestamp = self.timestamp.with_timezone(&Local);
+        let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
+
+        if let Some(text_line) = self.text.lines.first() {
+            line_spans.extend(text_line.spans.iter().cloned());
         }
-        // Total width = timestamp prefix + content
-        let content_width = self.text.lines.first().map_or(0, |l| l.width());
-        let total_width = TIMESTAMP_PREFIX_WIDTH + content_width;
-        if total_width <= width {
-            1
-        } else {
-            total_width.div_ceil(width)
-        }
+
+        Line::from(line_spans)
     }
 
     /// Parse a Docker log line with RFC3339 timestamp

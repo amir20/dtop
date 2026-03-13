@@ -1,19 +1,13 @@
-use chrono::Local;
 use ratatui::{
     Frame,
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    text::{Line, Text},
     widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
 use crate::core::app_state::AppState;
 use crate::core::types::ContainerKey;
-use crate::docker::logs::LogEntry;
 
 use super::render::UiStyles;
-
-/// Style for log timestamps (yellow + bold)
-const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
 /// Calculate how many terminal rows a Line occupies when wrapped to the given width.
 fn wrapped_line_height(line: &Line, width: usize) -> usize {
@@ -27,32 +21,17 @@ fn wrapped_line_height(line: &Line, width: usize) -> usize {
     line_width.div_ceil(width)
 }
 
-/// Format a log entry into a Line with timestamp and ANSI-parsed content
-fn format_log_entry(log_entry: &LogEntry) -> Line<'static> {
-    let local_timestamp = log_entry.timestamp.with_timezone(&Local);
-    let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-
-    let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
-
-    if let Some(text_line) = log_entry.text.lines.first() {
-        line_spans.extend(text_line.spans.iter().cloned());
-    }
-
-    Line::from(line_spans)
-}
-
 /// Find which entry index contains a given visual line offset.
-fn entry_index_for_visual_line(entries: &[LogEntry], visual_line: usize, width: usize) -> usize {
+fn entry_index_for_visual_line(lines: &[Line], visual_line: usize, width: usize) -> usize {
     let mut accumulated = 0;
-    for (i, entry) in entries.iter().enumerate() {
-        let line = format_log_entry(entry);
-        let rows = wrapped_line_height(&line, width);
+    for (i, line) in lines.iter().enumerate() {
+        let rows = wrapped_line_height(line, width);
         if accumulated + rows > visual_line {
             return i;
         }
         accumulated += rows;
     }
-    entries.len().saturating_sub(1)
+    lines.len().saturating_sub(1)
 }
 
 /// Renders the log view for a specific container
@@ -87,8 +66,8 @@ pub fn render_log_view(
     state.last_viewport_height = visible_height;
     state.last_viewport_width = inner_width;
 
-    // Format all log entries
-    let all_lines: Vec<Line> = log_state.log_entries.iter().map(format_log_entry).collect();
+    // Use cached formatted lines (maintained by event handlers)
+    let all_lines = &log_state.formatted_lines;
 
     // Calculate total visual lines (accounting for wrapping)
     let total_rows: usize = all_lines
@@ -113,8 +92,7 @@ pub fn render_log_view(
     log_state.scroll_offset = actual_scroll;
 
     // Find which entry is at the current scroll position (for progress calculation)
-    let visible_entry_index =
-        entry_index_for_visual_line(&log_state.log_entries, actual_scroll, inner_width);
+    let visible_entry_index = entry_index_for_visual_line(all_lines, actual_scroll, inner_width);
 
     // Determine status indicator
     let status_indicator = if log_state.fetching_older {
@@ -131,9 +109,12 @@ pub fn render_log_view(
         String::new()
     };
 
-    let all_text = Text::from(all_lines);
+    // Clone the cached lines for the Paragraph (Text takes ownership)
+    let all_text = Text::from(all_lines.clone());
 
-    // Use Paragraph::scroll() to handle visual-line-level scrolling natively
+    // Use Paragraph::scroll() to handle visual-line-level scrolling natively.
+    // Saturate to u16::MAX to avoid silent truncation for very large scroll offsets.
+    let scroll_y = (actual_scroll as u64).min(u16::MAX as u64) as u16;
     let log_widget = Paragraph::new(all_text)
         .block(
             Block::default()
@@ -144,7 +125,7 @@ pub fn render_log_view(
                 .style(styles.border),
         )
         .wrap(Wrap { trim: false })
-        .scroll((actual_scroll as u16, 0));
+        .scroll((scroll_y, 0));
 
     f.render_widget(log_widget, area);
 
