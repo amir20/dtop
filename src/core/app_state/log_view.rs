@@ -283,10 +283,16 @@ impl AppState {
             state.newest_timestamp = newest;
         }
 
-        // Adjust scroll offset to maintain visual position during pagination
-        // Only adjust if this is NOT the initial load (initial load should start at bottom)
+        // Adjust scroll offset to maintain visual position during pagination.
+        // scroll_offset is in visual lines, so compute how many visual lines
+        // the prepended entries occupy.
         if !is_initial_load {
-            state.scroll_offset += num_entries;
+            let width = self.last_viewport_width;
+            let visual_lines_prepended: usize = state.log_entries[..num_entries]
+                .iter()
+                .map(|e| e.visual_line_height(width))
+                .sum();
+            state.scroll_offset += visual_lines_prepended;
         }
 
         RenderAction::Render

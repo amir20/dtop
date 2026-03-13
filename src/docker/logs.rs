@@ -16,7 +16,26 @@ pub struct LogEntry {
     pub text: Text<'static>,
 }
 
+/// Timestamp format length: "2025-10-28 12:34:56" = 19 chars + 1 space separator = 20
+const TIMESTAMP_PREFIX_WIDTH: usize = 20;
+
 impl LogEntry {
+    /// Calculate how many visual rows this entry takes when rendered and wrapped to `width`.
+    /// Accounts for the timestamp prefix added during rendering.
+    pub fn visual_line_height(&self, width: usize) -> usize {
+        if width == 0 {
+            return 1;
+        }
+        // Total width = timestamp prefix + content
+        let content_width = self.text.lines.first().map_or(0, |l| l.width());
+        let total_width = TIMESTAMP_PREFIX_WIDTH + content_width;
+        if total_width <= width {
+            1
+        } else {
+            total_width.div_ceil(width)
+        }
+    }
+
     /// Parse a Docker log line with RFC3339 timestamp
     /// Format: "2025-10-28T12:34:56.789Z message content"
     pub fn parse(log_line: &str) -> Option<Self> {

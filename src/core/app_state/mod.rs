@@ -37,6 +37,8 @@ pub struct AppState {
     pub is_at_bottom: bool,
     /// Last known viewport height for page up/down calculations
     pub last_viewport_height: usize,
+    /// Last known viewport inner width for visual line calculations
+    pub last_viewport_width: usize,
     /// Connected Docker hosts for log streaming
     pub connected_hosts: HashMap<String, DockerHost>,
     /// Event sender for spawning log streams
@@ -81,6 +83,7 @@ impl AppState {
             log_state: None,
             is_at_bottom: true,
             last_viewport_height: 20, // Default to 20 lines (will be updated on first render)
+            last_viewport_width: 80,  // Default width (will be updated on first render)
             connected_hosts,
             event_tx,
             is_ssh_session,
