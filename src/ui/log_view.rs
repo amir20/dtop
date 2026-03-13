@@ -152,7 +152,7 @@ pub fn render_log_view(
     let mut scrollbar_state = ScrollbarState::default()
         .content_length(total_rows)
         .viewport_content_length(visible_height)
-        .position(actual_scroll);
+        .position(actual_scroll + visible_height);
 
     let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
 
