@@ -2,7 +2,7 @@ use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
-use ratatui::text::Text;
+use ratatui::text::{Line, Text};
 
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
@@ -17,6 +17,27 @@ pub struct LogEntry {
 }
 
 impl LogEntry {
+    /// Format this log entry into a styled Line with timestamp and ANSI-parsed content.
+    /// The result is suitable for rendering in a ratatui Paragraph.
+    pub fn format(&self) -> Line<'static> {
+        use chrono::Local;
+        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::text::Span;
+
+        const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+
+        let local_timestamp = self.timestamp.with_timezone(&Local);
+        let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
+
+        if let Some(text_line) = self.text.lines.first() {
+            line_spans.extend(text_line.spans.iter().cloned());
+        }
+
+        Line::from(line_spans)
+    }
+
     /// Parse a Docker log line with RFC3339 timestamp
     /// Format: "2025-10-28T12:34:56.789Z message content"
     pub fn parse(log_line: &str) -> Option<Self> {

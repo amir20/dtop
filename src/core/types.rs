@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use ratatui::text::Line;
 use std::str::FromStr;
 use tokio::sync::mpsc;
 
@@ -376,10 +377,13 @@ pub struct LogState {
     /// Which container these logs are for
     pub container_key: ContainerKey,
 
-    /// Raw log entries with timestamps (used for progress calculation and formatting)
+    /// Raw log entries with timestamps (used for progress calculation)
     pub log_entries: Vec<crate::docker::logs::LogEntry>,
 
-    /// Current scroll offset (line number from top)
+    /// Pre-formatted lines for rendering (cached to avoid reformatting every frame)
+    pub formatted_lines: Vec<Line<'static>>,
+
+    /// Current scroll offset in visual lines (not entry count)
     pub scroll_offset: usize,
 
     /// Handle to the log streaming task (for cancellation)
@@ -410,6 +414,7 @@ impl LogState {
         Self {
             container_key,
             log_entries: Vec::new(),
+            formatted_lines: Vec::new(),
             scroll_offset: 0,
             stream_handle: None,
             oldest_timestamp: None,
@@ -421,16 +426,25 @@ impl LogState {
         }
     }
 
-    /// Calculate what percentage of log history the current visible page represents
+    /// Set log entries and rebuild the formatted lines cache.
+    /// Used in tests and when bulk-replacing entries.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn set_entries(&mut self, entries: Vec<crate::docker::logs::LogEntry>) {
+        self.formatted_lines = entries.iter().map(|e| e.format()).collect();
+        self.log_entries = entries;
+    }
+
+    /// Calculate what percentage of log history the current visible page represents.
+    /// Takes the entry index of the topmost visible log entry.
     /// 0% = viewing logs from container creation time (top), 100% = viewing current/newest logs (bottom)
     /// Returns None if we can't calculate (missing timestamps)
-    pub fn calculate_progress(&self, visible_line_index: usize) -> Option<f64> {
+    pub fn calculate_progress(&self, visible_entry_index: usize) -> Option<f64> {
         let container_created = self.container_created_at?;
         let newest_loaded = self.newest_timestamp?;
 
         // Get the timestamp of the currently visible log entry
-        let visible_timestamp = if visible_line_index < self.log_entries.len() {
-            self.log_entries[visible_line_index].timestamp
+        let visible_timestamp = if visible_entry_index < self.log_entries.len() {
+            self.log_entries[visible_entry_index].timestamp
         } else if !self.log_entries.is_empty() {
             // If index is out of range, use the last entry
             self.log_entries.last()?.timestamp

@@ -333,7 +333,7 @@ mod tests {
         ];
 
         let mut log_state = LogState::new(key.clone(), None);
-        log_state.log_entries = log_entries;
+        log_state.set_entries(log_entries);
         state.log_state = Some(log_state);
 
         let backend = TestBackend::new(120, 25);
@@ -393,7 +393,7 @@ mod tests {
         ];
 
         let mut log_state = LogState::new(key.clone(), None);
-        log_state.log_entries = log_entries;
+        log_state.set_entries(log_entries);
         log_state.scroll_offset = 5;
         state.log_state = Some(log_state);
 
