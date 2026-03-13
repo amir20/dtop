@@ -21,17 +21,20 @@ fn wrapped_line_height(line: &Line, width: usize) -> usize {
     line_width.div_ceil(width)
 }
 
-/// Find which entry index contains a given visual line offset.
-fn entry_index_for_visual_line(lines: &[Line], visual_line: usize, width: usize) -> usize {
+/// Find the entry index and sub-line offset for a given visual line position.
+/// Returns (entry_index, sub_line_offset) where sub_line_offset is the number
+/// of visual lines into the entry that the scroll position falls.
+fn find_visible_start(lines: &[Line], visual_line: usize, width: usize) -> (usize, usize) {
     let mut accumulated = 0;
     for (i, line) in lines.iter().enumerate() {
         let rows = wrapped_line_height(line, width);
         if accumulated + rows > visual_line {
-            return i;
+            return (i, visual_line - accumulated);
         }
         accumulated += rows;
     }
-    lines.len().saturating_sub(1)
+    // Past the end — return last entry with no sub-offset
+    (lines.len().saturating_sub(1), 0)
 }
 
 /// Renders the log view for a specific container
@@ -69,7 +72,7 @@ pub fn render_log_view(
     // Use cached formatted lines (maintained by event handlers)
     let all_lines = &log_state.formatted_lines;
 
-    // Calculate total visual lines (accounting for wrapping)
+    // Calculate total visual lines — O(n) but cheap (no allocations, just width comparisons)
     let total_rows: usize = all_lines
         .iter()
         .map(|line| wrapped_line_height(line, inner_width))
@@ -91,15 +94,17 @@ pub fn render_log_view(
     // Update scroll offset to actual (for proper clamping)
     log_state.scroll_offset = actual_scroll;
 
-    // Find which entry is at the current scroll position (for progress calculation)
-    let visible_entry_index = entry_index_for_visual_line(all_lines, actual_scroll, inner_width);
+    // Find the first visible entry and sub-line offset within it.
+    // This also gives us the entry index for progress calculation.
+    let (first_entry_idx, sub_line_offset) =
+        find_visible_start(all_lines, actual_scroll, inner_width);
 
     // Determine status indicator
     let status_indicator = if log_state.fetching_older {
         "[Loading...]".to_string()
     } else if state.is_at_bottom {
         "[LIVE]".to_string()
-    } else if let Some(progress) = log_state.calculate_progress(visible_entry_index) {
+    } else if let Some(progress) = log_state.calculate_progress(first_entry_idx) {
         if log_state.has_more_history || progress > 0.0 {
             format!("[{:.0}%]", progress)
         } else {
@@ -109,13 +114,27 @@ pub fn render_log_view(
         String::new()
     };
 
-    // Clone the cached lines for the Paragraph (Text takes ownership)
-    let all_text = Text::from(all_lines.clone());
+    // Collect only the visible slice of lines — O(viewport) instead of O(n).
+    // We need enough lines to fill visible_height + sub_line_offset (to account
+    // for the partial first entry that gets scrolled past).
+    let needed_rows = visible_height + sub_line_offset;
+    let mut visible_lines: Vec<Line> = Vec::new();
+    let mut rows_collected = 0;
 
-    // Use Paragraph::scroll() to handle visual-line-level scrolling natively.
-    // Saturate to u16::MAX to avoid silent truncation for very large scroll offsets.
-    let scroll_y = (actual_scroll as u64).min(u16::MAX as u64) as u16;
-    let log_widget = Paragraph::new(all_text)
+    for line in &all_lines[first_entry_idx..] {
+        let rows = wrapped_line_height(line, inner_width);
+        visible_lines.push(line.clone());
+        rows_collected += rows;
+        if rows_collected >= needed_rows {
+            break;
+        }
+    }
+
+    let visible_text = Text::from(visible_lines);
+
+    // Paragraph::scroll() only needs the sub-line offset within the first entry,
+    // since we already sliced to the visible window.
+    let log_widget = Paragraph::new(visible_text)
         .block(
             Block::default()
                 .title(format!(
@@ -125,7 +144,7 @@ pub fn render_log_view(
                 .style(styles.border),
         )
         .wrap(Wrap { trim: false })
-        .scroll((scroll_y, 0));
+        .scroll((sub_line_offset as u16, 0));
 
     f.render_widget(log_widget, area);
 
