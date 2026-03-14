@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.14] - 2026-03-14
+
+### Bug Fixes
+
+- *(ui)* Account for line wrapping in log view scroll calculations (#243)
+
 ## [0.6.13] - 2026-02-21
 
 ### Features
