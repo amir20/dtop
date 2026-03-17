@@ -99,9 +99,14 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
         }
     }
 
-    // Notify that this container stream ended
-    let key = ContainerKey::new(host.host_id, truncated_id);
-    let _ = tx.send(AppEvent::ContainerDestroyed(key)).await;
+    // Stats stream ended (container stopped or network hiccup).
+    // Don't send ContainerDestroyed — the container may still be running.
+    // Docker events (die/stop/destroy) handle container lifecycle correctly.
+    tracing::debug!(
+        "Stats stream ended for container {} on host {}",
+        truncated_id,
+        host.host_id
+    );
 }
 
 /// Calculates CPU usage percentage from container stats

@@ -26,7 +26,7 @@ use core::types::{AppEvent, RenderAction, SortField};
 use docker::connection::{DockerHost, container_manager};
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
-use ui::render::{UiStyles, render_ui};
+use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 
 /// Configuration for the event loop
 struct EventLoopConfig {
@@ -334,6 +334,9 @@ async fn run_event_loop(
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
+
+        // Clean up expired connection errors outside of render
+        cleanup_expired_errors(&mut state);
 
         match action {
             RenderAction::StartShell(container_key) => {

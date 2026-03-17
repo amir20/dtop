@@ -57,6 +57,10 @@ impl DockerHost {
 
             for container in container_list {
                 let full_id = container.id.clone().unwrap_or_default();
+                if full_id.is_empty() {
+                    tracing::warn!("Skipping container with empty ID");
+                    continue;
+                }
                 let truncated_id = full_id[..12.min(full_id.len())].to_string();
                 let name = container
                     .names
@@ -173,6 +177,9 @@ impl DockerHost {
                 Ok(event) => {
                     if let Some(actor) = event.actor {
                         let container_id = actor.id.clone().unwrap_or_default();
+                        if container_id.is_empty() {
+                            continue;
+                        }
                         let action = event.action.unwrap_or_default();
 
                         match action.as_str() {

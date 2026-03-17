@@ -58,6 +58,13 @@ impl UiStyles {
     }
 }
 
+/// Cleans up expired connection errors. Call this from the event loop, not during rendering.
+pub fn cleanup_expired_errors(state: &mut AppState) {
+    state
+        .connection_errors
+        .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
+}
+
 /// Renders the main UI - either container list, log view, or action menu
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let size = f.area();
@@ -153,12 +160,7 @@ fn render_search_bar(
 }
 
 /// Renders connection error notifications in the top right corner
-fn render_error_notifications(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
-    // Clean up old errors (older than 10 seconds)
-    state
-        .connection_errors
-        .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
-
+fn render_error_notifications(f: &mut Frame, state: &AppState, styles: &UiStyles) {
     if state.connection_errors.is_empty() {
         return;
     }

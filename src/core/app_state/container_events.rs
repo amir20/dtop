@@ -47,14 +47,7 @@ impl AppState {
         self.sorted_container_keys.retain(|k| k != &key);
 
         // Adjust selection if needed
-        let container_count = self.containers.len();
-        if container_count == 0 {
-            self.table_state.select(None);
-        } else if let Some(selected) = self.table_state.selected()
-            && selected >= container_count
-        {
-            self.table_state.select(Some(container_count - 1));
-        }
+        self.clamp_selection();
 
         RenderAction::Render // Force draw - table structure changed
     }

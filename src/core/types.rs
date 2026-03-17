@@ -33,23 +33,15 @@ impl FromStr for ContainerState {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s_lower = s.to_lowercase();
-        let state = if s_lower.contains("running") {
-            ContainerState::Running
-        } else if s_lower.contains("paused") {
-            ContainerState::Paused
-        } else if s_lower.contains("restarting") {
-            ContainerState::Restarting
-        } else if s_lower.contains("removing") {
-            ContainerState::Removing
-        } else if s_lower.contains("exited") {
-            ContainerState::Exited
-        } else if s_lower.contains("dead") {
-            ContainerState::Dead
-        } else if s_lower.contains("created") {
-            ContainerState::Created
-        } else {
-            ContainerState::Unknown
+        let state = match s.to_lowercase().as_str() {
+            "running" => ContainerState::Running,
+            "paused" => ContainerState::Paused,
+            "restarting" => ContainerState::Restarting,
+            "removing" => ContainerState::Removing,
+            "exited" => ContainerState::Exited,
+            "dead" => ContainerState::Dead,
+            "created" => ContainerState::Created,
+            _ => ContainerState::Unknown,
         };
         Ok(state)
     }
@@ -134,59 +126,19 @@ pub enum AppEvent {
     Quit,
     /// Terminal was resized
     Resize,
-    /// Move selection up
-    SelectPrevious,
-    /// Move selection down
-    SelectNext,
-    /// User pressed Enter key
-    EnterPressed,
-    /// User pressed Escape to exit log view
-    ExitLogView,
-    /// User pressed right arrow to show log view
-    ShowLogView,
-    /// User scrolled up in log view
-    ScrollUp,
-    /// User scrolled down in log view
-    ScrollDown,
-    /// User scrolled to top of log view (g)
-    ScrollToTop,
-    /// User scrolled to bottom of log view (G)
-    ScrollToBottom,
-    /// User scrolled page up in log view (Ctrl+U, b)
-    ScrollPageUp,
-    /// User scrolled page down in log view (Ctrl+D, Space)
-    ScrollPageDown,
+    /// A keyboard input event - dispatched by AppState based on view state
+    KeyInput(crossterm::event::KeyEvent),
     /// Batch of historical logs to prepend (initial load AND pagination)
     /// bool indicates if there are more historical logs available before this batch
     LogBatchPrepend(ContainerKey, Vec<LogEntry>, bool),
     /// New log line received from streaming logs
     LogLine(ContainerKey, LogEntry),
-    /// User pressed 'o' to open Dozzle
-    OpenDozzle,
-    /// User pressed '?' to toggle help
-    ToggleHelp,
-    /// User pressed 's' to cycle sort field
-    CycleSortField,
-    /// User pressed a key to set a specific sort field
-    SetSortField(SortField),
-    /// User pressed 'a' to toggle showing all containers (including stopped)
-    ToggleShowAll,
-    /// User pressed left arrow or Esc to cancel action menu
-    CancelActionMenu,
-    /// Navigate up in action menu
-    SelectActionUp,
-    /// Navigate down in action menu
-    SelectActionDown,
     /// Action is in progress
     ActionInProgress(ContainerKey, ContainerAction),
     /// Action completed successfully
     ActionSuccess(ContainerKey, ContainerAction),
     /// Action failed with error
     ActionError(ContainerKey, ContainerAction, String),
-    /// User pressed '/' to enter search mode
-    EnterSearchMode,
-    /// Key event for search input (passed to tui-input)
-    SearchKeyEvent(crossterm::event::KeyEvent),
     /// Connection to a Docker host failed
     ConnectionError(HostId, String),
     /// A new Docker host has successfully connected
