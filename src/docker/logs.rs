@@ -115,7 +115,7 @@ pub async fn fetch_older_logs(
         attempt += 1;
         if attempt > MAX_ATTEMPTS {
             tracing::warn!(
-                "Reached max attempts ({}) fetching older logs, returning what we have",
+                "Reached max attempts ({}) fetching older logs, no older logs found",
                 MAX_ATTEMPTS
             );
             let _ = tx

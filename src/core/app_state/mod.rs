@@ -177,13 +177,14 @@ impl AppState {
                 ViewState::ContainerList => self.handle_select_previous(),
                 ViewState::LogView(_) => self.handle_scroll_up(),
                 ViewState::ActionMenu(_) => self.handle_select_action_up(),
-                ViewState::SearchMode => unreachable!(),
+                // SearchMode is handled by the early return above; fallback defensively
+                ViewState::SearchMode => self.handle_select_previous(),
             },
             KeyCode::Down | KeyCode::Char('j') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_next(),
                 ViewState::LogView(_) => self.handle_scroll_down(),
                 ViewState::ActionMenu(_) => self.handle_select_action_down(),
-                ViewState::SearchMode => unreachable!(),
+                ViewState::SearchMode => self.handle_select_next(),
             },
             KeyCode::PageUp => self.handle_scroll_page_up(),
             KeyCode::PageDown => self.handle_scroll_page_down(),

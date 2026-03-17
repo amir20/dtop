@@ -40,6 +40,8 @@ impl AppState {
         RenderAction::Render // Force draw - selection changed
     }
 
+    /// Note: In search mode, '?' is routed to handle_search_key_event by handle_key_input,
+    /// so this method is only called outside of search mode.
     pub(super) fn handle_toggle_help(&mut self) -> RenderAction {
         self.show_help = !self.show_help;
         RenderAction::Render // Force redraw to show/hide popup
