@@ -43,7 +43,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 Install using Homebrew for macOS or Linux (recommended):
 
 ```sh
-brew install --cask amir20/homebrew-dtop/dtop
+brew install dtop
 ```
 
 > [!NOTE]
