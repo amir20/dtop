@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" x-data="app()" x-init="initTheme()" :class="{ 'dark': isDark }">
+<html lang="en" x-data="app()" x-init="initTheme()">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,22 +8,9 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap"
             rel="stylesheet"
         />
-        <script>
-            // Initialize theme BEFORE page renders to prevent flash
-            (function () {
-                const savedTheme = localStorage.getItem("theme");
-                const isDark = savedTheme
-                    ? savedTheme === "dark"
-                    : window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-                if (isDark) {
-                    document.documentElement.classList.add("dark");
-                }
-            })();
-        </script>
         <!-- Google tag (gtag.js) -->
         <script
             async
@@ -35,76 +22,122 @@
                 dataLayer.push(arguments);
             }
             gtag("js", new Date());
-
             gtag("config", "G-093HLGSNY6");
         </script>
-        <script src="https://cdn.tailwindcss.com"></script>
         <script
             defer
             src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
         ></script>
-        <script>
-            tailwind.config = {
-                darkMode: "class",
-                theme: {
-                    extend: {
-                        colors: {
-                            terminal: {
-                                green: "#10b981",
-                                blue: "#3b82f6",
-                                purple: "#8b5cf6",
-                                orange: "#f59e0b",
-                                cyan: "#06b6d4",
-                            },
-                        },
-                        fontFamily: {
-                            sans: ["Inter", "sans-serif"],
-                            mono: ["JetBrains Mono", "monospace"],
-                        },
-                    },
-                },
-            };
-
-            // Alpine.js component
-            function app() {
-                return {
-                    isDark: document.documentElement.classList.contains("dark"),
-                    copiedStates: {},
-
-                    initTheme() {
-                        // Sync with the class that was already set by the inline script
-                        this.isDark =
-                            document.documentElement.classList.contains("dark");
-                    },
-
-                    toggleTheme() {
-                        this.isDark = !this.isDark;
-                        localStorage.setItem(
-                            "theme",
-                            this.isDark ? "dark" : "light",
-                        );
-                    },
-
-                    async copyToClipboard(text, id) {
-                        try {
-                            await navigator.clipboard.writeText(text);
-                            this.copiedStates[id] = true;
-
-                            setTimeout(() => {
-                                this.copiedStates[id] = false;
-                            }, 2000);
-                        } catch (err) {
-                            console.error("Failed to copy:", err);
-                        }
-                    },
-
-                    isCopied(id) {
-                        return this.copiedStates[id] || false;
-                    },
-                };
-            }
-        </script>
         <style>
+            :root {
+                --color-bg: #0a0e17;
+                --color-bg-elevated: #111827;
+                --color-bg-card: #141c2b;
+                --color-surface: #1a2332;
+                --color-border: #1e293b;
+                --color-border-bright: #2d3d52;
+                --color-text: #e2e8f0;
+                --color-text-muted: #8899aa;
+                --color-text-dim: #4a5e73;
+                --color-accent: #00ff88;
+                --color-accent-dim: rgba(0, 255, 136, 0.15);
+                --color-accent-glow: rgba(0, 255, 136, 0.4);
+                --color-blue: #38bdf8;
+                --color-blue-dim: rgba(56, 189, 248, 0.12);
+                --color-purple: #a78bfa;
+                --color-purple-dim: rgba(167, 139, 250, 0.12);
+                --color-orange: #fb923c;
+                --color-orange-dim: rgba(251, 146, 60, 0.12);
+                --color-cyan: #22d3ee;
+                --color-cyan-dim: rgba(34, 211, 238, 0.12);
+                --font-display: "Orbitron", sans-serif;
+                --font-body: "DM Sans", sans-serif;
+                --font-mono: "JetBrains Mono", monospace;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html {
+                scroll-behavior: smooth;
+            }
+
+            body {
+                background: var(--color-bg);
+                color: var(--color-text);
+                font-family: var(--font-body);
+                min-height: 100vh;
+                overflow-x: hidden;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            /* ── Noise / grain overlay ── */
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                pointer-events: none;
+                opacity: 0.028;
+                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+                background-repeat: repeat;
+                background-size: 256px 256px;
+            }
+
+            /* ── Dot grid background ── */
+            .dot-grid {
+                position: fixed;
+                inset: 0;
+                z-index: 0;
+                pointer-events: none;
+                background-image: radial-gradient(
+                    circle,
+                    var(--color-border) 1px,
+                    transparent 1px
+                );
+                background-size: 32px 32px;
+                opacity: 0.4;
+                mask-image: radial-gradient(
+                    ellipse 80% 60% at 50% 30%,
+                    black 20%,
+                    transparent 70%
+                );
+            }
+
+            /* ── Staggered entrance animations ── */
+            @keyframes fadeUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(24px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+
+            @keyframes glow {
+                0%,
+                100% {
+                    opacity: 0.6;
+                }
+                50% {
+                    opacity: 1;
+                }
+            }
+
             @keyframes blink {
                 0%,
                 49% {
@@ -115,458 +148,753 @@
                     opacity: 0;
                 }
             }
+
+            @keyframes slideInLeft {
+                from {
+                    opacity: 0;
+                    transform: translateX(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+
+            .anim-fade-up {
+                animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+            }
+            .anim-delay-1 {
+                animation-delay: 0.1s;
+            }
+            .anim-delay-2 {
+                animation-delay: 0.2s;
+            }
+            .anim-delay-3 {
+                animation-delay: 0.35s;
+            }
+            .anim-delay-4 {
+                animation-delay: 0.5s;
+            }
+            .anim-delay-5 {
+                animation-delay: 0.65s;
+            }
+            .anim-delay-6 {
+                animation-delay: 0.8s;
+            }
+
             .cursor-blink {
-                animation: blink 1.4s infinite;
+                animation: blink 1.2s step-end infinite;
+                color: var(--color-accent);
+            }
+
+            /* ── Navigation ── */
+            .nav {
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                backdrop-filter: blur(16px) saturate(180%);
+                -webkit-backdrop-filter: blur(16px) saturate(180%);
+                background: rgba(10, 14, 23, 0.8);
+                border-bottom: 1px solid var(--color-border);
+            }
+
+            .nav-inner {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 24px;
+                height: 64px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .nav-logo {
+                font-family: var(--font-mono);
+                font-weight: 700;
+                font-size: 1.25rem;
+                color: var(--color-text);
+                letter-spacing: -0.02em;
+            }
+
+            .nav-logo .accent {
+                color: var(--color-accent);
+            }
+
+            .nav-links {
+                display: flex;
+                align-items: center;
+                gap: 24px;
+            }
+
+            .nav-link {
+                font-family: var(--font-mono);
+                font-size: 0.8rem;
+                color: var(--color-text-muted);
+                text-decoration: none;
+                transition: color 0.2s;
+                letter-spacing: 0.02em;
+            }
+
+            .nav-link:hover {
+                color: var(--color-text);
+            }
+
+            .nav-cta {
+                font-family: var(--font-mono);
+                font-size: 0.8rem;
+                font-weight: 500;
+                color: var(--color-bg);
+                background: var(--color-accent);
+                padding: 8px 20px;
+                text-decoration: none;
+                transition: all 0.2s;
+                letter-spacing: 0.02em;
+            }
+
+            .nav-cta:hover {
+                box-shadow: 0 0 20px var(--color-accent-glow);
+                transform: translateY(-1px);
+            }
+
+            /* ── Hero ── */
+            .hero {
+                position: relative;
+                z-index: 1;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 80px 24px 40px;
+                text-align: center;
+            }
+
+            @media (min-width: 768px) {
+                .hero {
+                    padding: 120px 24px 60px;
+                }
+            }
+
+            .hero-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                font-family: var(--font-mono);
+                font-size: 0.75rem;
+                color: var(--color-accent);
+                background: var(--color-accent-dim);
+                border: 1px solid rgba(0, 255, 136, 0.2);
+                padding: 6px 16px;
+                margin-bottom: 32px;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+            }
+
+            .hero-badge::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--color-accent);
+                animation: glow 2s ease-in-out infinite;
+            }
+
+            .hero h1 {
+                font-family: var(--font-display);
+                font-weight: 800;
+                font-size: clamp(2.5rem, 6vw, 5rem);
+                line-height: 1.05;
+                letter-spacing: -0.03em;
+                color: var(--color-text);
+                margin-bottom: 24px;
+            }
+
+            .hero h1 .gradient-text {
+                background: linear-gradient(
+                    135deg,
+                    var(--color-accent) 0%,
+                    var(--color-cyan) 50%,
+                    var(--color-blue) 100%
+                );
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+
+            .hero-description {
+                font-size: 1.15rem;
+                line-height: 1.7;
+                color: var(--color-text-muted);
+                max-width: 560px;
+                margin: 0 auto 16px;
+            }
+
+            .hero-sub {
+                font-family: var(--font-mono);
+                font-size: 0.85rem;
+                color: var(--color-text-dim);
+            }
+
+            .hero-sub strong {
+                color: var(--color-orange);
+                font-weight: 500;
+            }
+
+            /* ── Terminal window (demo) ── */
+            .terminal-window {
+                position: relative;
+                z-index: 1;
+                max-width: 960px;
+                margin: 48px auto 0;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid var(--color-border-bright);
+                box-shadow:
+                    0 0 0 1px rgba(0, 0, 0, 0.3),
+                    0 24px 80px -12px rgba(0, 0, 0, 0.6),
+                    0 0 120px -40px var(--color-accent-dim);
+            }
+
+            .terminal-header {
+                background: var(--color-surface);
+                padding: 12px 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                border-bottom: 1px solid var(--color-border);
+            }
+
+            .terminal-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+            }
+
+            .terminal-dot.red {
+                background: #ff5f57;
+            }
+            .terminal-dot.yellow {
+                background: #febc2e;
+            }
+            .terminal-dot.green {
+                background: #28c840;
+            }
+
+            .terminal-title {
+                flex: 1;
+                text-align: center;
+                font-family: var(--font-mono);
+                font-size: 0.75rem;
+                color: var(--color-text-dim);
+            }
+
+            .terminal-body {
+                background: #0d1117;
+            }
+
+            .terminal-body video {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
+
+            /* ── Features ── */
+            .features {
+                position: relative;
+                z-index: 1;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 100px 24px;
+            }
+
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 1px;
+                background: var(--color-border);
+                border: 1px solid var(--color-border);
+            }
+
+            .feature-card {
+                background: var(--color-bg);
+                padding: 40px 32px;
+                position: relative;
+                transition: background 0.3s;
+            }
+
+            .feature-card:hover {
+                background: var(--color-bg-elevated);
+            }
+
+            .feature-card::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 3px;
+                height: 0;
+                transition: height 0.3s;
+            }
+
+            .feature-card:hover::before {
+                height: 100%;
+            }
+
+            .feature-card:nth-child(1)::before {
+                background: var(--color-accent);
+            }
+            .feature-card:nth-child(2)::before {
+                background: var(--color-blue);
+            }
+            .feature-card:nth-child(3)::before {
+                background: var(--color-orange);
+            }
+
+            .feature-icon {
+                font-family: var(--font-mono);
+                font-size: 0.75rem;
+                font-weight: 600;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border: 1px solid var(--color-border-bright);
+                margin-bottom: 20px;
+                letter-spacing: 0.02em;
+            }
+
+            .feature-icon.green {
+                color: var(--color-accent);
+                background: var(--color-accent-dim);
+                border-color: rgba(0, 255, 136, 0.2);
+            }
+            .feature-icon.blue {
+                color: var(--color-blue);
+                background: var(--color-blue-dim);
+                border-color: rgba(56, 189, 248, 0.2);
+            }
+            .feature-icon.orange {
+                color: var(--color-orange);
+                background: var(--color-orange-dim);
+                border-color: rgba(251, 146, 60, 0.2);
+            }
+
+            .feature-card h3 {
+                font-family: var(--font-display);
+                font-weight: 700;
+                font-size: 1.15rem;
+                color: var(--color-text);
+                margin-bottom: 10px;
+                letter-spacing: -0.01em;
+            }
+
+            .feature-card p {
+                font-size: 0.9rem;
+                line-height: 1.6;
+                color: var(--color-text-muted);
+            }
+
+            /* ── Install section ── */
+            .install {
+                position: relative;
+                z-index: 1;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 24px 100px;
+            }
+
+            .install-header {
+                text-align: center;
+                margin-bottom: 48px;
+            }
+
+            .install-header h2 {
+                font-family: var(--font-display);
+                font-weight: 800;
+                font-size: clamp(1.8rem, 3vw, 2.5rem);
+                letter-spacing: -0.03em;
+                color: var(--color-text);
+                margin-bottom: 12px;
+            }
+
+            .install-header p {
+                font-size: 0.95rem;
+                color: var(--color-text-muted);
+            }
+
+            .install-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 12px;
+                max-width: 720px;
+                margin: 0 auto;
+            }
+
+            .install-method {
+                background: var(--color-bg-card);
+                border: 1px solid var(--color-border);
+                padding: 0;
+                transition: border-color 0.2s;
+                overflow: hidden;
+            }
+
+            .install-method:hover {
+                border-color: var(--color-border-bright);
+            }
+
+            .install-method-header {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 20px;
+                border-bottom: 1px solid var(--color-border);
+            }
+
+            .install-method-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+            }
+
+            .install-method-label {
+                font-family: var(--font-mono);
+                font-size: 0.7rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--color-text-dim);
+            }
+
+            .install-method-code {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 20px;
+                font-family: var(--font-mono);
+                font-size: 0.85rem;
+                color: var(--color-text);
+                gap: 12px;
+            }
+
+            .install-method-code code {
+                flex: 1;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            .install-method-code .prompt {
+                color: var(--color-text-dim);
+                user-select: none;
+            }
+
+            .copy-btn {
+                flex-shrink: 0;
+                background: none;
+                border: 1px solid var(--color-border);
+                color: var(--color-text-dim);
+                cursor: pointer;
+                padding: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+            }
+
+            .copy-btn:hover {
+                border-color: var(--color-text-muted);
+                color: var(--color-text);
+            }
+
+            .copy-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .copy-btn .copied-icon {
+                color: var(--color-accent);
+            }
+
+            /* ── Run CTA ── */
+            .run-cta {
+                text-align: center;
+                margin-top: 48px;
+            }
+
+            .run-cta p {
+                font-size: 0.85rem;
+                color: var(--color-text-dim);
+                margin-bottom: 16px;
+                font-family: var(--font-mono);
+            }
+
+            .run-cta-box {
+                display: inline-flex;
+                align-items: center;
+                gap: 12px;
+                background: var(--color-bg-card);
+                border: 1px solid rgba(0, 255, 136, 0.2);
+                padding: 16px 32px;
+                font-family: var(--font-mono);
+                font-size: 1.2rem;
+                font-weight: 600;
+                color: var(--color-accent);
+                box-shadow: 0 0 40px -10px var(--color-accent-dim);
+                position: relative;
+            }
+
+            .run-cta-box .prompt {
+                color: var(--color-text-dim);
+            }
+
+            /* ── Usage ── */
+            .usage {
+                position: relative;
+                z-index: 1;
+                max-width: 720px;
+                margin: 0 auto;
+                padding: 0 24px 100px;
+            }
+
+            .usage-card {
+                background: var(--color-bg-card);
+                border: 1px solid var(--color-border);
+                padding: 40px 32px;
+            }
+
+            .usage-card h3 {
+                font-family: var(--font-display);
+                font-weight: 700;
+                font-size: 1.3rem;
+                color: var(--color-text);
+                margin-bottom: 28px;
+                letter-spacing: -0.01em;
+            }
+
+            .usage-list {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .usage-list li {
+                display: flex;
+                align-items: flex-start;
+                gap: 14px;
+                font-size: 0.9rem;
+                line-height: 1.6;
+                color: var(--color-text-muted);
+            }
+
+            .usage-list .arrow {
+                color: var(--color-accent);
+                font-family: var(--font-mono);
+                font-size: 0.85rem;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .usage-list kbd {
+                font-family: var(--font-mono);
+                font-size: 0.8rem;
+                color: var(--color-text);
+                background: var(--color-surface);
+                border: 1px solid var(--color-border-bright);
+                padding: 2px 8px;
+                margin: 0 2px;
+            }
+
+            /* ── Footer ── */
+            .footer {
+                position: relative;
+                z-index: 1;
+                border-top: 1px solid var(--color-border);
+            }
+
+            .footer-inner {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 32px 24px;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                align-items: center;
+                gap: 16px;
+            }
+
+            .footer-left {
+                font-size: 0.8rem;
+                color: var(--color-text-dim);
+            }
+
+            .footer-left a {
+                color: var(--color-text-muted);
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+
+            .footer-left a:hover {
+                color: var(--color-text);
+            }
+
+            .footer-links {
+                display: flex;
+                gap: 24px;
+            }
+
+            .footer-links a {
+                font-family: var(--font-mono);
+                font-size: 0.75rem;
+                color: var(--color-text-dim);
+                text-decoration: none;
+                transition: color 0.2s;
+                letter-spacing: 0.02em;
+            }
+
+            .footer-links a:hover {
+                color: var(--color-text);
+            }
+
+            /* ── Utilities ── */
+            [x-cloak] {
+                display: none !important;
+            }
+
+            @media (max-width: 640px) {
+                .nav-link.hide-mobile {
+                    display: none;
+                }
+                .hero h1 {
+                    font-size: 2.2rem;
+                }
+                .features-grid {
+                    grid-template-columns: 1fr;
+                }
+                .feature-card {
+                    padding: 28px 24px;
+                }
+                .install-method-code {
+                    font-size: 0.75rem;
+                }
             }
         </style>
     </head>
-    <body class="bg-white dark:bg-gray-900 min-h-screen transition-colors">
-        <!-- Header -->
-        <nav
-            class="border-b border-gray-200 dark:border-gray-700 transition-colors"
-        >
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center h-16">
-                    <div class="flex items-center space-x-3">
-                        <div
-                            class="text-2xl font-bold text-gray-900 dark:text-white font-mono"
-                        >
-                            ./dtop<span class="cursor-blink ml-1">▋</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-6">
-                        <button
-                            @click="toggleTheme()"
-                            class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-medium"
-                            aria-label="Toggle theme"
-                        >
-                            <svg
-                                class="w-5 h-5 hidden dark:block"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-                                ></path>
-                            </svg>
-                            <svg
-                                class="w-5 h-5 block dark:hidden"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-                                ></path>
-                            </svg>
-                        </button>
-                        <a
-                            href="https://github.com/amir20/dtop"
-                            class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-medium"
-                        >
-                            GitHub
-                        </a>
-                        <a
-                            href="#install"
-                            class="bg-terminal-green hover:bg-terminal-green/80 text-white px-6 py-2 text-sm font-semibold transition-all"
-                        >
-                            Get Started
-                        </a>
-                    </div>
+    <body>
+        <div class="dot-grid"></div>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <div class="nav-inner">
+                <div class="nav-logo">
+                    <span class="accent">$</span> dtop<span class="cursor-blink">_</span>
+                </div>
+                <div class="nav-links">
+                    <a
+                        href="https://github.com/amir20/dtop"
+                        class="nav-link hide-mobile"
+                        >GitHub</a
+                    >
+                    <a href="#install" class="nav-cta">Install</a>
                 </div>
             </div>
         </nav>
 
-        <!-- Hero Section -->
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-            <div class="text-center mb-12">
-                <h1
-                    class="text-4xl sm:text-6xl font-bold text-gray-900 dark:text-white mb-6"
-                >
-                    Docker Monitoring
-                    <span
-                        class="block bg-gradient-to-r from-terminal-green via-terminal-blue to-terminal-purple bg-clip-text text-transparent"
-                    >
-                        In Your Terminal
-                    </span>
-                </h1>
-                <p
-                    class="text-xl text-gray-700 dark:text-gray-100 max-w-2xl mx-auto mb-4"
-                >
-                    A powerful TUI for monitoring Docker containers across
-                    multiple hosts with real-time CPU, memory, and network
-                    metrics.
-                </p>
-                <p
-                    class="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
-                >
-                    Built with Rust for blazing-fast performance and minimal
-                    resource usage.
-                </p>
+        <!-- Hero -->
+        <section class="hero">
+            <div class="anim-fade-up anim-delay-1">
+                <span class="hero-badge">Built with Rust</span>
             </div>
+            <h1 class="anim-fade-up anim-delay-2">
+                Docker Monitoring<br />
+                <span class="gradient-text">In Your Terminal</span>
+            </h1>
+            <p class="hero-description anim-fade-up anim-delay-3">
+                A real-time TUI for monitoring Docker containers across multiple
+                hosts. Track CPU, memory, and network metrics — all from your
+                terminal.
+            </p>
+            <p class="hero-sub anim-fade-up anim-delay-3">
+                <strong>Blazing fast.</strong> Minimal resource usage.
+            </p>
 
-            <!-- Screenshot -->
-            <div class="mb-16 max-w-5xl mx-auto">
-                <div
-                    class="bg-gray-800 dark:bg-gray-950 rounded-lg shadow-2xl overflow-hidden transition-colors"
-                >
-                    <!-- Mac window header -->
-                    <div
-                        class="bg-gray-300 dark:bg-gray-800 px-4 py-1 flex items-center space-x-2 border-b border-gray-400 dark:border-gray-700 transition-colors max-md:py-0.5"
-                    >
-                        <div class="flex space-x-2">
-                            <div
-                                class="size-3 rounded-full bg-red-500 max-md:size-2"
-                            ></div>
-                            <div
-                                class="size-3 rounded-full bg-yellow-500 max-md:size-2"
-                            ></div>
-                            <div
-                                class="size-3 rounded-full bg-green-500 max-md:size-2"
-                            ></div>
-                        </div>
-                        <div class="flex-1 text-center">
-                            <span
-                                class="text-xs font-medium text-gray-600 dark:text-gray-400"
-                                >dtop</span
-                            >
-                        </div>
-                    </div>
-                    <!-- Terminal content -->
-                    <div class="bg-[#222938]">
-                        <video
-                            src="/demo.mp4"
-                            class="w-full h-auto"
-                            autoplay
-                            loop
-                            muted
-                            playsinline
-                        ></video>
-                    </div>
+            <!-- Terminal Demo -->
+            <div class="terminal-window anim-fade-up anim-delay-4">
+                <div class="terminal-header">
+                    <div class="terminal-dot red"></div>
+                    <div class="terminal-dot yellow"></div>
+                    <div class="terminal-dot green"></div>
+                    <span class="terminal-title">dtop</span>
+                </div>
+                <div class="terminal-body">
+                    <video
+                        src="/demo.mp4"
+                        autoplay
+                        loop
+                        muted
+                        playsinline
+                    ></video>
                 </div>
             </div>
+        </section>
 
-            <!-- Features Grid -->
-            <div class="grid md:grid-cols-3 gap-6 mb-16">
-                <div
-                    class="bg-gray-100 dark:bg-gray-800 border-l-4 border-terminal-green p-6 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all group"
-                >
-                    <div class="text-terminal-green text-3xl mb-4">🚀</div>
-                    <h3
-                        class="text-lg font-semibold text-gray-900 dark:text-white mb-3"
-                    >
-                        Multi-Host Support
-                    </h3>
-                    <p
-                        class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
-                    >
+        <!-- Features -->
+        <section class="features">
+            <div class="features-grid anim-fade-up anim-delay-5">
+                <div class="feature-card">
+                    <div class="feature-icon green">01</div>
+                    <h3>Multi-Host Support</h3>
+                    <p>
                         Monitor containers across local, SSH, and TCP
-                        connections simultaneously
+                        connections simultaneously from a single terminal
+                        session.
                     </p>
                 </div>
-
-                <div
-                    class="bg-gray-100 dark:bg-gray-800 border-l-4 border-terminal-blue p-6 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all group"
-                >
-                    <div class="text-terminal-blue text-3xl mb-4">📊</div>
-                    <h3
-                        class="text-lg font-semibold text-gray-900 dark:text-white mb-3"
-                    >
-                        Real-Time Metrics
-                    </h3>
-                    <p
-                        class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
-                    >
+                <div class="feature-card">
+                    <div class="feature-icon blue">02</div>
+                    <h3>Real-Time Metrics</h3>
+                    <p>
                         Track CPU, memory, and network I/O with smooth
-                        exponential moving averages
+                        exponential moving averages. Color-coded at a glance.
                     </p>
                 </div>
-
-                <div
-                    class="bg-gray-100 dark:bg-gray-800 border-l-4 border-terminal-purple p-6 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all group"
-                >
-                    <div class="text-terminal-purple text-3xl mb-4">⚡</div>
-                    <h3
-                        class="text-lg font-semibold text-gray-900 dark:text-white mb-3"
-                    >
-                        Fast & Lightweight
-                    </h3>
-                    <p
-                        class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed"
-                    >
-                        Built with Rust for minimal CPU and memory footprint
+                <div class="feature-card">
+                    <div class="feature-icon orange">03</div>
+                    <h3>Fast &amp; Lightweight</h3>
+                    <p>
+                        Built with Rust for minimal CPU and memory footprint.
+                        Starts instantly, runs silently in the background.
                     </p>
                 </div>
             </div>
+        </section>
 
-            <!-- Installation Section -->
-            <div
-                id="install"
-                class="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-8 sm:p-12 mb-16 transition-colors"
-            >
-                <h2
-                    class="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center"
-                >
-                    Installation
-                </h2>
+        <!-- Installation -->
+        <section class="install" id="install">
+            <div class="install-header anim-fade-up">
+                <h2>Get Started</h2>
+                <p>Choose your preferred installation method</p>
+            </div>
 
-                <div class="space-y-5 max-w-3xl mx-auto">
-                    <!-- Homebrew -->
-                    <div>
-                        <div class="flex items-center mb-2">
-                            <span class="text-terminal-cyan mr-2 font-mono"
-                                >$</span
-                            >
-                            <h3
-                                class="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
-                            >
-                                Homebrew
-                            </h3>
-                        </div>
+            <div class="install-grid">
+                <!-- Homebrew -->
+                <div class="install-method">
+                    <div class="install-method-header">
                         <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors relative group"
-                        >
-                            <code
-                                >brew install dtop</code
-                            >
-                            <button
-                                @click="copyToClipboard('brew install --cask amir20/homebrew-dtop/dtop', 'homebrew')"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Copy to clipboard"
-                                title="Copy to clipboard"
-                            >
-                                <svg
-                                    x-show="!isCopied('homebrew')"
-                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                    ></path>
-                                </svg>
-                                <svg
-                                    x-show="isCopied('homebrew')"
-                                    x-cloak
-                                    class="w-5 h-5 text-terminal-green"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M5 13l4 4L19 7"
-                                    ></path>
-                                </svg>
-                            </button>
-                        </div>
+                            class="install-method-dot"
+                            style="background: var(--color-cyan)"
+                        ></div>
+                        <span class="install-method-label">Homebrew</span>
                     </div>
-
-                    <!-- Cargo -->
-                    <div>
-                        <div class="flex items-center mb-2">
-                            <span class="text-terminal-orange mr-2 font-mono"
-                                >$</span
-                            >
-                            <h3
-                                class="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
-                            >
-                                Cargo
-                            </h3>
-                        </div>
-                        <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-orange p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors relative group"
+                    <div class="install-method-code">
+                        <code
+                            ><span class="prompt">$ </span>brew install
+                            dtop</code
                         >
-                            <code>cargo install dtop</code>
-                            <button
-                                @click="copyToClipboard('cargo install dtop', 'cargo')"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Copy to clipboard"
-                                title="Copy to clipboard"
-                            >
-                                <svg
-                                    x-show="!isCopied('cargo')"
-                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                    ></path>
-                                </svg>
-                                <svg
-                                    x-show="isCopied('cargo')"
-                                    x-cloak
-                                    class="w-5 h-5 text-terminal-green"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M5 13l4 4L19 7"
-                                    ></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Shell Script -->
-                    <div>
-                        <div class="flex items-center mb-2">
-                            <span class="text-terminal-blue mr-2 font-mono"
-                                >$</span
-                            >
-                            <h3
-                                class="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
-                            >
-                                Shell Script
-                            </h3>
-                        </div>
-                        <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-blue p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden relative group"
-                        >
-                            <code
-                                >curl --proto '=https' --tlsv1.2 -LsSf
-                                https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh
-                                | sh</code
-                            >
-                            <button
-                                @click="copyToClipboard('curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh', 'shell')"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Copy to clipboard"
-                                title="Copy to clipboard"
-                            >
-                                <svg
-                                    x-show="!isCopied('shell')"
-                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                    ></path>
-                                </svg>
-                                <svg
-                                    x-show="isCopied('shell')"
-                                    x-cloak
-                                    class="w-5 h-5 text-terminal-green"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M5 13l4 4L19 7"
-                                    ></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Docker -->
-                    <div>
-                        <div class="flex items-center mb-2">
-                            <span class="text-terminal-purple mr-2 font-mono"
-                                >$</span
-                            >
-                            <h3
-                                class="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
-                            >
-                                Docker
-                            </h3>
-                        </div>
-                        <div
-                            class="bg-white dark:bg-gray-950 border-l-2 border-terminal-purple p-4 font-mono text-sm text-gray-800 dark:text-gray-200 transition-colors overflow-hidden relative group"
-                        >
-                            <code>
-                                docker run -v
-                                /var/run/docker.sock:/var/run/docker.sock -it
-                                ghcr.io/amir20/dtop:latest</code
-                            >
-                            <button
-                                @click="copyToClipboard('docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop:latest', 'docker')"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Copy to clipboard"
-                                title="Copy to clipboard"
-                            >
-                                <svg
-                                    x-show="!isCopied('docker')"
-                                    class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                    ></path>
-                                </svg>
-                                <svg
-                                    x-show="isCopied('docker')"
-                                    x-cloak
-                                    class="w-5 h-5 text-terminal-green"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M5 13l4 4L19 7"
-                                    ></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Run dtop -->
-                <div class="mt-10 text-center">
-                    <p class="text-gray-600 dark:text-gray-300 mb-3 text-sm">
-                        Then simply run:
-                    </p>
-                    <div
-                        class="bg-white dark:bg-gray-950 border-l-2 border-terminal-cyan p-4 font-mono text-lg text-gray-900 dark:text-white max-w-xs mx-auto transition-colors relative group"
-                    >
-                        <code>$ dtop</code>
                         <button
-                            @click="copyToClipboard('dtop', 'dtop')"
-                            class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                            class="copy-btn"
+                            @click="copyToClipboard('brew install dtop', 'homebrew')"
                             aria-label="Copy to clipboard"
-                            title="Copy to clipboard"
                         >
                             <svg
-                                x-show="!isCopied('dtop')"
-                                class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                                x-show="!isCopied('homebrew')"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -579,9 +907,165 @@
                                 ></path>
                             </svg>
                             <svg
-                                x-show="isCopied('dtop')"
+                                x-show="isCopied('homebrew')"
                                 x-cloak
-                                class="w-5 h-5 text-terminal-green"
+                                class="copied-icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 13l4 4L19 7"
+                                ></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Cargo -->
+                <div class="install-method">
+                    <div class="install-method-header">
+                        <div
+                            class="install-method-dot"
+                            style="background: var(--color-orange)"
+                        ></div>
+                        <span class="install-method-label">Cargo</span>
+                    </div>
+                    <div class="install-method-code">
+                        <code
+                            ><span class="prompt">$ </span>cargo install
+                            dtop</code
+                        >
+                        <button
+                            class="copy-btn"
+                            @click="copyToClipboard('cargo install dtop', 'cargo')"
+                            aria-label="Copy to clipboard"
+                        >
+                            <svg
+                                x-show="!isCopied('cargo')"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            <svg
+                                x-show="isCopied('cargo')"
+                                x-cloak
+                                class="copied-icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 13l4 4L19 7"
+                                ></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Shell Script -->
+                <div class="install-method">
+                    <div class="install-method-header">
+                        <div
+                            class="install-method-dot"
+                            style="background: var(--color-blue)"
+                        ></div>
+                        <span class="install-method-label">Shell Script</span>
+                    </div>
+                    <div class="install-method-code">
+                        <code
+                            ><span class="prompt">$ </span>curl --proto
+                            '=https' --tlsv1.2 -LsSf
+                            https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh
+                            | sh</code
+                        >
+                        <button
+                            class="copy-btn"
+                            @click="copyToClipboard('curl --proto \'=https\' --tlsv1.2 -LsSf https://github.com/amir20/dtop/releases/latest/download/dtop-installer.sh | sh', 'shell')"
+                            aria-label="Copy to clipboard"
+                        >
+                            <svg
+                                x-show="!isCopied('shell')"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            <svg
+                                x-show="isCopied('shell')"
+                                x-cloak
+                                class="copied-icon"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 13l4 4L19 7"
+                                ></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Docker -->
+                <div class="install-method">
+                    <div class="install-method-header">
+                        <div
+                            class="install-method-dot"
+                            style="background: var(--color-purple)"
+                        ></div>
+                        <span class="install-method-label">Docker</span>
+                    </div>
+                    <div class="install-method-code">
+                        <code
+                            ><span class="prompt">$ </span>docker run -v
+                            /var/run/docker.sock:/var/run/docker.sock -it
+                            ghcr.io/amir20/dtop:latest</code
+                        >
+                        <button
+                            class="copy-btn"
+                            @click="copyToClipboard('docker run -v /var/run/docker.sock:/var/run/docker.sock -it ghcr.io/amir20/dtop:latest', 'docker')"
+                            aria-label="Copy to clipboard"
+                        >
+                            <svg
+                                x-show="!isCopied('docker')"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                ></path>
+                            </svg>
+                            <svg
+                                x-show="isCopied('docker')"
+                                x-cloak
+                                class="copied-icon"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -598,102 +1082,96 @@
                 </div>
             </div>
 
-            <!-- Usage Hints -->
-            <div
-                class="bg-gray-100 dark:bg-gray-800 border-l-4 border-terminal-cyan p-8 mb-16 transition-colors"
-            >
-                <h3
-                    class="text-xl font-semibold text-gray-900 dark:text-white mb-6"
-                >
-                    Usage
-                </h3>
-                <ul class="space-y-4 text-gray-700 dark:text-gray-300">
-                    <li class="flex items-start">
-                        <span class="text-terminal-green mr-3 mt-1">→</span>
+            <!-- Run CTA -->
+            <div class="run-cta">
+                <p>Then run:</p>
+                <div class="run-cta-box">
+                    <span class="prompt">$</span> dtop<span
+                        class="cursor-blink"
+                        >_</span
+                    >
+                </div>
+            </div>
+        </section>
+
+        <!-- Usage -->
+        <section class="usage">
+            <div class="usage-card">
+                <h3>Keyboard Shortcuts</h3>
+                <ul class="usage-list">
+                    <li>
+                        <span class="arrow">-&gt;</span>
                         <span
-                            >Press
-                            <kbd
-                                class="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white transition-colors"
-                                >?</kbd
-                            >
-                            for help</span
+                            >Press <kbd>?</kbd> for help</span
                         >
                     </li>
-                    <li class="flex items-start">
-                        <span class="text-terminal-green mr-3 mt-1">→</span>
+                    <li>
+                        <span class="arrow">-&gt;</span>
                         <span
-                            >Use
-                            <kbd
-                                class="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white transition-colors"
-                                >u/n/c/m</kbd
-                            >
-                            to sort by uptime, name, CPU, or memory</span
+                            >Use <kbd>u</kbd> <kbd>n</kbd> <kbd>c</kbd>
+                            <kbd>m</kbd> to sort by uptime, name, CPU, or
+                            memory</span
                         >
                     </li>
-                    <li class="flex items-start">
-                        <span class="text-terminal-green mr-3 mt-1">→</span>
+                    <li>
+                        <span class="arrow">-&gt;</span>
                         <span
-                            >Press
-                            <kbd
-                                class="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white transition-colors"
-                                >Enter</kbd
-                            >
-                            to view container logs</span
+                            >Press <kbd>Enter</kbd> to view container
+                            logs</span
                         >
                     </li>
-                    <li class="flex items-start">
-                        <span class="text-terminal-green mr-3 mt-1">→</span>
+                    <li>
+                        <span class="arrow">-&gt;</span>
                         <span
                             >Connect to remote hosts with
-                            <kbd
-                                class="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white transition-colors"
-                                >dtop --host ssh://user@host</kbd
-                            ></span
+                            <kbd>dtop --host ssh://user@host</kbd></span
                         >
                     </li>
                 </ul>
             </div>
-        </main>
+        </section>
 
         <!-- Footer -->
-        <footer
-            class="border-t border-gray-200 dark:border-gray-800 transition-colors"
-        >
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div
-                    class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0"
-                >
-                    <div class="text-gray-600 dark:text-gray-400 text-sm">
-                        Built with ❤️ by
-                        <a href="https://amirraminfar.me/">Amir Raminfar</a>
-                    </div>
-                    <div class="flex items-center space-x-8 text-sm">
-                        <a
-                            href="https://github.com/amir20/dtop"
-                            class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                            GitHub
-                        </a>
-                        <a
-                            href="https://github.com/amir20/dtop/releases"
-                            class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                            Releases
-                        </a>
-                        <a
-                            href="https://github.com/amir20/dtop/issues"
-                            class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                            Issues
-                        </a>
-                    </div>
+        <footer class="footer">
+            <div class="footer-inner">
+                <div class="footer-left">
+                    Built by
+                    <a href="https://amirraminfar.me/">Amir Raminfar</a>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/amir20/dtop">GitHub</a>
+                    <a href="https://github.com/amir20/dtop/releases"
+                        >Releases</a
+                    >
+                    <a href="https://github.com/amir20/dtop/issues">Issues</a>
                 </div>
             </div>
         </footer>
-        <style>
-            [x-cloak] {
-                display: none !important;
+
+        <script>
+            function app() {
+                return {
+                    copiedStates: {},
+
+                    initTheme() {},
+
+                    async copyToClipboard(text, id) {
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            this.copiedStates[id] = true;
+                            setTimeout(() => {
+                                this.copiedStates[id] = false;
+                            }, 2000);
+                        } catch (err) {
+                            console.error("Failed to copy:", err);
+                        }
+                    },
+
+                    isCopied(id) {
+                        return this.copiedStates[id] || false;
+                    },
+                };
             }
-        </style>
+        </script>
     </body>
 </html>
