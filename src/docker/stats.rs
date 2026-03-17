@@ -139,13 +139,17 @@ pub fn calculate_cpu_percentage(stats: &ContainerStatsResponse) -> f64 {
 }
 
 /// Calculates memory usage percentage from container stats
+///
+/// Subtracts cache from raw usage to match `docker stats` behavior:
+/// - cgroups v2: subtract `inactive_file`
+/// - cgroups v1: subtract `cache`
 pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
     let memory_stats = match &stats.memory_stats {
         Some(ms) => ms,
         None => return 0.0,
     };
 
-    let memory_usage = memory_stats.usage.unwrap_or(0) as f64;
+    let memory_usage = calculate_used_memory(memory_stats);
     let memory_limit = memory_stats.limit.unwrap_or(1) as f64;
 
     if memory_limit > 0.0 {
@@ -155,18 +159,38 @@ pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
     }
 }
 
-/// Extracts raw memory bytes (used, limit) from container stats
-/// Note: Uses raw usage value, consistent with calculate_memory_percentage
+/// Extracts memory bytes (used, limit) from container stats
+/// Subtracts cache to match `docker stats` behavior
 fn extract_memory_bytes(stats: &ContainerStatsResponse) -> (u64, u64) {
     let memory_stats = match &stats.memory_stats {
         Some(ms) => ms,
         None => return (0, 0),
     };
 
-    let memory_used = memory_stats.usage.unwrap_or(0);
+    let memory_used = calculate_used_memory(memory_stats) as u64;
     let memory_limit = memory_stats.limit.unwrap_or(0);
 
     (memory_used, memory_limit)
+}
+
+/// Calculates used memory by subtracting cache from raw usage,
+/// matching `docker stats` behavior.
+///
+/// On cgroups v2, subtracts `inactive_file`. On cgroups v1, subtracts `cache`.
+/// Falls back to raw usage if neither is available.
+fn calculate_used_memory(memory_stats: &bollard::models::ContainerMemoryStats) -> f64 {
+    let usage = memory_stats.usage.unwrap_or(0) as f64;
+
+    let cache = memory_stats
+        .stats
+        .as_ref()
+        .and_then(|s| {
+            // cgroups v2 uses inactive_file, cgroups v1 uses cache
+            s.get("inactive_file").or_else(|| s.get("cache")).copied()
+        })
+        .unwrap_or(0) as f64;
+
+    (usage - cache).max(0.0)
 }
 
 /// Extracts total network bytes (tx, rx) from container stats
