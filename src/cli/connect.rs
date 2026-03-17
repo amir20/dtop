@@ -198,13 +198,19 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     }
 }
 
-/// Creates a unique host identifier from the host specification
+/// Creates a unique host identifier from the host specification.
+/// For SSH URLs, includes the username to distinguish `ssh://root@server` from `ssh://deploy@server`.
 pub fn create_host_id(host_spec: &str) -> String {
     if host_spec == "local" {
         "local".to_string()
     } else if let Ok(url) = Url::parse(host_spec) {
-        // Extract just the domain/host from the URL
-        url.host_str().unwrap_or(host_spec).to_string()
+        let host = url.host_str().unwrap_or(host_spec);
+        let username = url.username();
+        if !username.is_empty() {
+            format!("{}@{}", username, host)
+        } else {
+            host.to_string()
+        }
     } else {
         host_spec.to_string()
     }

@@ -3,8 +3,11 @@ use crate::core::types::{RenderAction, ViewState};
 
 impl AppState {
     pub(super) fn handle_select_previous(&mut self) -> RenderAction {
-        // Only handle in ContainerList view (not in ActionMenu or LogView)
-        if self.view_state != ViewState::ContainerList {
+        // Allow navigation in ContainerList and SearchMode
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
             return RenderAction::None;
         }
 
@@ -19,8 +22,11 @@ impl AppState {
     }
 
     pub(super) fn handle_select_next(&mut self) -> RenderAction {
-        // Only handle in ContainerList view (not in ActionMenu or LogView)
-        if self.view_state != ViewState::ContainerList {
+        // Allow navigation in ContainerList and SearchMode
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
             return RenderAction::None;
         }
 
@@ -34,12 +40,23 @@ impl AppState {
         RenderAction::Render // Force draw - selection changed
     }
 
+    /// Note: In search mode, '?' is routed to handle_search_key_event by handle_key_input,
+    /// so this method is only called outside of search mode.
     pub(super) fn handle_toggle_help(&mut self) -> RenderAction {
-        // Don't toggle help in search mode - '?' was meant as search input
-        if self.view_state == ViewState::SearchMode {
-            return RenderAction::None;
-        }
         self.show_help = !self.show_help;
         RenderAction::Render // Force redraw to show/hide popup
+    }
+
+    /// Clamps the current table selection to be within the valid range of sorted container keys.
+    /// Call this after filtering or removing containers to ensure the selection remains valid.
+    pub fn clamp_selection(&mut self) {
+        let container_count = self.sorted_container_keys.len();
+        if container_count == 0 {
+            self.table_state.select(None);
+        } else if let Some(selected) = self.table_state.selected()
+            && selected >= container_count
+        {
+            self.table_state.select(Some(container_count - 1));
+        }
     }
 }

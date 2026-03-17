@@ -131,28 +131,43 @@ fn create_container_row<'a>(
     Row::new(cells)
 }
 
+/// Writes the progress bar characters (filled + empty) into the given String buffer
+fn write_bar(buf: &mut String, filled_width: usize, empty_width: usize) {
+    for _ in 0..filled_width {
+        buf.push('█');
+    }
+    for _ in 0..empty_width {
+        buf.push('░');
+    }
+}
+
 /// Creates a text-based progress bar with percentage
 fn create_progress_bar(percentage: f64, width: usize) -> String {
+    use std::fmt::Write;
     // Clamp the bar visual to 100%, but display the actual percentage value
     let bar_percentage = percentage.clamp(0.0, 100.0);
     let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
     let empty_width = width.saturating_sub(filled_width);
 
-    let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
-
-    format!("{} {:5.1}%", bar, percentage)
+    // Pre-allocate: each bar char is 3 bytes (UTF-8), plus " 100.0%" suffix
+    let mut result = String::with_capacity(width * 3 + 8);
+    write_bar(&mut result, filled_width, empty_width);
+    let _ = write!(result, " {:5.1}%", percentage);
+    result
 }
 
 /// Creates a text-based progress bar with memory used/limit display
 fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usize) -> String {
+    use std::fmt::Write;
     // Clamp the bar visual to 100%, but display the actual percentage value
     let bar_percentage = percentage.clamp(0.0, 100.0);
     let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
     let empty_width = width.saturating_sub(filled_width);
 
-    let bar = format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
-
-    format!("{} {}/{}", bar, format_bytes(used), format_bytes(limit))
+    let mut result = String::with_capacity(width * 3 + 20);
+    write_bar(&mut result, filled_width, empty_width);
+    let _ = write!(result, " {}/{}", format_bytes(used), format_bytes(limit));
+    result
 }
 
 /// Returns the status icon and color based on container health (if available) or state

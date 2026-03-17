@@ -53,14 +53,7 @@ impl AppState {
         self.force_sort_containers();
 
         // Adjust selection if needed after filtering
-        let container_count = self.sorted_container_keys.len();
-        if container_count == 0 {
-            self.table_state.select(None);
-        } else if let Some(selected) = self.table_state.selected()
-            && selected >= container_count
-        {
-            self.table_state.select(Some(container_count - 1));
-        }
+        self.clamp_selection();
 
         RenderAction::Render // Force redraw - visibility changed
     }
@@ -89,155 +82,102 @@ impl AppState {
         let search_filter = self.search_input.value().to_lowercase();
         let has_search_filter = !search_filter.is_empty();
 
-        // Rebuild sorted_container_keys from containers, filtering by running state and search term
-        self.sorted_container_keys = self
+        // Collect (key, container) pairs to avoid repeated HashMap lookups during sort
+        let mut key_container_pairs: Vec<_> = self
             .containers
-            .keys()
-            .filter(|key| {
+            .iter()
+            .filter(|(_, container)| {
                 // First filter by running state
-                let passes_state_filter = if self.show_all_containers {
-                    true // Show all containers
-                } else {
-                    // Only show running containers
-                    self.containers
-                        .get(key)
-                        .map(|c| c.state == ContainerState::Running)
-                        .unwrap_or(false)
-                };
-
-                if !passes_state_filter {
+                if !self.show_all_containers && container.state != ContainerState::Running {
                     return false;
                 }
 
                 // Then filter by search term if present
                 if has_search_filter {
-                    if let Some(container) = self.containers.get(key) {
-                        // Search in name, id, and host_id (case-insensitive)
-                        let name_matches = container.name.to_lowercase().contains(&search_filter);
-                        let id_matches = container.id.to_lowercase().contains(&search_filter);
-                        let host_matches =
-                            container.host_id.to_lowercase().contains(&search_filter);
-
-                        name_matches || id_matches || host_matches
-                    } else {
-                        false
-                    }
+                    let name_matches = container.name.to_lowercase().contains(&search_filter);
+                    let id_matches = container.id.to_lowercase().contains(&search_filter);
+                    let host_matches = container.host_id.to_lowercase().contains(&search_filter);
+                    name_matches || id_matches || host_matches
                 } else {
-                    true // No search filter, include container
+                    true
                 }
             })
-            .cloned()
             .collect();
 
         let direction = self.sort_state.direction;
 
         match self.sort_state.field {
             SortField::Uptime => {
-                self.sorted_container_keys.sort_by(|a, b| {
-                    let (Some(container_a), Some(container_b)) =
-                        (self.containers.get(a), self.containers.get(b))
-                    else {
-                        return std::cmp::Ordering::Equal;
-                    };
-
-                    // First by host_id
-                    match container_a.host_id.cmp(&container_b.host_id) {
-                        std::cmp::Ordering::Equal => {
-                            // Then by creation time
-                            let ord = match (&container_a.created, &container_b.created) {
-                                (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
-                                (Some(_), None) => std::cmp::Ordering::Greater,
-                                (None, Some(_)) => std::cmp::Ordering::Less,
-                                (None, None) => std::cmp::Ordering::Equal,
-                            };
-                            // Reverse if descending
-                            if direction == SortDirection::Descending {
-                                ord.reverse()
-                            } else {
-                                ord
-                            }
+                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
+                    std::cmp::Ordering::Equal => {
+                        let ord = match (&a.created, &b.created) {
+                            (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
+                            (Some(_), None) => std::cmp::Ordering::Greater,
+                            (None, Some(_)) => std::cmp::Ordering::Less,
+                            (None, None) => std::cmp::Ordering::Equal,
+                        };
+                        if direction == SortDirection::Descending {
+                            ord.reverse()
+                        } else {
+                            ord
                         }
-                        other => other,
                     }
+                    other => other,
                 });
             }
             SortField::Name => {
-                self.sorted_container_keys.sort_by(|a, b| {
-                    let (Some(container_a), Some(container_b)) =
-                        (self.containers.get(a), self.containers.get(b))
-                    else {
-                        return std::cmp::Ordering::Equal;
-                    };
-
-                    // First by host_id
-                    match container_a.host_id.cmp(&container_b.host_id) {
-                        std::cmp::Ordering::Equal => {
-                            let ord = container_a.name.cmp(&container_b.name);
-                            // Reverse if descending
-                            if direction == SortDirection::Descending {
-                                ord.reverse()
-                            } else {
-                                ord
-                            }
+                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
+                    std::cmp::Ordering::Equal => {
+                        let ord = a.name.cmp(&b.name);
+                        if direction == SortDirection::Descending {
+                            ord.reverse()
+                        } else {
+                            ord
                         }
-                        other => other,
                     }
+                    other => other,
                 });
             }
             SortField::Cpu => {
-                self.sorted_container_keys.sort_by(|a, b| {
-                    let (Some(container_a), Some(container_b)) =
-                        (self.containers.get(a), self.containers.get(b))
-                    else {
-                        return std::cmp::Ordering::Equal;
-                    };
-
-                    // First by host_id
-                    match container_a.host_id.cmp(&container_b.host_id) {
-                        std::cmp::Ordering::Equal => {
-                            let ord = container_a
-                                .stats
-                                .cpu
-                                .partial_cmp(&container_b.stats.cpu)
-                                .unwrap_or(std::cmp::Ordering::Equal);
-                            // Reverse if descending
-                            if direction == SortDirection::Descending {
-                                ord.reverse()
-                            } else {
-                                ord
-                            }
+                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
+                    std::cmp::Ordering::Equal => {
+                        let ord = a
+                            .stats
+                            .cpu
+                            .partial_cmp(&b.stats.cpu)
+                            .unwrap_or(std::cmp::Ordering::Equal);
+                        if direction == SortDirection::Descending {
+                            ord.reverse()
+                        } else {
+                            ord
                         }
-                        other => other,
                     }
+                    other => other,
                 });
             }
             SortField::Memory => {
-                self.sorted_container_keys.sort_by(|a, b| {
-                    let (Some(container_a), Some(container_b)) =
-                        (self.containers.get(a), self.containers.get(b))
-                    else {
-                        return std::cmp::Ordering::Equal;
-                    };
-
-                    // First by host_id
-                    match container_a.host_id.cmp(&container_b.host_id) {
-                        std::cmp::Ordering::Equal => {
-                            let ord = container_a
-                                .stats
-                                .memory
-                                .partial_cmp(&container_b.stats.memory)
-                                .unwrap_or(std::cmp::Ordering::Equal);
-                            // Reverse if descending
-                            if direction == SortDirection::Descending {
-                                ord.reverse()
-                            } else {
-                                ord
-                            }
+                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
+                    std::cmp::Ordering::Equal => {
+                        let ord = a
+                            .stats
+                            .memory
+                            .partial_cmp(&b.stats.memory)
+                            .unwrap_or(std::cmp::Ordering::Equal);
+                        if direction == SortDirection::Descending {
+                            ord.reverse()
+                        } else {
+                            ord
                         }
-                        other => other,
                     }
+                    other => other,
                 });
             }
         }
+
+        // Extract sorted keys
+        self.sorted_container_keys = key_container_pairs
+            .into_iter()
+            .map(|(key, _)| key.clone())
+            .collect();
     }
 }

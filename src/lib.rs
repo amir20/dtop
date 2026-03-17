@@ -16,11 +16,3 @@ pub mod cli {
     #[cfg(feature = "self-update")]
     pub mod update;
 }
-
-// Re-export commonly used items for convenience
-pub use cli::config::*;
-#[cfg(feature = "self-update")]
-pub use cli::update::*;
-pub use core::{app_state::AppState, types::*};
-pub use docker::{actions::*, connection::*, logs::*, stats::*};
-pub use ui::{input::*, render::*};

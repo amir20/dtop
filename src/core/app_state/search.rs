@@ -33,14 +33,8 @@ impl AppState {
         self.force_sort_containers();
 
         // Adjust selection after clearing filter
-        let container_count = self.sorted_container_keys.len();
-        if container_count == 0 {
-            self.table_state.select(None);
-        } else if let Some(selected) = self.table_state.selected()
-            && selected >= container_count
-        {
-            self.table_state.select(Some(container_count - 1));
-        } else if self.table_state.selected().is_none() && container_count > 0 {
+        self.clamp_selection();
+        if self.table_state.selected().is_none() && !self.sorted_container_keys.is_empty() {
             self.table_state.select(Some(0));
         }
 
@@ -51,16 +45,8 @@ impl AppState {
         &mut self,
         key_event: crossterm::event::KeyEvent,
     ) -> RenderAction {
-        use crossterm::event::KeyCode;
-
         // Only process typing keys when in search mode
-        // Enter and Escape are handled by handle_enter_pressed and handle_exit_log_view
         if self.view_state != ViewState::SearchMode {
-            return RenderAction::None;
-        }
-
-        // Skip Enter and Escape - they're handled elsewhere
-        if matches!(key_event.code, KeyCode::Enter | KeyCode::Esc) {
             return RenderAction::None;
         }
 
@@ -73,16 +59,8 @@ impl AppState {
         self.force_sort_containers();
 
         // Adjust selection after filtering
-        let container_count = self.sorted_container_keys.len();
-        if container_count == 0 {
-            self.table_state.select(None);
-        } else if let Some(selected) = self.table_state.selected()
-            && selected >= container_count
-        {
-            // If current selection is out of bounds, select the last item
-            self.table_state.select(Some(container_count - 1));
-        } else if self.table_state.selected().is_none() && container_count > 0 {
-            // If nothing is selected but we have containers, select the first one
+        self.clamp_selection();
+        if self.table_state.selected().is_none() && !self.sorted_container_keys.is_empty() {
             self.table_state.select(Some(0));
         }
 

@@ -85,6 +85,7 @@ pub async fn fetch_older_logs(
     const EXPANSION_FACTOR: i32 = 2;
     const DENSITY_BUFFER: f64 = 1.2; // 20% buffer
     const FALLBACK_WINDOW_MINUTES: i64 = 5;
+    const MAX_ATTEMPTS: u32 = 10;
 
     let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
 
@@ -112,6 +113,16 @@ pub async fn fetch_older_logs(
 
     loop {
         attempt += 1;
+        if attempt > MAX_ATTEMPTS {
+            tracing::warn!(
+                "Reached max attempts ({}) fetching older logs, no older logs found",
+                MAX_ATTEMPTS
+            );
+            let _ = tx
+                .send(AppEvent::LogBatchPrepend(key, Vec::new(), false))
+                .await;
+            return;
+        }
         let mut since_timestamp = before_timestamp - current_duration;
         let mut reached_container_start = false;
 
@@ -134,6 +145,8 @@ pub async fn fetch_older_logs(
             stdout: true,
             stderr: true,
             timestamps: true,
+            // NOTE: Bollard's LogsOptions uses i32 for timestamps, which will overflow in 2038.
+            // This is a limitation of the bollard-stubs API. Track upstream for i64 support.
             since: since_timestamp.timestamp() as i32,
             until: (before_timestamp.timestamp() - 1) as i32, // -1 to exclude boundary
             ..Default::default()
@@ -249,6 +262,7 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         stdout: true, // Include stdout
         stderr: true, // Include stderr
         timestamps: true,
+        // NOTE: Bollard's LogsOptions uses i32 for timestamps (Y2038 limitation)
         since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0), // Start after last historical log
         ..Default::default()
     });
