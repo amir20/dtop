@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.15] - 2026-03-17
+
+### Bug Fixes
+
+- *(stats)* Subtract cache from memory usage to match docker stats (#250)
+
 ## [0.6.14] - 2026-03-14
 
 ### Bug Fixes
