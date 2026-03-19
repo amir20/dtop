@@ -28,6 +28,19 @@
             defer
             src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
         ></script>
+        <script>
+            // Prevent flash of wrong theme before Alpine hydrates
+            (function () {
+                var stored = localStorage.getItem("dtop-theme");
+                var theme = stored
+                    ? stored
+                    : window.matchMedia("(prefers-color-scheme: light)")
+                            .matches
+                        ? "light"
+                        : "dark";
+                document.documentElement.setAttribute("data-theme", theme);
+            })();
+        </script>
         <style>
             :root {
                 --color-bg: #0a0e17;
@@ -50,9 +63,40 @@
                 --color-orange-dim: rgba(251, 146, 60, 0.12);
                 --color-cyan: #22d3ee;
                 --color-cyan-dim: rgba(34, 211, 238, 0.12);
+                --color-nav-bg: rgba(10, 14, 23, 0.8);
+                --color-terminal-bg: #0d1117;
+                --color-grain-opacity: 0.028;
+                --color-dot-opacity: 0.4;
                 --font-display: "Orbitron", sans-serif;
                 --font-body: "DM Sans", sans-serif;
                 --font-mono: "JetBrains Mono", monospace;
+            }
+
+            [data-theme="light"] {
+                --color-bg: #f4f6f9;
+                --color-bg-elevated: #ffffff;
+                --color-bg-card: #ffffff;
+                --color-surface: #eaecf1;
+                --color-border: #d5d9e2;
+                --color-border-bright: #b8bfcc;
+                --color-text: #1a1e2a;
+                --color-text-muted: #555e70;
+                --color-text-dim: #8891a4;
+                --color-accent: #00a85a;
+                --color-accent-dim: rgba(0, 168, 90, 0.1);
+                --color-accent-glow: rgba(0, 168, 90, 0.25);
+                --color-blue: #0c87c9;
+                --color-blue-dim: rgba(12, 135, 201, 0.08);
+                --color-purple: #7c5cbf;
+                --color-purple-dim: rgba(124, 92, 191, 0.08);
+                --color-orange: #d97218;
+                --color-orange-dim: rgba(217, 114, 24, 0.08);
+                --color-cyan: #0e98a8;
+                --color-cyan-dim: rgba(14, 152, 168, 0.08);
+                --color-nav-bg: rgba(244, 246, 249, 0.85);
+                --color-terminal-bg: #1a1e2a;
+                --color-grain-opacity: 0.015;
+                --color-dot-opacity: 0.2;
             }
 
             * {
@@ -81,7 +125,7 @@
                 inset: 0;
                 z-index: 9999;
                 pointer-events: none;
-                opacity: 0.028;
+                opacity: var(--color-grain-opacity);
                 background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
                 background-repeat: repeat;
                 background-size: 256px 256px;
@@ -99,7 +143,7 @@
                     transparent 1px
                 );
                 background-size: 32px 32px;
-                opacity: 0.4;
+                opacity: var(--color-dot-opacity);
                 mask-image: radial-gradient(
                     ellipse 80% 60% at 50% 30%,
                     black 20%,
@@ -194,7 +238,7 @@
                 z-index: 100;
                 backdrop-filter: blur(16px) saturate(180%);
                 -webkit-backdrop-filter: blur(16px) saturate(180%);
-                background: rgba(10, 14, 23, 0.8);
+                background: var(--color-nav-bg);
                 border-bottom: 1px solid var(--color-border);
             }
 
@@ -224,19 +268,6 @@
                 display: flex;
                 align-items: center;
                 gap: 24px;
-            }
-
-            .nav-link {
-                font-family: var(--font-mono);
-                font-size: 0.8rem;
-                color: var(--color-text-muted);
-                text-decoration: none;
-                transition: color 0.2s;
-                letter-spacing: 0.02em;
-            }
-
-            .nav-link:hover {
-                color: var(--color-text);
             }
 
             .nav-cta {
@@ -386,7 +417,7 @@
             }
 
             .terminal-body {
-                background: #0d1117;
+                background: var(--color-terminal-bg);
             }
 
             .terminal-body video {
@@ -753,15 +784,54 @@
                 color: var(--color-text);
             }
 
+            /* ── Theme Toggle ── */
+            .theme-toggle {
+                background: none;
+                border: 1px solid var(--color-border-bright);
+                color: var(--color-text-muted);
+                cursor: pointer;
+                width: 36px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                padding: 0;
+            }
+
+            .theme-toggle:hover {
+                border-color: var(--color-text-muted);
+                color: var(--color-text);
+            }
+
+            .theme-toggle svg {
+                width: 18px;
+                height: 18px;
+            }
+
+            .nav-icon-link {
+                color: var(--color-text-muted);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: color 0.2s;
+            }
+
+            .nav-icon-link:hover {
+                color: var(--color-text);
+            }
+
+            .nav-icon-link svg {
+                width: 22px;
+                height: 22px;
+            }
+
             /* ── Utilities ── */
             [x-cloak] {
                 display: none !important;
             }
 
             @media (max-width: 640px) {
-                .nav-link.hide-mobile {
-                    display: none;
-                }
                 .hero h1 {
                     font-size: 2.2rem;
                 }
@@ -789,9 +859,46 @@
                 <div class="nav-links">
                     <a
                         href="https://github.com/amir20/dtop"
-                        class="nav-link hide-mobile"
-                        >GitHub</a
+                        class="nav-icon-link"
+                        aria-label="GitHub"
                     >
+                        <svg viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                        </svg>
+                    </a>
+                    <button
+                        class="theme-toggle"
+                        @click="toggleTheme()"
+                        :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+                    >
+                        <svg
+                            x-show="isDark"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                            ></path>
+                        </svg>
+                        <svg
+                            x-show="!isDark"
+                            x-cloak
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                            ></path>
+                        </svg>
+                    </button>
                     <a href="#install" class="nav-cta">Install</a>
                 </div>
             </div>
@@ -1152,8 +1259,32 @@
             function app() {
                 return {
                     copiedStates: {},
+                    isDark: true,
 
-                    initTheme() {},
+                    initTheme() {
+                        const stored = localStorage.getItem("dtop-theme");
+                        if (stored) {
+                            this.isDark = stored === "dark";
+                        } else {
+                            this.isDark = !window.matchMedia(
+                                "(prefers-color-scheme: light)",
+                            ).matches;
+                        }
+                        document.documentElement.setAttribute(
+                            "data-theme",
+                            this.isDark ? "dark" : "light",
+                        );
+                    },
+
+                    toggleTheme() {
+                        this.isDark = !this.isDark;
+                        const theme = this.isDark ? "dark" : "light";
+                        document.documentElement.setAttribute(
+                            "data-theme",
+                            theme,
+                        );
+                        localStorage.setItem("dtop-theme", theme);
+                    },
 
                     async copyToClipboard(text, id) {
                         try {
