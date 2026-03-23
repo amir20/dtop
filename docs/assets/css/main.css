@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Orbitron", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-accent: #00ff88;
+  --color-accent-dim: rgba(0, 255, 136, 0.15);
+  --color-accent-glow: rgba(0, 255, 136, 0.4);
+
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-glow: glow 2s ease-in-out infinite;
+  --animate-blink: blink 1.2s step-end infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    --c-bg: #0a0e17;
+    --c-bg-elevated: #111827;
+    --c-bg-card: #141c2b;
+    --c-surface: #1a2332;
+    --c-border: #1e293b;
+    --c-border-bright: #2d3d52;
+    --c-text: #e2e8f0;
+    --c-text-muted: #8899aa;
+    --c-text-dim: #4a5e73;
+    --c-accent: #00ff88;
+    --c-accent-dim: rgba(0, 255, 136, 0.15);
+    --c-accent-glow: rgba(0, 255, 136, 0.4);
+    --c-blue: #38bdf8;
+    --c-blue-dim: rgba(56, 189, 248, 0.12);
+    --c-purple: #a78bfa;
+    --c-purple-dim: rgba(167, 139, 250, 0.12);
+    --c-orange: #fb923c;
+    --c-orange-dim: rgba(251, 146, 60, 0.12);
+    --c-cyan: #22d3ee;
+    --c-cyan-dim: rgba(34, 211, 238, 0.12);
+    --c-nav-bg: rgba(10, 14, 23, 0.8);
+    --c-terminal-bg: #0d1117;
+    --c-grain-opacity: 0.028;
+    --c-dot-opacity: 0.4;
+  }
+
+  :root:not(.dark) {
+    --c-bg: #f4f6f9;
+    --c-bg-elevated: #ffffff;
+    --c-bg-card: #ffffff;
+    --c-surface: #eaecf1;
+    --c-border: #d5d9e2;
+    --c-border-bright: #b8bfcc;
+    --c-text: #1a1e2a;
+    --c-text-muted: #555e70;
+    --c-text-dim: #8891a4;
+    --c-accent: #00a85a;
+    --c-accent-dim: rgba(0, 168, 90, 0.1);
+    --c-accent-glow: rgba(0, 168, 90, 0.25);
+    --c-blue: #0c87c9;
+    --c-blue-dim: rgba(12, 135, 201, 0.08);
+    --c-purple: #7c5cbf;
+    --c-purple-dim: rgba(124, 92, 191, 0.08);
+    --c-orange: #d97218;
+    --c-orange-dim: rgba(217, 114, 24, 0.08);
+    --c-cyan: #0e98a8;
+    --c-cyan-dim: rgba(14, 152, 168, 0.08);
+    --c-nav-bg: rgba(244, 246, 249, 0.85);
+    --c-terminal-bg: #1a1e2a;
+    --c-grain-opacity: 0.015;
+    --c-dot-opacity: 0.2;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: "DM Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Noise grain overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: var(--c-grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+}
