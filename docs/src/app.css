@@ -46,6 +46,13 @@
   }
 }
 
+@utility dot-grid {
+  opacity: var(--c-dot-opacity);
+  background-image: radial-gradient(circle, var(--c-border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 70%);
+}
+
 @layer base {
   :root {
     --c-bg: #0a0e17;
@@ -112,7 +119,6 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Noise grain overlay */
   body::before {
     content: "";
     position: fixed;

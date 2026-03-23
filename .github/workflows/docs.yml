@@ -37,15 +37,15 @@ jobs:
         run: bun install
         working-directory: docs
 
-      - name: Generate static site
-        run: bun run generate
+      - name: Build static site
+        run: bun run build
         working-directory: docs
 
       - name: Upload artifact
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v4
         with:
-          path: docs/.output/public
+          path: docs/build
 
   deploy:
     if: github.ref == 'refs/heads/master'
