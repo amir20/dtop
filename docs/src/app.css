@@ -12,11 +12,23 @@
   --animate-fade-up: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-glow: glow 2s ease-in-out infinite;
   --animate-blink: blink 1.2s step-end infinite;
+  --animate-reveal: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @keyframes fade-up {
     from {
       opacity: 0;
       transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
     }
     to {
       opacity: 1;
@@ -44,6 +56,15 @@
       opacity: 0;
     }
   }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
 }
 
 @utility dot-grid {
@@ -51,6 +72,15 @@
   background-image: radial-gradient(circle, var(--c-border) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 70%);
+}
+
+@utility scroll-hidden {
+  opacity: 0;
+  transform: translateY(32px);
+}
+
+@utility scroll-visible {
+  animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @layer base {

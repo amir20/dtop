@@ -1,5 +1,6 @@
 <script>
     import { browser } from "$app/environment";
+    import { reveal } from "$lib/actions/reveal.js";
     import readme from "../../../../README.md?raw";
 
     let copiedId = $state(null);
@@ -48,7 +49,7 @@
 </script>
 
 <section id="install" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-    <div class="mb-12 text-center">
+    <div use:reveal class="mb-12 text-center">
         <h2
             class="mb-3 font-display text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight text-(--c-text)"
         >
@@ -59,7 +60,7 @@
         </p>
     </div>
 
-    <div class="mx-auto grid max-w-180 gap-3">
+    <div use:reveal={{ delay: 150 }} class="mx-auto grid max-w-180 gap-3">
         {#each installMethods as method}
             <div
                 class="overflow-hidden border border-(--c-border) bg-(--c-bg-card) transition-colors hover:border-(--c-border-bright)"

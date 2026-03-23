@@ -11,7 +11,7 @@
   <title>dtop - Docker Container Monitoring for Your Terminal</title>
 </svelte:head>
 
-<div class="min-h-screen overflow-x-hidden">
+<div id="main" class="min-h-screen overflow-x-hidden">
   <div class="fixed inset-0 z-0 pointer-events-none dot-grid"></div>
 
   <NavBar />
