@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import readme from "../../README.md?raw";
+import readme from "../../../README.md?raw";
 
 const { copy, copied, isSupported } = useClipboard();
 const lastCopiedId = ref<string | null>(null);

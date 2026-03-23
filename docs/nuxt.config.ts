@@ -1,14 +1,10 @@
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
-  compatibilityDate: "2025-03-23",
   modules: ["@vueuse/nuxt"],
   css: ["~/assets/css/main.css"],
   vite: {
     plugins: [tailwindcss()],
-    build: {
-      sourcemap: false,
-    },
   },
   nitro: {
     prerender: {
