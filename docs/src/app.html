@@ -11,18 +11,11 @@
       rel="stylesheet"
     />
     <script>
-      (function () {
-        var s = localStorage.getItem("theme");
-        var t =
-          s === "light"
-            ? "light"
-            : s === "dark"
-              ? "dark"
-              : window.matchMedia("(prefers-color-scheme: light)").matches
-                ? "light"
-                : "dark";
-        document.documentElement.classList.toggle("dark", t === "dark");
-      })();
+      ;(() => {
+        const saved = localStorage.getItem("theme")
+        const dark = saved ? saved === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches
+        document.documentElement.classList.toggle("dark", dark)
+      })()
     </script>
     <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-093HLGSNY6"></script>
