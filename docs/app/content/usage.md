@@ -1,0 +1,4 @@
+- Press `?` for help
+- Use `u` `n` `c` `m` to sort by uptime, name, CPU, or memory
+- Press `Enter` to view container logs
+- Connect to remote hosts with `dtop --host ssh://user@host`
