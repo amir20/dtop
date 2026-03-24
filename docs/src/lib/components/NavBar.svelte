@@ -18,10 +18,24 @@
     class="sticky top-0 z-50 border-b border-(--c-border) backdrop-blur-xl backdrop-saturate-180 bg-(--c-nav-bg)"
 >
     <div class="mx-auto flex h-16 max-w-300 items-center justify-between px-6">
-        <div class="font-mono text-xl font-bold tracking-tight text-(--c-text)">
-            <span class="text-(--c-accent)">$</span> dtop<span
-                class="animate-blink text-(--c-accent)">_</span
+        <div class="flex items-center gap-6">
+            <a href="/" class="font-mono text-xl font-bold tracking-tight text-(--c-text) no-underline">
+                <span class="text-(--c-accent)">$</span> dtop<span
+                    class="animate-blink text-(--c-accent)">_</span
+                >
+            </a>
+            <a
+                href="/#config"
+                class="font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text)"
             >
+                Config
+            </a>
+            <a
+                href="/changelog"
+                class="font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text)"
+            >
+                Changelog
+            </a>
         </div>
         <div class="flex items-center gap-6">
             <a
@@ -73,7 +87,7 @@
                 {/if}
             </button>
             <a
-                href="#install"
+                href="/#install"
                 class="bg-(--c-accent) px-5 py-2 font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)] hover:-translate-y-px"
             >
                 Install

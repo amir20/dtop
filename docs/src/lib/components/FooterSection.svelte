@@ -1,7 +1,7 @@
 <script>
   const links = [
     { href: "https://github.com/amir20/dtop", label: "GitHub" },
-    { href: "https://github.com/amir20/dtop/releases", label: "Releases" },
+    { href: "/changelog", label: "Changelog" },
     { href: "https://github.com/amir20/dtop/issues", label: "Issues" },
   ];
 </script>
