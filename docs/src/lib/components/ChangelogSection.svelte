@@ -1,5 +1,4 @@
 <script>
-  import { reveal } from "$lib/actions/reveal.js";
   import changelogMd from "../../../../CHANGELOG.md?raw";
 
   function parseChangelog(md) {
@@ -85,7 +84,7 @@
 </script>
 
 <section id="changelog" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-  <div use:reveal class="mb-12 text-center">
+  <div class="mb-12 text-center">
     <h2
       class="mb-3 font-display text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight text-(--c-text)"
     >
@@ -94,7 +93,7 @@
     <p class="text-(--c-text-muted)">What's new in each release</p>
   </div>
 
-  <div use:reveal={{ delay: 100 }} class="mx-auto max-w-280 space-y-4">
+  <div class="mx-auto max-w-280 space-y-4">
     {#each entries as entry, i}
       <div
         class="group overflow-hidden border bg-(--c-bg-card) transition-colors hover:border-(--c-border-bright)"

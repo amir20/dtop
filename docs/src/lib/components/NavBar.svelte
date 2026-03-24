@@ -17,27 +17,27 @@
 <nav
     class="sticky top-0 z-50 border-b border-(--c-border) backdrop-blur-xl backdrop-saturate-180 bg-(--c-nav-bg)"
 >
-    <div class="mx-auto flex h-16 max-w-300 items-center justify-between px-6">
-        <div class="flex items-center gap-6">
-            <a href="/" class="font-mono text-xl font-bold tracking-tight text-(--c-text) no-underline">
+    <div class="mx-auto flex h-16 max-w-300 items-center justify-between px-4 md:px-6">
+        <div class="flex items-center gap-4 md:gap-6">
+            <a href="/" class="shrink-0 font-mono text-xl font-bold tracking-tight text-(--c-text) no-underline">
                 <span class="text-(--c-accent)">$</span> dtop<span
                     class="animate-blink text-(--c-accent)">_</span
                 >
             </a>
             <a
                 href="/#config"
-                class="font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text)"
+                class="hidden font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text) sm:inline"
             >
                 Config
             </a>
             <a
                 href="/changelog"
-                class="font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text)"
+                class="hidden font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:text-(--c-text) sm:inline"
             >
                 Changelog
             </a>
         </div>
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3 md:gap-6">
             <a
                 href="https://github.com/amir20/dtop"
                 class="flex items-center text-(--c-text-muted) transition-colors hover:text-(--c-text)"
