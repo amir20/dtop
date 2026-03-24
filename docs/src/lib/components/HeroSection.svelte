@@ -1,12 +1,25 @@
+<script>
+  import cargoToml from "../../../../Cargo.toml?raw";
+
+  const version = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? "";
+</script>
+
 <section
   class="relative z-1 mx-auto max-w-300 px-6 pt-20 pb-10 text-center md:pt-32 md:pb-16"
 >
-  <div class="animate-fade-up [animation-delay:0.1s]">
+  <div class="animate-fade-up [animation-delay:0.1s] flex items-center justify-center gap-3">
     <span
       class="mb-8 inline-flex items-center gap-2 border border-[rgba(0,255,136,0.2)] bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs uppercase tracking-widest text-(--c-accent) before:size-1.5 before:rounded-full before:bg-(--c-accent) before:animate-glow before:content-['']"
     >
       Built with Rust
     </span>
+    {#if version}
+      <span
+        class="mb-8 inline-flex items-center border border-[rgba(0,255,136,0.2)] bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs tracking-widest text-(--c-accent)"
+      >
+        v{version}
+      </span>
+    {/if}
   </div>
 
   <h1

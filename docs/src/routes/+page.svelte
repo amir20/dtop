@@ -3,6 +3,7 @@
   import HeroSection from "$lib/components/HeroSection.svelte";
   import FeaturesSection from "$lib/components/FeaturesSection.svelte";
   import InstallSection from "$lib/components/InstallSection.svelte";
+  import ConfigSection from "$lib/components/ConfigSection.svelte";
   import UsageSection from "$lib/components/UsageSection.svelte";
   import FooterSection from "$lib/components/FooterSection.svelte";
 </script>
@@ -18,6 +19,7 @@
   <HeroSection />
   <FeaturesSection />
   <InstallSection />
+  <ConfigSection />
   <UsageSection />
   <FooterSection />
 </div>
