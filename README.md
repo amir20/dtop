@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/dtop-icon.svg" alt="dtop logo" width="150" height="150">  
+  <img src="docs/static/dtop-icon.svg" alt="dtop logo" width="150" height="150">
 </div>
 
 # 🖥️ dtop
