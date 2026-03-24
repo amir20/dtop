@@ -81,6 +81,13 @@
   function configFor(title) {
     return sectionConfig[title] ?? { color: "var(--c-text-dim)", icon: "-" };
   }
+
+  function linkIssues(text) {
+    return text.replace(
+      /\(#(\d+)\)/g,
+      '(<a href="https://github.com/amir20/dtop/issues/$1" class="text-(--c-blue) no-underline hover:underline">#$1</a>)',
+    );
+  }
 </script>
 
 <section id="changelog" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
@@ -160,7 +167,7 @@
                     <span class="mt-0.5 shrink-0 text-(--c-text-dim)"
                       >&rarr;</span
                     >
-                    <span>{item}</span>
+                    <span>{@html linkIssues(item)}</span>
                   </li>
                 {/each}
               </ul>
