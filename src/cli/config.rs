@@ -431,4 +431,50 @@ sort: cpu
         assert_eq!(config.hosts.len(), 1);
         assert_eq!(config.sort, Some("cpu".to_string()));
     }
+
+    #[test]
+    fn test_yaml_deserialization_with_columns() {
+        let yaml = r#"
+hosts:
+  - host: local
+columns:
+  - status
+  - name
+  - cpu
+  - memory
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.hosts.len(), 1);
+        let columns = config.columns.unwrap();
+        assert_eq!(columns, vec!["status", "name", "cpu", "memory"]);
+    }
+
+    #[test]
+    fn test_yaml_deserialization_without_columns() {
+        let yaml = r#"
+hosts:
+  - host: local
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.columns.is_none());
+    }
+
+    #[test]
+    fn test_yaml_serialization_with_columns() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: None,
+            }],
+            icons: None,
+            all: None,
+            sort: None,
+            columns: Some(vec!["name".to_string(), "cpu".to_string()]),
+        };
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("columns:"));
+        assert!(yaml.contains("- name"));
+        assert!(yaml.contains("- cpu"));
+    }
 }
