@@ -486,7 +486,7 @@ impl Column {
 
     pub fn all_default() -> Vec<Column> {
         vec![
-            Column::Status, Column::Name, Column::Id, Column::Host,
+            Column::Id, Column::Status, Column::Name, Column::Host,
             Column::Cpu, Column::Memory, Column::NetTx, Column::NetRx, Column::Uptime,
         ]
     }
@@ -655,7 +655,8 @@ mod tests {
     #[test]
     fn test_column_config_visible_columns() {
         let mut config = ColumnConfig::default();
-        config.columns[2] = (Column::Id, false);
+        let id_idx = config.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
         assert_eq!(visible.len(), 8);
@@ -682,9 +683,11 @@ mod tests {
     #[test]
     fn test_column_config_move_up() {
         let mut config = ColumnConfig::default();
+        // Default order: Id, Status, Name, ...
+        // After move_up(2): Id, Name, Status, ...
         config.move_up(2);
-        assert_eq!(config.columns[1].0, Column::Id);
-        assert_eq!(config.columns[2].0, Column::Name);
+        assert_eq!(config.columns[1].0, Column::Name);
+        assert_eq!(config.columns[2].0, Column::Status);
     }
 
     #[test]
