@@ -22,7 +22,7 @@ use tracing_subscriber::EnvFilter;
 use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
-use core::types::{AppEvent, RenderAction, SortField};
+use core::types::{AppEvent, ColumnConfig, RenderAction, SortField};
 use docker::connection::{DockerHost, container_manager};
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
@@ -33,6 +33,8 @@ struct EventLoopConfig {
     icon_style: IconStyle,
     show_all: bool,
     sort_field: SortField,
+    column_config: ColumnConfig,
+    config_path: Option<std::path::PathBuf>,
 }
 
 /// Returns custom styles for CLI help output
@@ -190,7 +192,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         )
     } else if !config.hosts.is_empty() {
         // No CLI args but config has hosts, use config
-        if let Some(path) = config_path {
+        if let Some(ref path) = config_path {
             eprintln!("Loaded config from: {}", path.display());
         }
         config.merge_with_cli_hosts(
@@ -233,6 +235,13 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|s| s.parse::<SortField>().ok())
         .unwrap_or(SortField::Uptime);
 
+    let column_config = if let Some(ref cols) = merged_config.columns {
+        ColumnConfig::from_config_strings(cols)
+    } else {
+        ColumnConfig::default()
+    };
+    let config_path_for_state = if cli_provided { None } else { config_path };
+
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);
 
@@ -272,6 +281,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             icon_style,
             show_all,
             sort_field,
+            column_config,
+            config_path: config_path_for_state,
         },
     )
     .await?;
@@ -324,7 +335,7 @@ async fn run_event_loop(
     keyboard_paused: Arc<AtomicBool>,
     config: EventLoopConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = AppState::new(connected_hosts, tx, config.show_all, config.sort_field);
+    let mut state = AppState::new(connected_hosts, tx, config.show_all, config.sort_field, config.column_config, config.config_path);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 

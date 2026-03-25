@@ -83,6 +83,12 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
             let container_key = container_key.clone();
             render_log_view(f, size, &container_key, state, styles);
         }
+        ViewState::ColumnSelector => {
+            let unique_hosts: std::collections::HashSet<_> =
+                state.containers.keys().map(|key| &key.host_id).collect();
+            let show_host_column = unique_hosts.len() > 1;
+            render_container_list(f, size, state, styles, show_host_column);
+        }
         ViewState::ActionMenu(_) => {
             // First render the container list in the background
             let unique_hosts: std::collections::HashSet<_> =

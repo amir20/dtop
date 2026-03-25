@@ -169,6 +169,8 @@ pub enum ViewState {
     ActionMenu(ContainerKey),
     /// Search mode active (editing search query)
     SearchMode,
+    /// Column selector popup
+    ColumnSelector,
 }
 
 /// Available actions for containers

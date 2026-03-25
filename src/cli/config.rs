@@ -37,6 +37,10 @@ pub struct Config {
     /// Default sort field (uptime, name, cpu, memory)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<String>,
+
+    /// Visible columns in order
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<String>>,
 }
 
 impl Config {
@@ -156,6 +160,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            columns: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -180,6 +185,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -200,6 +206,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -277,6 +284,7 @@ hosts:
             icons: None,
             all: None,
             sort: None,
+            columns: None,
         };
 
         let cli_filters = vec!["name=nginx".to_string()];
@@ -300,6 +308,7 @@ hosts:
             icons: None,
             all: None,
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -322,6 +331,7 @@ hosts:
             icons: None,
             all: Some(false), // Config says false
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -340,6 +350,7 @@ hosts:
             icons: None,
             all: Some(true), // Config says true
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -358,6 +369,7 @@ hosts:
             icons: None,
             all: None, // No config value
             sort: None,
+            columns: None,
         };
 
         let merged =
@@ -376,6 +388,7 @@ hosts:
             icons: None,
             all: None,
             sort: Some("name".to_string()), // Config says name
+            columns: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -399,6 +412,7 @@ hosts:
             icons: None,
             all: None,
             sort: Some("memory".to_string()), // Config says memory
+            columns: None,
         };
 
         let merged =

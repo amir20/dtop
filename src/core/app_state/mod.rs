@@ -5,8 +5,8 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Container, ContainerKey, HostId, LogState, RenderAction, SortField, SortState,
-    ViewState,
+    AppEvent, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction,
+    SortField, SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -18,6 +18,7 @@ mod log_view;
 mod navigation;
 mod search;
 mod sorting;
+mod columns;
 
 /// Application state that manages all runtime data
 pub struct AppState {
@@ -55,6 +56,11 @@ pub struct AppState {
     pub action_menu_state: ListState,
     /// Search input widget
     pub search_input: Input,
+    pub column_config: ColumnConfig,
+    pub column_config_snapshot: Option<ColumnConfig>,
+    pub column_selector_state: ListState,
+    pub column_save_prompt: bool,
+    pub config_path: Option<std::path::PathBuf>,
     /// Connection errors to display (host_id -> (error_message, timestamp))
     pub connection_errors: HashMap<HostId, (String, Instant)>,
     /// Last time containers were sorted (for throttling)
@@ -68,6 +74,8 @@ impl AppState {
         event_tx: mpsc::Sender<AppEvent>,
         show_all: bool,
         sort_field: SortField,
+        column_config: ColumnConfig,
+        config_path: Option<std::path::PathBuf>,
     ) -> Self {
         // Detect if running in SSH session
         let is_ssh_session = std::env::var("SSH_CLIENT").is_ok()
@@ -92,6 +100,11 @@ impl AppState {
             show_all_containers: show_all,
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
+            column_config,
+            column_config_snapshot: None,
+            column_selector_state: ListState::default(),
+            column_save_prompt: false,
+            config_path,
             connection_errors: HashMap::new(),
             last_sort_time: Instant::now(),
         }
@@ -157,6 +170,10 @@ impl AppState {
             };
         }
 
+        if self.view_state == ViewState::ColumnSelector {
+            return self.handle_column_selector_key(key);
+        }
+
         // Ctrl modifiers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return match key.code {
@@ -179,12 +196,16 @@ impl AppState {
                 ViewState::ActionMenu(_) => self.handle_select_action_up(),
                 // SearchMode is handled by the early return above; fallback defensively
                 ViewState::SearchMode => self.handle_select_previous(),
+                // ColumnSelector is handled by the early return above
+                ViewState::ColumnSelector => RenderAction::None,
             },
             KeyCode::Down | KeyCode::Char('j') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_next(),
                 ViewState::LogView(_) => self.handle_scroll_down(),
                 ViewState::ActionMenu(_) => self.handle_select_action_down(),
                 ViewState::SearchMode => self.handle_select_next(),
+                // ColumnSelector is handled by the early return above
+                ViewState::ColumnSelector => RenderAction::None,
             },
             KeyCode::PageUp => self.handle_scroll_page_up(),
             KeyCode::PageDown => self.handle_scroll_page_down(),
@@ -203,6 +224,7 @@ impl AppState {
                 self.handle_set_sort_field(SortField::Memory)
             }
             KeyCode::Char('a') | KeyCode::Char('A') => self.handle_toggle_show_all(),
+            KeyCode::Char('F') => self.handle_open_column_selector(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
             KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
             KeyCode::Char('g') => self.handle_scroll_to_top(),
