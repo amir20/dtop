@@ -26,7 +26,9 @@ cargo run -- -s cpu                          # Sort containers by CPU usage
 cargo run -- update                          # Update dtop to the latest version
 dtop update                                  # (or use the installed binary)
 
-# Testing
+# Testing & Quality Checks
+cargo fmt --check                            # Check formatting (must pass before committing)
+cargo clippy                                 # Run linter (must pass before committing)
 cargo test                                   # Run all tests
 cargo test -- --nocapture                    # Run tests with output
 cargo insta test                             # Run tests with snapshot review
@@ -770,6 +772,14 @@ The codebase includes unit tests for:
 - UI snapshot tests (`ui/ui_tests.rs`): Visual regression testing using insta
 
 Run tests with `cargo test` or `cargo insta test` for snapshot tests.
+
+## Pre-Commit Checklist
+
+Before committing or submitting a pull request, always run:
+1. `cargo fmt` - Fix formatting
+2. `cargo clippy` - Fix all warnings
+3. `cargo test` - Ensure all tests pass
+4. `cargo insta accept` - Accept any updated snapshots (if applicable)
 
 ## Claude PR Review Guidelines
 
