@@ -95,6 +95,11 @@ impl DockerHost {
                     .ok()
                     .and_then(|inspect| inspect.restart_count);
 
+                let compose_project = container
+                    .labels
+                    .as_ref()
+                    .and_then(|labels| labels.get("com.docker.compose.project").cloned());
+
                 let container_info = Container {
                     id: truncated_id.clone(),
                     name: name.clone(),
@@ -105,6 +110,7 @@ impl DockerHost {
                     host_id: self.host_id.clone(),
                     dozzle_url: self.dozzle_url.clone(),
                     restart_count,
+                    compose_project,
                 };
 
                 initial_containers.push(container_info);
@@ -285,6 +291,12 @@ impl DockerHost {
 
             let restart_count = inspect.restart_count;
 
+            let compose_project = inspect
+                .config
+                .as_ref()
+                .and_then(|config| config.labels.as_ref())
+                .and_then(|labels| labels.get("com.docker.compose.project").cloned());
+
             // Start monitoring the new container
             if !active_containers.contains_key(&truncated_id) {
                 let container = Container {
@@ -297,6 +309,7 @@ impl DockerHost {
                     host_id: self.host_id.clone(),
                     dozzle_url: self.dozzle_url.clone(),
                     restart_count,
+                    compose_project,
                 };
 
                 let _ = tx.send(AppEvent::ContainerCreated(container)).await;

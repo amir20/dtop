@@ -86,6 +86,7 @@ mod tests {
             host_id: host_id.to_string(),
             dozzle_url: None,
             restart_count: None,
+            compose_project: None,
         }
     }
 
@@ -459,6 +460,7 @@ mod tests {
                 host_id: "local".to_string(),
                 dozzle_url: None,
                 restart_count: None,
+                compose_project: None,
             },
             Container {
                 id: "dead12345678".to_string(),
@@ -470,6 +472,7 @@ mod tests {
                 host_id: "local".to_string(),
                 dozzle_url: None,
                 restart_count: None,
+                compose_project: None,
             },
         ];
 
