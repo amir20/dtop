@@ -78,7 +78,7 @@ impl AppState {
                 }
                 RenderAction::Render
             }
-            KeyCode::Esc | KeyCode::Char('v') => self.handle_close_column_selector(),
+            KeyCode::Esc | KeyCode::Char('c') => self.handle_close_column_selector(),
             _ => RenderAction::None,
         }
     }

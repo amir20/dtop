@@ -15,6 +15,7 @@ use crate::ui::container_list::render_container_list;
 use crate::ui::help::render_help_popup;
 use crate::ui::icons::{IconStyle, Icons};
 use crate::ui::log_view::render_log_view;
+use crate::ui::sort_selector::render_sort_selector;
 
 /// Pre-allocated styles to avoid recreation every frame
 pub struct UiStyles {
@@ -84,12 +85,16 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
             let container_key = container_key.clone();
             render_log_view(f, size, &container_key, state, styles);
         }
-        ViewState::ColumnSelector => {
+        ViewState::ColumnSelector | ViewState::SortSelector => {
             let unique_hosts: std::collections::HashSet<_> =
                 state.containers.keys().map(|key| &key.host_id).collect();
             let show_host_column = unique_hosts.len() > 1;
             render_container_list(f, size, state, styles, show_host_column);
-            render_column_selector(f, state, styles);
+            if state.view_state == ViewState::ColumnSelector {
+                render_column_selector(f, state, styles);
+            } else {
+                render_sort_selector(f, state, styles);
+            }
         }
         ViewState::ActionMenu(_) => {
             // First render the container list in the background

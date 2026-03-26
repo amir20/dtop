@@ -26,7 +26,9 @@ cargo run -- -s cpu                          # Sort containers by CPU usage
 cargo run -- update                          # Update dtop to the latest version
 dtop update                                  # (or use the installed binary)
 
-# Testing
+# Testing & Quality Checks
+cargo fmt --check                            # Check formatting (must pass before committing)
+cargo clippy                                 # Run linter (must pass before committing)
 cargo test                                   # Run all tests
 cargo test -- --nocapture                    # Run tests with output
 cargo insta test                             # Run tests with snapshot review
@@ -184,7 +186,7 @@ The `--sort` / `-s` option sets the default sort field for the container list:
 **Behavior:**
 - Each field has a default sort direction (uptime/cpu/memory: descending, name: ascending)
 - CLI takes precedence over config file
-- Users can change the sort field and toggle direction in the UI with 's' or specific keys (u/n/c/m)
+- Users can change the sort field and toggle direction in the UI with 's' (opens sort selector popup)
 
 **Examples:**
 ```bash
@@ -371,8 +373,7 @@ Container-related events use structured types to identify containers across host
 - `LogLine(ContainerKey, LogEntry)` - New log line received from streaming logs
 - `OpenDozzle` - User pressed 'o' to open Dozzle for selected container
 - `ToggleHelp` - User pressed '?' to toggle help popup
-- `CycleSortField` - User pressed 's' to cycle through sort fields
-- `SetSortField(SortField)` - User pressed a specific key to set sort field (u/n/c/m)
+- `KeyInput(KeyEvent)` - User pressed 's' to open sort selector popup
 - `ToggleShowAll` - User pressed 'a' to toggle showing all containers (including stopped)
 - `CancelActionMenu` - User pressed Esc to cancel action menu or exit views
 - `SelectActionUp` - Navigate up in action menu (Up arrow)
@@ -385,11 +386,13 @@ Container-related events use structured types to identify containers across host
 
 ### View States (`core/types.rs::ViewState`)
 
-The application has four view states:
+The application has these view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 - `ActionMenu(ContainerKey)` - Action menu popup for a specific container
 - `SearchMode` - Search mode for filtering containers by name/ID
+- `ColumnSelector` - Column visibility and ordering popup
+- `SortSelector` - Sort field selection popup
 
 ### Container Data Model (`core/types.rs::Container`)
 
@@ -543,9 +546,8 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 - Default sort: Uptime (newest first, descending)
 - Sort fields: Uptime, Name, CPU, Memory
 - Containers are always sorted by `host_id` first, then by the selected field within each host
-- Press 's' to cycle through sort fields
-- Press 'u'/'n'/'c'/'m' to sort by specific field (Uptime/Name/CPU/Memory)
-- Pressing the same field key toggles sort direction (ascending/descending)
+- Press 's' to open sort selector popup
+- In the sort popup, select a field to sort by; selecting the active field toggles direction
 - Each field has a default direction: Name (ascending), Uptime/CPU/Memory (descending)
 - Sort state is tracked in `SortState` with field and direction
 
@@ -738,11 +740,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `o` - Open Dozzle for selected container (if configured and not in SSH session)
 - `?` - Toggle help popup
 - `/` - Enter search mode (filter containers)
-- `s` - Cycle through sort fields (Uptime → Name → CPU → Memory → Uptime)
-- `u` - Sort by Uptime (toggle direction if already sorting by Uptime)
-- `n` - Sort by Name (toggle direction if already sorting by Name)
-- `c` - Sort by CPU (toggle direction if already sorting by CPU)
-- `m` - Sort by Memory (toggle direction if already sorting by Memory)
+- `s` - Open sort selector popup (Uptime, Name, CPU, Memory)
+- `c` - Open column visibility selector
 - `a` - Toggle showing all containers (including stopped containers)
 
 **Log View:**
@@ -773,6 +772,14 @@ The codebase includes unit tests for:
 - UI snapshot tests (`ui/ui_tests.rs`): Visual regression testing using insta
 
 Run tests with `cargo test` or `cargo insta test` for snapshot tests.
+
+## Pre-Commit Checklist
+
+Before committing or submitting a pull request, always run:
+1. `cargo fmt` - Fix formatting
+2. `cargo clippy` - Fix all warnings
+3. `cargo test` - Ensure all tests pass
+4. `cargo insta accept` - Accept any updated snapshots (if applicable)
 
 ## Claude PR Review Guidelines
 
