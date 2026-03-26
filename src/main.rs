@@ -22,7 +22,7 @@ use tracing_subscriber::EnvFilter;
 use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
-use core::types::{AppEvent, ColumnConfig, RenderAction, SortField};
+use core::types::{AppEvent, Column, ColumnConfig, RenderAction};
 use docker::connection::{DockerHost, container_manager};
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
@@ -32,7 +32,7 @@ use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 struct EventLoopConfig {
     icon_style: IconStyle,
     show_all: bool,
-    sort_field: SortField,
+    sort_field: Column,
     column_config: ColumnConfig,
     config_path: Option<std::path::PathBuf>,
 }
@@ -232,8 +232,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let sort_field = merged_config
         .sort
         .as_ref()
-        .and_then(|s| s.parse::<SortField>().ok())
-        .unwrap_or(SortField::Uptime);
+        .and_then(|s| Column::from_sort_str(s))
+        .unwrap_or(Column::Uptime);
 
     let column_config = if let Some(ref cols) = merged_config.columns {
         ColumnConfig::from_config_strings(cols)

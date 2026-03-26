@@ -2,8 +2,7 @@
 mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
-        Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats, SortField,
-        ViewState,
+        Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats, ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use ratatui::Terminal;
@@ -48,7 +47,7 @@ mod tests {
             HashMap::new(),
             tx,
             false,
-            SortField::Uptime,
+            Column::Uptime,
             ColumnConfig::default(),
             None,
         )

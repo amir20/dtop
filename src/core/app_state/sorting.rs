@@ -1,19 +1,11 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{
-    ContainerState, RenderAction, SortDirection, SortField, SortState, ViewState,
+    Column, ContainerState, RenderAction, SortDirection, SortState, ViewState,
 };
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
 const SORT_THROTTLE_DURATION: Duration = Duration::from_secs(3);
-
-/// All sort fields in display order
-const SORT_FIELDS: [SortField; 4] = [
-    SortField::Uptime,
-    SortField::Name,
-    SortField::Cpu,
-    SortField::Memory,
-];
 
 impl AppState {
     /// Opens the sort selector popup
@@ -22,10 +14,11 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Pre-select the currently active sort field
-        let current_idx = SORT_FIELDS
+        // Pre-select the currently active sort field from visible columns
+        let visible = self.column_config.visible_columns();
+        let current_idx = visible
             .iter()
-            .position(|f| *f == self.sort_state.field)
+            .position(|c| *c == self.sort_state.field)
             .unwrap_or(0);
 
         self.view_state = ViewState::SortSelector;
@@ -40,6 +33,9 @@ impl AppState {
     ) -> RenderAction {
         use crossterm::event::KeyCode;
 
+        let visible = self.column_config.visible_columns();
+        let count = visible.len();
+
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 let current = self.sort_selector_state.selected().unwrap_or(0);
@@ -50,7 +46,7 @@ impl AppState {
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 let current = self.sort_selector_state.selected().unwrap_or(0);
-                let max = SORT_FIELDS.len().saturating_sub(1);
+                let max = count.saturating_sub(1);
                 if current < max {
                     self.sort_selector_state.select(Some(current + 1));
                 }
@@ -58,7 +54,7 @@ impl AppState {
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 if let Some(idx) = self.sort_selector_state.selected()
-                    && let Some(&field) = SORT_FIELDS.get(idx)
+                    && let Some(&field) = visible.get(idx)
                 {
                     if self.sort_state.field == field {
                         // Same field: toggle direction
@@ -147,74 +143,56 @@ impl AppState {
             .collect();
 
         let direction = self.sort_state.direction;
+        let sort_field = self.sort_state.field;
 
-        match self.sort_state.field {
-            SortField::Uptime => {
-                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
-                    std::cmp::Ordering::Equal => {
-                        let ord = match (&a.created, &b.created) {
-                            (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
-                            (Some(_), None) => std::cmp::Ordering::Greater,
-                            (None, Some(_)) => std::cmp::Ordering::Less,
-                            (None, None) => std::cmp::Ordering::Equal,
-                        };
-                        if direction == SortDirection::Descending {
-                            ord.reverse()
-                        } else {
-                            ord
-                        }
+        key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
+            std::cmp::Ordering::Equal => {
+                let ord = match sort_field {
+                    Column::Uptime => match (&a.created, &b.created) {
+                        (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
+                        (Some(_), None) => std::cmp::Ordering::Greater,
+                        (None, Some(_)) => std::cmp::Ordering::Less,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    },
+                    Column::Name => a.name.cmp(&b.name),
+                    Column::Id => a.id.cmp(&b.id),
+                    Column::Host => a.host_id.cmp(&b.host_id),
+                    Column::Compose => a.compose_project.cmp(&b.compose_project),
+                    Column::Cpu => a
+                        .stats
+                        .cpu
+                        .partial_cmp(&b.stats.cpu)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                    Column::Memory => a
+                        .stats
+                        .memory
+                        .partial_cmp(&b.stats.memory)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                    Column::NetTx => a
+                        .stats
+                        .network_tx_bytes_per_sec
+                        .partial_cmp(&b.stats.network_tx_bytes_per_sec)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                    Column::NetRx => a
+                        .stats
+                        .network_rx_bytes_per_sec
+                        .partial_cmp(&b.stats.network_rx_bytes_per_sec)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                    Column::Status => {
+                        let a_state = format!("{:?}", a.state);
+                        let b_state = format!("{:?}", b.state);
+                        a_state.cmp(&b_state)
                     }
-                    other => other,
-                });
+                    Column::Restarts => a.restart_count.cmp(&b.restart_count),
+                };
+                if direction == SortDirection::Descending {
+                    ord.reverse()
+                } else {
+                    ord
+                }
             }
-            SortField::Name => {
-                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
-                    std::cmp::Ordering::Equal => {
-                        let ord = a.name.cmp(&b.name);
-                        if direction == SortDirection::Descending {
-                            ord.reverse()
-                        } else {
-                            ord
-                        }
-                    }
-                    other => other,
-                });
-            }
-            SortField::Cpu => {
-                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
-                    std::cmp::Ordering::Equal => {
-                        let ord = a
-                            .stats
-                            .cpu
-                            .partial_cmp(&b.stats.cpu)
-                            .unwrap_or(std::cmp::Ordering::Equal);
-                        if direction == SortDirection::Descending {
-                            ord.reverse()
-                        } else {
-                            ord
-                        }
-                    }
-                    other => other,
-                });
-            }
-            SortField::Memory => {
-                key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
-                    std::cmp::Ordering::Equal => {
-                        let ord = a
-                            .stats
-                            .memory
-                            .partial_cmp(&b.stats.memory)
-                            .unwrap_or(std::cmp::Ordering::Equal);
-                        if direction == SortDirection::Descending {
-                            ord.reverse()
-                        } else {
-                            ord
-                        }
-                    }
-                    other => other,
-                });
-            }
-        }
+            other => other,
+        });
 
         // Extract sorted keys
         self.sorted_container_keys = key_container_pairs
@@ -222,9 +200,4 @@ impl AppState {
             .map(|(key, _)| key.clone())
             .collect();
     }
-}
-
-/// Returns the sort fields in display order (used by the UI renderer)
-pub fn sort_fields() -> &'static [SortField; 4] {
-    &SORT_FIELDS
 }

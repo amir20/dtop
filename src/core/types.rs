@@ -246,76 +246,23 @@ impl SortDirection {
 /// Combined sort state (field + direction)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SortState {
-    pub field: SortField,
+    pub field: Column,
     pub direction: SortDirection,
 }
 
 impl SortState {
     /// Creates a new SortState with the default direction for the field
-    pub fn new(field: SortField) -> Self {
+    pub fn new(field: Column) -> Self {
         Self {
             field,
-            direction: field.default_direction(),
+            direction: field.default_sort_direction(),
         }
     }
 }
 
 impl Default for SortState {
     fn default() -> Self {
-        Self::new(SortField::Uptime)
-    }
-}
-
-/// Sort field for container list
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum SortField {
-    /// Sort by creation time
-    Uptime,
-    /// Sort by container name
-    Name,
-    /// Sort by CPU usage
-    Cpu,
-    /// Sort by memory usage
-    Memory,
-}
-
-impl std::str::FromStr for SortField {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "uptime" | "u" => Ok(SortField::Uptime),
-            "name" | "n" => Ok(SortField::Name),
-            "cpu" | "c" => Ok(SortField::Cpu),
-            "memory" | "mem" | "m" => Ok(SortField::Memory),
-            _ => Err(format!(
-                "Invalid sort field '{}'. Valid options: uptime, name, cpu, memory",
-                s
-            )),
-        }
-    }
-}
-
-impl std::fmt::Display for SortField {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SortField::Uptime => write!(f, "uptime"),
-            SortField::Name => write!(f, "name"),
-            SortField::Cpu => write!(f, "cpu"),
-            SortField::Memory => write!(f, "memory"),
-        }
-    }
-}
-
-impl SortField {
-    /// Returns the default sort direction for this field
-    pub fn default_direction(self) -> SortDirection {
-        match self {
-            SortField::Name => SortDirection::Ascending,
-            SortField::Uptime => SortDirection::Descending, // Newest first
-            SortField::Cpu => SortDirection::Descending,    // Highest first
-            SortField::Memory => SortDirection::Descending, // Highest first
-        }
+        Self::new(Column::Uptime)
     }
 }
 
@@ -506,6 +453,49 @@ impl Column {
     pub fn default_visible(self) -> bool {
         !matches!(self, Column::Restarts | Column::Compose)
     }
+
+    /// Returns the default sort direction when sorting by this column
+    pub fn default_sort_direction(self) -> SortDirection {
+        match self {
+            Column::Name | Column::Id | Column::Host | Column::Compose | Column::Status => {
+                SortDirection::Ascending
+            }
+            Column::Uptime
+            | Column::Cpu
+            | Column::Memory
+            | Column::NetTx
+            | Column::NetRx
+            | Column::Restarts => SortDirection::Descending,
+        }
+    }
+
+    /// Parses a sort field string (case-insensitive, with short aliases for backwards compat)
+    pub fn from_sort_str(s: &str) -> Option<Column> {
+        match s.to_lowercase().as_str() {
+            "u" => Some(Column::Uptime),
+            "n" => Some(Column::Name),
+            "c" => Some(Column::Cpu),
+            "m" | "mem" => Some(Column::Memory),
+            other => Column::from_id(other),
+        }
+    }
+
+    /// Sort-friendly label for the sort selector popup
+    pub fn sort_label(self) -> &'static str {
+        match self {
+            Column::Status => "Status",
+            Column::Name => "Name",
+            Column::Id => "ID",
+            Column::Host => "Host",
+            Column::Compose => "Compose",
+            Column::Cpu => "CPU",
+            Column::Memory => "Memory",
+            Column::NetTx => "Net TX",
+            Column::NetRx => "Net RX",
+            Column::Uptime => "Uptime",
+            Column::Restarts => "Restarts",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -587,73 +577,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sort_field_from_str_full_names() {
-        assert_eq!("uptime".parse::<SortField>().unwrap(), SortField::Uptime);
-        assert_eq!("name".parse::<SortField>().unwrap(), SortField::Name);
-        assert_eq!("cpu".parse::<SortField>().unwrap(), SortField::Cpu);
-        assert_eq!("memory".parse::<SortField>().unwrap(), SortField::Memory);
-    }
-
-    #[test]
-    fn test_sort_field_from_str_short_names() {
-        assert_eq!("u".parse::<SortField>().unwrap(), SortField::Uptime);
-        assert_eq!("n".parse::<SortField>().unwrap(), SortField::Name);
-        assert_eq!("c".parse::<SortField>().unwrap(), SortField::Cpu);
-        assert_eq!("m".parse::<SortField>().unwrap(), SortField::Memory);
-    }
-
-    #[test]
-    fn test_sort_field_from_str_case_insensitive() {
-        assert_eq!("UPTIME".parse::<SortField>().unwrap(), SortField::Uptime);
-        assert_eq!("Name".parse::<SortField>().unwrap(), SortField::Name);
-        assert_eq!("CPU".parse::<SortField>().unwrap(), SortField::Cpu);
-        assert_eq!("Memory".parse::<SortField>().unwrap(), SortField::Memory);
-        assert_eq!("MEM".parse::<SortField>().unwrap(), SortField::Memory);
-    }
-
-    #[test]
-    fn test_sort_field_from_str_invalid() {
-        assert!("invalid".parse::<SortField>().is_err());
-        assert!("".parse::<SortField>().is_err());
-        assert!("x".parse::<SortField>().is_err());
-    }
-
-    #[test]
-    fn test_sort_field_display() {
-        assert_eq!(SortField::Uptime.to_string(), "uptime");
-        assert_eq!(SortField::Name.to_string(), "name");
-        assert_eq!(SortField::Cpu.to_string(), "cpu");
-        assert_eq!(SortField::Memory.to_string(), "memory");
-    }
-
-    #[test]
-    fn test_sort_field_default_direction() {
+    fn test_column_default_sort_direction() {
         assert_eq!(
-            SortField::Uptime.default_direction(),
+            Column::Uptime.default_sort_direction(),
             SortDirection::Descending
         );
         assert_eq!(
-            SortField::Name.default_direction(),
+            Column::Name.default_sort_direction(),
             SortDirection::Ascending
         );
         assert_eq!(
-            SortField::Cpu.default_direction(),
+            Column::Cpu.default_sort_direction(),
             SortDirection::Descending
         );
         assert_eq!(
-            SortField::Memory.default_direction(),
+            Column::Memory.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            Column::NetTx.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            Column::NetRx.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            Column::Id.default_sort_direction(),
+            SortDirection::Ascending
+        );
+        assert_eq!(
+            Column::Host.default_sort_direction(),
+            SortDirection::Ascending
+        );
+        assert_eq!(
+            Column::Restarts.default_sort_direction(),
             SortDirection::Descending
         );
     }
 
     #[test]
     fn test_sort_state_new() {
-        let state = SortState::new(SortField::Name);
-        assert_eq!(state.field, SortField::Name);
+        let state = SortState::new(Column::Name);
+        assert_eq!(state.field, Column::Name);
         assert_eq!(state.direction, SortDirection::Ascending);
 
-        let state = SortState::new(SortField::Cpu);
-        assert_eq!(state.field, SortField::Cpu);
+        let state = SortState::new(Column::Cpu);
+        assert_eq!(state.field, Column::Cpu);
         assert_eq!(state.direction, SortDirection::Descending);
     }
 
