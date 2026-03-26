@@ -85,6 +85,7 @@ mod tests {
             },
             host_id: host_id.to_string(),
             dozzle_url: None,
+            restart_count: None,
         }
     }
 
@@ -457,6 +458,7 @@ mod tests {
                 stats: ContainerStats::default(), // Stats should not be shown
                 host_id: "local".to_string(),
                 dozzle_url: None,
+                restart_count: None,
             },
             Container {
                 id: "dead12345678".to_string(),
@@ -467,6 +469,7 @@ mod tests {
                 stats: ContainerStats::default(), // Stats should not be shown
                 host_id: "local".to_string(),
                 dozzle_url: None,
+                restart_count: None,
             },
         ];
 

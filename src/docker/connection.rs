@@ -87,6 +87,14 @@ impl DockerHost {
                 // Check if container is running before moving state
                 let is_running = state == ContainerState::Running;
 
+                // Fetch restart count via inspect (not available in list API)
+                let restart_count = self
+                    .docker
+                    .inspect_container(&full_id, None::<InspectContainerOptions>)
+                    .await
+                    .ok()
+                    .and_then(|inspect| inspect.restart_count);
+
                 let container_info = Container {
                     id: truncated_id.clone(),
                     name: name.clone(),
@@ -96,6 +104,7 @@ impl DockerHost {
                     stats: ContainerStats::default(),
                     host_id: self.host_id.clone(),
                     dozzle_url: self.dozzle_url.clone(),
+                    restart_count,
                 };
 
                 initial_containers.push(container_info);
@@ -274,6 +283,8 @@ impl DockerHost {
                     .map(|dt| dt.with_timezone(&Utc))
             });
 
+            let restart_count = inspect.restart_count;
+
             // Start monitoring the new container
             if !active_containers.contains_key(&truncated_id) {
                 let container = Container {
@@ -285,6 +296,7 @@ impl DockerHost {
                     stats: ContainerStats::default(),
                     host_id: self.host_id.clone(),
                     dozzle_url: self.dozzle_url.clone(),
+                    restart_count,
                 };
 
                 let _ = tx.send(AppEvent::ContainerCreated(container)).await;

@@ -20,7 +20,7 @@ dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)
                          │    Net TX                        [X]           │                         
                          │    Net RX                        [X]           │                         
                          │    Uptime                        [X]           │                         
-                         │                                                │                         
+                         │    Restarts                      [ ]           │                         
                          │                                                │                         
                          │                                                │                         
                          │                                                │                         
