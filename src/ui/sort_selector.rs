@@ -6,16 +6,16 @@ use ratatui::{
 };
 
 use crate::core::app_state::AppState;
+use crate::core::app_state::sorting::sort_fields;
 use crate::ui::render::UiStyles;
 
-/// Renders the column selector popup
-pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
+/// Renders the sort selector popup
+pub fn render_sort_selector(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let area = f.area();
 
-    let popup_width = (area.width as f32 * 0.5).max(40.0) as u16;
-    let popup_height = (area.height as f32 * 0.6).max(14.0) as u16;
-    let popup_width = popup_width.min(area.width.saturating_sub(4));
-    let popup_height = popup_height.min(area.height.saturating_sub(4));
+    // Compact popup - only 4 sort fields
+    let popup_width = 36u16.min(area.width.saturating_sub(4));
+    let popup_height = 9u16.min(area.height.saturating_sub(4)); // border(2) + items(4) + footer(1) + padding(2)
 
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
@@ -24,14 +24,8 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
 
     f.render_widget(Clear, popup_area);
 
-    let title = if state.column_save_prompt {
-        " Save to config? (y/n/esc) "
-    } else {
-        " Columns "
-    };
-
     let block = Block::default()
-        .title(title)
+        .title(" Sort By ")
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(styles.header)
@@ -46,25 +40,30 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
         popup_area.height.saturating_sub(2),
     );
 
-    let instruction_area = Rect::new(inner_area.x, inner_area.y, inner_area.width, 1);
-    let instruction = ratatui::widgets::Paragraph::new("  Re-order: <PageUp> / <PageDown>")
-        .style(Style::default().fg(Color::Gray));
-    f.render_widget(instruction, instruction_area);
-
     let list_area = Rect::new(
         inner_area.x,
-        inner_area.y + 2,
+        inner_area.y,
         inner_area.width,
-        inner_area.height.saturating_sub(4),
+        inner_area.height.saturating_sub(2),
     );
 
-    let list_items: Vec<ListItem> = state
-        .column_config
-        .columns
+    let fields = sort_fields();
+    let list_items: Vec<ListItem> = fields
         .iter()
-        .map(|(col, visible)| {
-            let checkbox = if *visible { "[X]" } else { "[ ]" };
-            let text = format!("  {:<30}{}", col.label(), checkbox);
+        .map(|field| {
+            let is_active = state.sort_state.field == *field;
+            let indicator = if is_active {
+                state.sort_state.direction.symbol()
+            } else {
+                " "
+            };
+            let label = match field {
+                crate::core::types::SortField::Uptime => "Uptime",
+                crate::core::types::SortField::Name => "Name",
+                crate::core::types::SortField::Cpu => "CPU",
+                crate::core::types::SortField::Memory => "Memory",
+            };
+            let text = format!("  {:<20} {}", label, indicator);
             ListItem::new(text).style(Style::default().fg(Color::White))
         })
         .collect();
@@ -78,7 +77,7 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
         )
         .highlight_symbol("> ");
 
-    f.render_stateful_widget(list, list_area, &mut state.column_selector_state);
+    f.render_stateful_widget(list, list_area, &mut state.sort_selector_state);
 
     let footer_y = popup_area.y + popup_area.height.saturating_sub(2);
     let footer_area = Rect::new(
@@ -88,13 +87,7 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
         1,
     );
 
-    let footer_text = if state.column_save_prompt {
-        "y: Save  n: Don't save  Esc: Cancel"
-    } else {
-        "Enter/Space: Toggle  Esc: Close  c: Close"
-    };
-
-    let footer = ratatui::widgets::Paragraph::new(footer_text)
+    let footer = ratatui::widgets::Paragraph::new("Enter: Select  Esc: Close")
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center);
 

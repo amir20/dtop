@@ -16,11 +16,11 @@ dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)
             │   ↑/↓, j/k    Navigate/scroll (1 line)    →/l    View logs      ←/h    Exit logs             │            
             │   Enter       Action menu                 Esc    Close menu     ?      Toggle help           │            
             │   a           Show all containers         /      Filter         o      Open Dozzle           │            
-            │   v           Column visibility                                                              │            
+            │   s           Sort by                     c      Column visibility                           │            
             │                                                                                              │            
             │ Log View Scrolling                                                                           │            
             │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            
             │   G/End       Bottom                                                                         │            
             │                                                                                              │            
-            │ Sorting                                                                                      │            
+            │ Status Icons                                                                                 │            
             └──────────────────────────────────────────────────────────────────────────────────────────────┘

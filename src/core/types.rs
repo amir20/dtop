@@ -173,6 +173,8 @@ pub enum ViewState {
     SearchMode,
     /// Column selector popup
     ColumnSelector,
+    /// Sort selector popup
+    SortSelector,
 }
 
 /// Available actions for containers
@@ -306,16 +308,6 @@ impl std::fmt::Display for SortField {
 }
 
 impl SortField {
-    /// Cycles to the next sort field
-    pub fn next(self) -> Self {
-        match self {
-            SortField::Uptime => SortField::Name,
-            SortField::Name => SortField::Cpu,
-            SortField::Cpu => SortField::Memory,
-            SortField::Memory => SortField::Uptime,
-        }
-    }
-
     /// Returns the default sort direction for this field
     pub fn default_direction(self) -> SortDirection {
         match self {

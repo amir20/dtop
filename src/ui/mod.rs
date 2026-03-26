@@ -7,6 +7,7 @@ pub mod icons;
 pub mod input;
 pub mod log_view;
 pub mod render;
+pub mod sort_selector;
 
 #[cfg(test)]
 mod ui_tests;

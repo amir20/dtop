@@ -53,7 +53,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  a           Show all containers         /      Filter         o      Open Dozzle",
         ),
-        Line::from("  v           Column visibility"),
+        Line::from(
+            "  s           Sort by                     c      Column visibility",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Log View Scrolling",
@@ -65,17 +67,6 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             "  g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down",
         ),
         Line::from("  G/End       Bottom"),
-        Line::from(""),
-        Line::from(vec![Span::styled(
-            "Sorting",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )]),
-        Line::from("  u/U         Uptime       n/N         Name           c/C             CPU"),
-        Line::from(
-            "  m/M         Memory       s           Cycle          (press again to toggle asc/desc)",
-        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Status Icons",

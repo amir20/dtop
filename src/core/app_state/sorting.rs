@@ -1,43 +1,85 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerState, RenderAction, SortDirection, SortField, ViewState};
+use crate::core::types::{ContainerState, RenderAction, SortDirection, SortField, SortState, ViewState};
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
 const SORT_THROTTLE_DURATION: Duration = Duration::from_secs(3);
 
+/// All sort fields in display order
+const SORT_FIELDS: [SortField; 4] = [
+    SortField::Uptime,
+    SortField::Name,
+    SortField::Cpu,
+    SortField::Memory,
+];
+
 impl AppState {
-    pub(super) fn handle_cycle_sort_field(&mut self) -> RenderAction {
-        // Only handle in ContainerList view
+    /// Opens the sort selector popup
+    pub(super) fn handle_open_sort_selector(&mut self) -> RenderAction {
         if self.view_state != ViewState::ContainerList {
             return RenderAction::None;
         }
 
-        // Cycle to next sort field with default direction
-        self.sort_state = crate::core::types::SortState::new(self.sort_state.field.next());
+        // Pre-select the currently active sort field
+        let current_idx = SORT_FIELDS
+            .iter()
+            .position(|f| *f == self.sort_state.field)
+            .unwrap_or(0);
 
-        // Force immediate re-sort when user changes sort field
-        self.force_sort_containers();
-
-        RenderAction::Render // Force redraw - sort order changed
+        self.view_state = ViewState::SortSelector;
+        self.sort_selector_state.select(Some(current_idx));
+        RenderAction::Render
     }
 
-    pub(super) fn handle_set_sort_field(&mut self, field: SortField) -> RenderAction {
-        // Only handle in ContainerList view
-        if self.view_state != ViewState::ContainerList {
-            return RenderAction::None;
+    /// Handles key events while in the sort selector popup
+    pub(super) fn handle_sort_selector_key(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+    ) -> RenderAction {
+        use crossterm::event::KeyCode;
+
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                let current = self.sort_selector_state.selected().unwrap_or(0);
+                if current > 0 {
+                    self.sort_selector_state.select(Some(current - 1));
+                }
+                RenderAction::Render
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let current = self.sort_selector_state.selected().unwrap_or(0);
+                let max = SORT_FIELDS.len().saturating_sub(1);
+                if current < max {
+                    self.sort_selector_state.select(Some(current + 1));
+                }
+                RenderAction::Render
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                if let Some(idx) = self.sort_selector_state.selected() {
+                    if let Some(&field) = SORT_FIELDS.get(idx) {
+                        if self.sort_state.field == field {
+                            // Same field: toggle direction
+                            self.sort_state.direction = self.sort_state.direction.toggle();
+                        } else {
+                            // Different field: set with default direction
+                            self.sort_state = SortState::new(field);
+                        }
+                        self.force_sort_containers();
+                    }
+                }
+                RenderAction::Render
+            }
+            KeyCode::Esc | KeyCode::Char('s') => {
+                self.close_sort_selector()
+            }
+            _ => RenderAction::None,
         }
+    }
 
-        // If same field, toggle direction; otherwise use default direction
-        if self.sort_state.field == field {
-            self.sort_state.direction = self.sort_state.direction.toggle();
-        } else {
-            self.sort_state = crate::core::types::SortState::new(field);
-        }
-
-        // Force immediate re-sort when user changes sort field
-        self.force_sort_containers();
-
-        RenderAction::Render // Force redraw - sort order changed
+    fn close_sort_selector(&mut self) -> RenderAction {
+        self.view_state = ViewState::ContainerList;
+        self.sort_selector_state.select(None);
+        RenderAction::Render
     }
 
     pub(super) fn handle_toggle_show_all(&mut self) -> RenderAction {
@@ -180,4 +222,9 @@ impl AppState {
             .map(|(key, _)| key.clone())
             .collect();
     }
+}
+
+/// Returns the sort fields in display order (used by the UI renderer)
+pub fn sort_fields() -> &'static [SortField; 4] {
+    &SORT_FIELDS
 }
