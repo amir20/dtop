@@ -46,6 +46,9 @@ impl AppState {
             ViewState::ActionMenu(_) => {
                 // Exit action menu
             }
+            ViewState::ColumnSelector => {
+                return self.handle_close_column_selector();
+            }
             _ => {
                 // Ignore Escape in other views
                 return RenderAction::None;

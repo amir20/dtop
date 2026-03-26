@@ -2,7 +2,8 @@
 mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
-        Container, ContainerKey, ContainerState, ContainerStats, SortField, ViewState,
+        Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats, SortField,
+        ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use ratatui::Terminal;
@@ -43,7 +44,14 @@ mod tests {
     /// Helper function to create a mock AppState for testing
     fn create_test_app_state() -> AppState {
         let (tx, _rx) = mpsc::channel(100);
-        AppState::new(HashMap::new(), tx, false, SortField::Uptime)
+        AppState::new(
+            HashMap::new(),
+            tx,
+            false,
+            SortField::Uptime,
+            ColumnConfig::default(),
+            None,
+        )
     }
 
     /// Helper function to create a test container
@@ -735,6 +743,77 @@ mod tests {
             "Should show error message"
         );
 
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_column_selector_popup() {
+        let mut state = create_test_app_state();
+
+        let container =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        let key = ContainerKey::new("local".to_string(), "abc123def456".to_string());
+        state.containers.insert(key, container);
+        state.sort_containers();
+        state.table_state.select(Some(0));
+
+        state.view_state = ViewState::ColumnSelector;
+        state.column_selector_state.select(Some(0));
+        state.column_config_snapshot = Some(state.column_config.clone());
+
+        let styles = UiStyles::default();
+        let backend = TestBackend::new(100, 30);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_container_list_with_hidden_columns() {
+        let mut state = create_test_app_state();
+
+        let id_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
+        state.column_config.toggle(id_idx);
+        let net_tx_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::NetTx)
+            .unwrap();
+        state.column_config.toggle(net_tx_idx);
+
+        let container =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        let key = ContainerKey::new("local".to_string(), "abc123def456".to_string());
+        state.containers.insert(key, container);
+        state.sort_containers();
+        state.table_state.select(Some(0));
+
+        let styles = UiStyles::default();
+        let backend = TestBackend::new(100, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
         assert_snapshot_with_redaction!(output);
     }
 }

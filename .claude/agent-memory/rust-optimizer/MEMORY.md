@@ -23,15 +23,24 @@
 6. **`Formatter::new()` created per container per render**: `format_time_elapsed` creates a new `timeago::Formatter` on every call.
 7. **`truncate_string` doesn't handle multi-byte chars**: byte slicing `&s[..max_len-1]` can panic on multi-byte UTF-8.
 
+## Column Selector Feature (2026-03, feat/column-selector)
+- `src/core/types.rs` - Column enum, ColumnConfig struct (visibility + ordering)
+- `src/core/app_state/columns.rs` - Key handling, save-prompt UX, config persistence via spawn_blocking
+- `src/ui/column_selector.rs` - Popup rendering (overlay on container list)
+- `src/ui/container_list.rs` - Refactored from hardcoded to dynamic columns via visible_columns()
+- Review findings: visible_columns() allocates Vec per frame; Cell::from(String::new()) per non-running container; get_status_icon .to_string() per row; header row String allocs for static labels
+
 ## File Layout
 - `src/main.rs` - Entry, event loop, terminal setup
-- `src/core/types.rs` - AppEvent, Container, ContainerKey, ViewState, SortField
+- `src/core/types.rs` - AppEvent, Container, ContainerKey, ViewState, SortField, Column, ColumnConfig
 - `src/core/app_state/mod.rs` - Central state, handle_event dispatch
+- `src/core/app_state/columns.rs` - Column selector state/key handling
 - `src/core/app_state/sorting.rs` - sort_containers_internal with throttling
 - `src/docker/connection.rs` - DockerHost, container_manager, connect_docker
 - `src/docker/stats.rs` - stream_container_stats with EMA smoothing
 - `src/docker/logs.rs` - LogEntry::parse, stream/fetch_older_logs
 - `src/ui/render.rs` - render_ui, UiStyles, search/error overlays
-- `src/ui/container_list.rs` - Table rendering with progress bars
+- `src/ui/container_list.rs` - Table rendering with dynamic columns, progress bars
+- `src/ui/column_selector.rs` - Column selector popup widget
 - `src/ui/log_view.rs` - Log viewer with scrollbar + pagination
 - `src/ui/input.rs` - keyboard_worker (blocking thread)

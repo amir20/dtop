@@ -169,6 +169,8 @@ pub enum ViewState {
     ActionMenu(ContainerKey),
     /// Search mode active (editing search query)
     SearchMode,
+    /// Column selector popup
+    ColumnSelector,
 }
 
 /// Available actions for containers
@@ -424,6 +426,151 @@ impl LogState {
     }
 }
 
+/// Available columns in the container list
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Column {
+    Status,
+    Name,
+    Id,
+    Host,
+    Cpu,
+    Memory,
+    NetTx,
+    NetRx,
+    Uptime,
+}
+
+impl Column {
+    pub fn label(self) -> &'static str {
+        match self {
+            Column::Status => "Status Icon",
+            Column::Name => "Name",
+            Column::Id => "ID",
+            Column::Host => "Host",
+            Column::Cpu => "CPU %",
+            Column::Memory => "Memory %",
+            Column::NetTx => "Net TX",
+            Column::NetRx => "Net RX",
+            Column::Uptime => "Uptime",
+        }
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Column::Status => "status",
+            Column::Name => "name",
+            Column::Id => "id",
+            Column::Host => "host",
+            Column::Cpu => "cpu",
+            Column::Memory => "memory",
+            Column::NetTx => "net_tx",
+            Column::NetRx => "net_rx",
+            Column::Uptime => "uptime",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Column> {
+        match id {
+            "status" => Some(Column::Status),
+            "name" => Some(Column::Name),
+            "id" => Some(Column::Id),
+            "host" => Some(Column::Host),
+            "cpu" => Some(Column::Cpu),
+            "memory" => Some(Column::Memory),
+            "net_tx" => Some(Column::NetTx),
+            "net_rx" => Some(Column::NetRx),
+            "uptime" => Some(Column::Uptime),
+            _ => None,
+        }
+    }
+
+    pub fn all_default() -> Vec<Column> {
+        vec![
+            Column::Id,
+            Column::Status,
+            Column::Name,
+            Column::Host,
+            Column::Cpu,
+            Column::Memory,
+            Column::NetTx,
+            Column::NetRx,
+            Column::Uptime,
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ColumnConfig {
+    pub columns: Vec<(Column, bool)>,
+}
+
+impl Default for ColumnConfig {
+    fn default() -> Self {
+        Self {
+            columns: Column::all_default()
+                .into_iter()
+                .map(|c| (c, true))
+                .collect(),
+        }
+    }
+}
+
+impl ColumnConfig {
+    pub fn visible_columns(&self) -> Vec<Column> {
+        self.columns
+            .iter()
+            .filter(|(_, visible)| *visible)
+            .map(|(col, _)| *col)
+            .collect()
+    }
+
+    pub fn toggle(&mut self, index: usize) {
+        if let Some((col, visible)) = self.columns.get_mut(index)
+            && *col != Column::Name
+        {
+            *visible = !*visible;
+        }
+    }
+
+    pub fn move_up(&mut self, index: usize) {
+        if index > 0 && index < self.columns.len() {
+            self.columns.swap(index, index - 1);
+        }
+    }
+
+    pub fn move_down(&mut self, index: usize) {
+        if index + 1 < self.columns.len() {
+            self.columns.swap(index, index + 1);
+        }
+    }
+
+    pub fn from_config_strings(strings: &[String]) -> Self {
+        let mut result: Vec<(Column, bool)> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for s in strings {
+            if let Some(col) = Column::from_id(s)
+                && seen.insert(col)
+            {
+                result.push((col, true));
+            }
+        }
+        for col in Column::all_default() {
+            if !seen.contains(&col) {
+                result.push((col, false));
+            }
+        }
+        Self { columns: result }
+    }
+
+    pub fn to_config_strings(&self) -> Vec<String> {
+        self.columns
+            .iter()
+            .filter(|(_, visible)| *visible)
+            .map(|(col, _)| col.id().to_string())
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,5 +644,164 @@ mod tests {
         let state = SortState::new(SortField::Cpu);
         assert_eq!(state.field, SortField::Cpu);
         assert_eq!(state.direction, SortDirection::Descending);
+    }
+
+    #[test]
+    fn test_column_label() {
+        assert_eq!(Column::Status.label(), "Status Icon");
+        assert_eq!(Column::Name.label(), "Name");
+        assert_eq!(Column::Id.label(), "ID");
+        assert_eq!(Column::Host.label(), "Host");
+        assert_eq!(Column::Cpu.label(), "CPU %");
+        assert_eq!(Column::Memory.label(), "Memory %");
+        assert_eq!(Column::NetTx.label(), "Net TX");
+        assert_eq!(Column::NetRx.label(), "Net RX");
+        assert_eq!(Column::Uptime.label(), "Uptime");
+    }
+
+    #[test]
+    fn test_column_config_default_all_visible() {
+        let config = ColumnConfig::default();
+        assert_eq!(config.columns.len(), 9);
+        assert!(config.columns.iter().all(|(_, visible)| *visible));
+    }
+
+    #[test]
+    fn test_column_config_visible_columns() {
+        let mut config = ColumnConfig::default();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
+        config.columns[id_idx] = (Column::Id, false);
+        let visible = config.visible_columns();
+        assert!(!visible.contains(&Column::Id));
+        assert_eq!(visible.len(), 8);
+    }
+
+    #[test]
+    fn test_column_config_toggle() {
+        let mut config = ColumnConfig::default();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
+        config.toggle(id_idx);
+        assert!(!config.columns[id_idx].1);
+        config.toggle(id_idx);
+        assert!(config.columns[id_idx].1);
+    }
+
+    #[test]
+    fn test_column_config_toggle_name_is_noop() {
+        let mut config = ColumnConfig::default();
+        let name_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Name)
+            .unwrap();
+        config.toggle(name_idx);
+        assert!(config.columns[name_idx].1);
+    }
+
+    #[test]
+    fn test_column_config_move_up() {
+        let mut config = ColumnConfig::default();
+        // Default order: Id, Status, Name, ...
+        // After move_up(2): Id, Name, Status, ...
+        config.move_up(2);
+        assert_eq!(config.columns[1].0, Column::Name);
+        assert_eq!(config.columns[2].0, Column::Status);
+    }
+
+    #[test]
+    fn test_column_config_move_up_at_zero_is_noop() {
+        let mut config = ColumnConfig::default();
+        let first = config.columns[0].0;
+        config.move_up(0);
+        assert_eq!(config.columns[0].0, first);
+    }
+
+    #[test]
+    fn test_column_config_move_down() {
+        let mut config = ColumnConfig::default();
+        let col_at_0 = config.columns[0].0;
+        config.move_down(0);
+        assert_eq!(config.columns[1].0, col_at_0);
+    }
+
+    #[test]
+    fn test_column_config_move_down_at_end_is_noop() {
+        let mut config = ColumnConfig::default();
+        let last_idx = config.columns.len() - 1;
+        let last = config.columns[last_idx].0;
+        config.move_down(last_idx);
+        assert_eq!(config.columns[last_idx].0, last);
+    }
+
+    #[test]
+    fn test_column_config_equality() {
+        let config1 = ColumnConfig::default();
+        let mut config2 = ColumnConfig::default();
+        assert_eq!(config1, config2);
+        let id_idx = config2
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
+        config2.toggle(id_idx);
+        assert_ne!(config1, config2);
+    }
+
+    #[test]
+    fn test_column_config_from_config_strings() {
+        let strings = vec!["status".to_string(), "name".to_string(), "cpu".to_string()];
+        let config = ColumnConfig::from_config_strings(&strings);
+        let visible = config.visible_columns();
+        assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
+        assert_eq!(config.columns.len(), 9);
+    }
+
+    #[test]
+    fn test_column_config_to_config_strings() {
+        let mut config = ColumnConfig::default();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
+        config.toggle(id_idx);
+        let strings = config.to_config_strings();
+        assert!(!strings.contains(&"id".to_string()));
+        assert!(strings.contains(&"name".to_string()));
+    }
+
+    #[test]
+    fn test_column_config_id() {
+        assert_eq!(Column::Status.id(), "status");
+        assert_eq!(Column::Name.id(), "name");
+        assert_eq!(Column::Id.id(), "id");
+        assert_eq!(Column::Host.id(), "host");
+        assert_eq!(Column::Cpu.id(), "cpu");
+        assert_eq!(Column::Memory.id(), "memory");
+        assert_eq!(Column::NetTx.id(), "net_tx");
+        assert_eq!(Column::NetRx.id(), "net_rx");
+        assert_eq!(Column::Uptime.id(), "uptime");
+    }
+
+    #[test]
+    fn test_column_from_id() {
+        assert_eq!(Column::from_id("status"), Some(Column::Status));
+        assert_eq!(Column::from_id("name"), Some(Column::Name));
+        assert_eq!(Column::from_id("id"), Some(Column::Id));
+        assert_eq!(Column::from_id("host"), Some(Column::Host));
+        assert_eq!(Column::from_id("cpu"), Some(Column::Cpu));
+        assert_eq!(Column::from_id("memory"), Some(Column::Memory));
+        assert_eq!(Column::from_id("net_tx"), Some(Column::NetTx));
+        assert_eq!(Column::from_id("net_rx"), Some(Column::NetRx));
+        assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
+        assert_eq!(Column::from_id("invalid"), None);
     }
 }
