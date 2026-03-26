@@ -77,11 +77,11 @@ impl AppState {
                 RenderAction::Render
             }
             KeyCode::Esc | KeyCode::Char('F') => {
-                if let Some(ref snapshot) = self.column_config_snapshot {
-                    if *snapshot != self.column_config {
-                        self.column_save_prompt = true;
-                        return RenderAction::Render;
-                    }
+                if let Some(ref snapshot) = self.column_config_snapshot
+                    && *snapshot != self.column_config
+                {
+                    self.column_save_prompt = true;
+                    return RenderAction::Render;
                 }
                 self.close_column_selector()
             }
@@ -141,11 +141,11 @@ impl AppState {
             );
         }
 
-        if let Some(parent) = config_path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                tracing::error!("Failed to create config directory: {}", e);
-                return;
-            }
+        if let Some(parent) = config_path.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            tracing::error!("Failed to create config directory: {}", e);
+            return;
         }
 
         let yaml_string = match serde_yaml::to_string(&config) {

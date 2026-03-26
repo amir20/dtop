@@ -53,9 +53,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  a           Show all containers         /      Filter         o      Open Dozzle",
         ),
-        Line::from(
-            "  F           Column visibility",
-        ),
+        Line::from("  F           Column visibility"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Log View Scrolling",

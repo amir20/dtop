@@ -31,11 +31,22 @@ pub fn render_container_list(
         .iter()
         .filter_map(|key| app_state.containers.get(key))
         .map(|c| {
-            create_container_row(c, styles, &visible_columns, show_host_column, show_progress_bars)
+            create_container_row(
+                c,
+                styles,
+                &visible_columns,
+                show_host_column,
+                show_progress_bars,
+            )
         })
         .collect();
 
-    let header = create_header_row(styles, &visible_columns, show_host_column, app_state.sort_state);
+    let header = create_header_row(
+        styles,
+        &visible_columns,
+        show_host_column,
+        app_state.sort_state,
+    );
     let table = create_table(
         rows,
         header,
@@ -102,14 +113,18 @@ fn create_container_row<'a>(
             }
             Column::NetTx => {
                 if is_running {
-                    Cell::from(format_bytes_per_sec(container.stats.network_tx_bytes_per_sec))
+                    Cell::from(format_bytes_per_sec(
+                        container.stats.network_tx_bytes_per_sec,
+                    ))
                 } else {
                     Cell::from(String::new())
                 }
             }
             Column::NetRx => {
                 if is_running {
-                    Cell::from(format_bytes_per_sec(container.stats.network_rx_bytes_per_sec))
+                    Cell::from(format_bytes_per_sec(
+                        container.stats.network_rx_bytes_per_sec,
+                    ))
                 } else {
                     Cell::from(String::new())
                 }

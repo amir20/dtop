@@ -335,7 +335,14 @@ async fn run_event_loop(
     keyboard_paused: Arc<AtomicBool>,
     config: EventLoopConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = AppState::new(connected_hosts, tx, config.show_all, config.sort_field, config.column_config, config.config_path);
+    let mut state = AppState::new(
+        connected_hosts,
+        tx,
+        config.show_all,
+        config.sort_field,
+        config.column_config,
+        config.config_path,
+    );
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 

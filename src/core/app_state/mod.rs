@@ -5,20 +5,20 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction,
-    SortField, SortState, ViewState,
+    AppEvent, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction, SortField,
+    SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
 // Import all the event handler modules
 mod actions;
+mod columns;
 mod container_events;
 mod integrations;
 mod log_view;
 mod navigation;
 mod search;
 mod sorting;
-mod columns;
 
 /// Application state that manages all runtime data
 pub struct AppState {

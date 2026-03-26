@@ -44,7 +44,14 @@ mod tests {
     /// Helper function to create a mock AppState for testing
     fn create_test_app_state() -> AppState {
         let (tx, _rx) = mpsc::channel(100);
-        AppState::new(HashMap::new(), tx, false, SortField::Uptime, ColumnConfig::default(), None)
+        AppState::new(
+            HashMap::new(),
+            tx,
+            false,
+            SortField::Uptime,
+            ColumnConfig::default(),
+            None,
+        )
     }
 
     /// Helper function to create a test container
@@ -743,7 +750,8 @@ mod tests {
     fn test_column_selector_popup() {
         let mut state = create_test_app_state();
 
-        let container = create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        let container =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
         let key = ContainerKey::new("local".to_string(), "abc123def456".to_string());
         state.containers.insert(key, container);
         state.sort_containers();
@@ -772,12 +780,23 @@ mod tests {
     fn test_container_list_with_hidden_columns() {
         let mut state = create_test_app_state();
 
-        let id_idx = state.column_config.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        let id_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
         state.column_config.toggle(id_idx);
-        let net_tx_idx = state.column_config.columns.iter().position(|(c, _)| *c == Column::NetTx).unwrap();
+        let net_tx_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::NetTx)
+            .unwrap();
         state.column_config.toggle(net_tx_idx);
 
-        let container = create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        let container =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
         let key = ContainerKey::new("local".to_string(), "abc123def456".to_string());
         state.containers.insert(key, container);
         state.sort_containers();

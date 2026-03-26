@@ -486,8 +486,15 @@ impl Column {
 
     pub fn all_default() -> Vec<Column> {
         vec![
-            Column::Id, Column::Status, Column::Name, Column::Host,
-            Column::Cpu, Column::Memory, Column::NetTx, Column::NetRx, Column::Uptime,
+            Column::Id,
+            Column::Status,
+            Column::Name,
+            Column::Host,
+            Column::Cpu,
+            Column::Memory,
+            Column::NetTx,
+            Column::NetRx,
+            Column::Uptime,
         ]
     }
 }
@@ -500,21 +507,28 @@ pub struct ColumnConfig {
 impl Default for ColumnConfig {
     fn default() -> Self {
         Self {
-            columns: Column::all_default().into_iter().map(|c| (c, true)).collect(),
+            columns: Column::all_default()
+                .into_iter()
+                .map(|c| (c, true))
+                .collect(),
         }
     }
 }
 
 impl ColumnConfig {
     pub fn visible_columns(&self) -> Vec<Column> {
-        self.columns.iter().filter(|(_, visible)| *visible).map(|(col, _)| *col).collect()
+        self.columns
+            .iter()
+            .filter(|(_, visible)| *visible)
+            .map(|(col, _)| *col)
+            .collect()
     }
 
     pub fn toggle(&mut self, index: usize) {
-        if let Some((col, visible)) = self.columns.get_mut(index) {
-            if *col != Column::Name {
-                *visible = !*visible;
-            }
+        if let Some((col, visible)) = self.columns.get_mut(index)
+            && *col != Column::Name
+        {
+            *visible = !*visible;
         }
     }
 
@@ -534,10 +548,10 @@ impl ColumnConfig {
         let mut result: Vec<(Column, bool)> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for s in strings {
-            if let Some(col) = Column::from_id(s) {
-                if seen.insert(col) {
-                    result.push((col, true));
-                }
+            if let Some(col) = Column::from_id(s)
+                && seen.insert(col)
+            {
+                result.push((col, true));
             }
         }
         for col in Column::all_default() {
@@ -549,7 +563,11 @@ impl ColumnConfig {
     }
 
     pub fn to_config_strings(&self) -> Vec<String> {
-        self.columns.iter().filter(|(_, visible)| *visible).map(|(col, _)| col.id().to_string()).collect()
+        self.columns
+            .iter()
+            .filter(|(_, visible)| *visible)
+            .map(|(col, _)| col.id().to_string())
+            .collect()
     }
 }
 
@@ -651,7 +669,11 @@ mod tests {
     #[test]
     fn test_column_config_visible_columns() {
         let mut config = ColumnConfig::default();
-        let id_idx = config.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
@@ -661,7 +683,11 @@ mod tests {
     #[test]
     fn test_column_config_toggle() {
         let mut config = ColumnConfig::default();
-        let id_idx = config.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
         config.toggle(id_idx);
         assert!(!config.columns[id_idx].1);
         config.toggle(id_idx);
@@ -671,7 +697,11 @@ mod tests {
     #[test]
     fn test_column_config_toggle_name_is_noop() {
         let mut config = ColumnConfig::default();
-        let name_idx = config.columns.iter().position(|(c, _)| *c == Column::Name).unwrap();
+        let name_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Name)
+            .unwrap();
         config.toggle(name_idx);
         assert!(config.columns[name_idx].1);
     }
@@ -716,7 +746,11 @@ mod tests {
         let config1 = ColumnConfig::default();
         let mut config2 = ColumnConfig::default();
         assert_eq!(config1, config2);
-        let id_idx = config2.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        let id_idx = config2
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
         config2.toggle(id_idx);
         assert_ne!(config1, config2);
     }
@@ -733,7 +767,11 @@ mod tests {
     #[test]
     fn test_column_config_to_config_strings() {
         let mut config = ColumnConfig::default();
-        let id_idx = config.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
+        let id_idx = config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Id)
+            .unwrap();
         config.toggle(id_idx);
         let strings = config.to_config_strings();
         assert!(!strings.contains(&"id".to_string()));
