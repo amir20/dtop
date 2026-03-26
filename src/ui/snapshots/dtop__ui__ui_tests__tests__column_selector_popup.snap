@@ -1,0 +1,28 @@
+---
+source: src/ui/ui_tests.rs
+expression: output
+---
+dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)                                              
+                                                                                                    
+  ID             Name                    CPU %   Memory  Net TX       Net RX       Created ▼        
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                         ┌─────────────────── Columns ────────────────────┐                         
+                         │  Re-order: <PageUp> / <PageDown>               │                         
+                         │                                                │                         
+                         │>   ID                            [X]           │                         
+                         │    Status Icon                   [X]           │                         
+                         │    Name                          [X]           │                         
+                         │    Host                          [X]           │                         
+                         │    CPU %                         [X]           │                         
+                         │    Memory %                      [X]           │                         
+                         │    Net TX                        [X]           │                         
+                         │    Net RX                        [X]           │                         
+                         │    Uptime                        [X]           │                         
+                         │                                                │                         
+                         │                                                │                         
+                         │                                                │                         
+                         │                                                │                         
+                         │    Enter/Space: Toggle  Esc: Close  F: Close   │                         
+                         └────────────────────────────────────────────────┘
