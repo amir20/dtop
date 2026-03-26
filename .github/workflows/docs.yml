@@ -7,11 +7,15 @@ on:
     paths:
       - "docs/**"
       - "README.md"
+      - "Cargo.toml"
+      - "CHANGELOG.md"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "docs/**"
       - "README.md"
+      - "Cargo.toml"
+      - "CHANGELOG.md"
       - ".github/workflows/docs.yml"
 
 permissions:
