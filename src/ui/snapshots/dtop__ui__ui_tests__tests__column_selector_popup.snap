@@ -15,13 +15,13 @@ dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)
                          │    Status Icon                   [X]           │                         
                          │    Name                          [X]           │                         
                          │    Host                          [X]           │                         
+                         │    Compose                       [ ]           │                         
                          │    CPU %                         [X]           │                         
                          │    Memory %                      [X]           │                         
                          │    Net TX                        [X]           │                         
                          │    Net RX                        [X]           │                         
                          │    Uptime                        [X]           │                         
                          │    Restarts                      [ ]           │                         
-                         │                                                │                         
                          │                                                │                         
                          │                                                │                         
                          │    Enter/Space: Toggle  Esc: Close  v: Close   │                         

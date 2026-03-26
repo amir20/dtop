@@ -82,6 +82,7 @@ fn create_container_row<'a>(
             }
             Column::Name => Cell::from(container.name.as_str()),
             Column::Host => Cell::from(container.host_id.as_str()),
+            Column::Compose => Cell::from(container.compose_project.as_deref().unwrap_or("")),
             Column::Cpu => {
                 if is_running {
                     let display = if show_progress_bars {
@@ -256,6 +257,7 @@ fn create_header_row(
             }
             Column::Id => Cow::Borrowed("ID"),
             Column::Host => Cow::Borrowed("Host"),
+            Column::Compose => Cow::Borrowed("Compose"),
             Column::Cpu => {
                 if sort_field == SortField::Cpu {
                     Cow::Owned(format!("CPU % {}", sort_symbol))
@@ -307,6 +309,7 @@ fn create_table<'a>(
             Column::Status => Constraint::Length(1),
             Column::Name => Constraint::Min(8),
             Column::Host => Constraint::Length(20),
+            Column::Compose => Constraint::Length(20),
             Column::Cpu => Constraint::Length(cpu_width),
             Column::Memory => Constraint::Length(mem_width),
             Column::NetTx => Constraint::Length(12),

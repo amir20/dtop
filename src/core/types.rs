@@ -76,6 +76,7 @@ pub struct Container {
     pub host_id: HostId,
     pub dozzle_url: Option<String>,
     pub restart_count: Option<i64>,
+    pub compose_project: Option<String>, // Docker Compose project name from labels
 }
 
 /// Container runtime statistics (updated frequently)
@@ -434,6 +435,7 @@ pub enum Column {
     Name,
     Id,
     Host,
+    Compose,
     Cpu,
     Memory,
     NetTx,
@@ -449,6 +451,7 @@ impl Column {
             Column::Name => "Name",
             Column::Id => "ID",
             Column::Host => "Host",
+            Column::Compose => "Compose",
             Column::Cpu => "CPU %",
             Column::Memory => "Memory %",
             Column::NetTx => "Net TX",
@@ -464,6 +467,7 @@ impl Column {
             Column::Name => "name",
             Column::Id => "id",
             Column::Host => "host",
+            Column::Compose => "compose",
             Column::Cpu => "cpu",
             Column::Memory => "memory",
             Column::NetTx => "net_tx",
@@ -479,6 +483,7 @@ impl Column {
             "name" => Some(Column::Name),
             "id" => Some(Column::Id),
             "host" => Some(Column::Host),
+            "compose" => Some(Column::Compose),
             "cpu" => Some(Column::Cpu),
             "memory" => Some(Column::Memory),
             "net_tx" => Some(Column::NetTx),
@@ -495,6 +500,7 @@ impl Column {
             Column::Status,
             Column::Name,
             Column::Host,
+            Column::Compose,
             Column::Cpu,
             Column::Memory,
             Column::NetTx,
@@ -506,7 +512,7 @@ impl Column {
 
     /// Returns whether this column is visible by default
     pub fn default_visible(self) -> bool {
-        !matches!(self, Column::Restarts)
+        !matches!(self, Column::Restarts | Column::Compose)
     }
 }
 
@@ -676,8 +682,8 @@ mod tests {
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 10);
-        // All columns except Restarts should be visible by default
+        assert_eq!(config.columns.len(), 11);
+        // All columns except Restarts and Compose should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -779,7 +785,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 10);
+        assert_eq!(config.columns.len(), 11);
     }
 
     #[test]
