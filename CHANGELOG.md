@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.2] - 2026-03-26
+
+### Features
+
+- Add restart count column to container list (#267)
+- Add Compose project column (hidden by default) (#266)
+- Sort selector dropdown and column key remap (#268)
+- Allow sorting by all visible columns (#269)
+
+### Bug Fixes
+
+- *(ci)* Trigger docs deploy on Cargo.toml and CHANGELOG.md changes
+
 ## [0.7.1] - 2026-03-26
 
 ### Features
