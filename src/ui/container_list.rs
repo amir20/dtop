@@ -136,6 +136,12 @@ fn create_container_row<'a>(
                     Cell::from("N/A")
                 }
             }
+            Column::Restarts => Cell::from(
+                container
+                    .restart_count
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            ),
         })
         .collect();
 
@@ -273,6 +279,7 @@ fn create_header_row(
                     Cow::Borrowed("Created")
                 }
             }
+            Column::Restarts => Cow::Borrowed("Restarts"),
         })
         .collect();
 
@@ -305,6 +312,7 @@ fn create_table<'a>(
             Column::NetTx => Constraint::Length(12),
             Column::NetRx => Constraint::Length(12),
             Column::Uptime => Constraint::Length(15),
+            Column::Restarts => Constraint::Length(10),
         })
         .collect();
 

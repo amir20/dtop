@@ -75,6 +75,7 @@ pub struct Container {
     pub stats: ContainerStats,
     pub host_id: HostId,
     pub dozzle_url: Option<String>,
+    pub restart_count: Option<i64>,
 }
 
 /// Container runtime statistics (updated frequently)
@@ -438,6 +439,7 @@ pub enum Column {
     NetTx,
     NetRx,
     Uptime,
+    Restarts,
 }
 
 impl Column {
@@ -452,6 +454,7 @@ impl Column {
             Column::NetTx => "Net TX",
             Column::NetRx => "Net RX",
             Column::Uptime => "Uptime",
+            Column::Restarts => "Restarts",
         }
     }
 
@@ -466,6 +469,7 @@ impl Column {
             Column::NetTx => "net_tx",
             Column::NetRx => "net_rx",
             Column::Uptime => "uptime",
+            Column::Restarts => "restarts",
         }
     }
 
@@ -480,6 +484,7 @@ impl Column {
             "net_tx" => Some(Column::NetTx),
             "net_rx" => Some(Column::NetRx),
             "uptime" => Some(Column::Uptime),
+            "restarts" => Some(Column::Restarts),
             _ => None,
         }
     }
@@ -495,7 +500,13 @@ impl Column {
             Column::NetTx,
             Column::NetRx,
             Column::Uptime,
+            Column::Restarts,
         ]
+    }
+
+    /// Returns whether this column is visible by default
+    pub fn default_visible(self) -> bool {
+        !matches!(self, Column::Restarts)
     }
 }
 
@@ -509,7 +520,7 @@ impl Default for ColumnConfig {
         Self {
             columns: Column::all_default()
                 .into_iter()
-                .map(|c| (c, true))
+                .map(|c| (c, c.default_visible()))
                 .collect(),
         }
     }
@@ -556,6 +567,8 @@ impl ColumnConfig {
         }
         for col in Column::all_default() {
             if !seen.contains(&col) {
+                // Columns explicitly listed in config are visible;
+                // unlisted columns use their default visibility
                 result.push((col, false));
             }
         }
@@ -657,13 +670,17 @@ mod tests {
         assert_eq!(Column::NetTx.label(), "Net TX");
         assert_eq!(Column::NetRx.label(), "Net RX");
         assert_eq!(Column::Uptime.label(), "Uptime");
+        assert_eq!(Column::Restarts.label(), "Restarts");
     }
 
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 9);
-        assert!(config.columns.iter().all(|(_, visible)| *visible));
+        assert_eq!(config.columns.len(), 10);
+        // All columns except Restarts should be visible by default
+        for (col, visible) in &config.columns {
+            assert_eq!(*visible, col.default_visible());
+        }
     }
 
     #[test]
@@ -677,6 +694,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
+        // Default has 9 visible (Restarts is hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -761,7 +779,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 9);
+        assert_eq!(config.columns.len(), 10);
     }
 
     #[test]
@@ -789,6 +807,7 @@ mod tests {
         assert_eq!(Column::NetTx.id(), "net_tx");
         assert_eq!(Column::NetRx.id(), "net_rx");
         assert_eq!(Column::Uptime.id(), "uptime");
+        assert_eq!(Column::Restarts.id(), "restarts");
     }
 
     #[test]
@@ -802,6 +821,7 @@ mod tests {
         assert_eq!(Column::from_id("net_tx"), Some(Column::NetTx));
         assert_eq!(Column::from_id("net_rx"), Some(Column::NetRx));
         assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
+        assert_eq!(Column::from_id("restarts"), Some(Column::Restarts));
         assert_eq!(Column::from_id("invalid"), None);
     }
 }
