@@ -9,10 +9,10 @@
 
   // Section markers: top-level comment lines that start a new config section
   const sectionMarkers = [
-    { marker: "# Docker host(s)", label: "Hosts", description: "Docker hosts to monitor" },
-    { marker: "# Icon style", label: "Icons", description: "Icon style for the UI" },
-    { marker: "# Show all containers", label: "Show All", description: "Show all containers including stopped" },
-    { marker: "# Default sort field", label: "Sort", description: "Default sort field for container list" },
+    { marker: "# == Hosts ==", label: "Hosts", description: "Docker hosts to monitor" },
+    { marker: "# == Icons ==", label: "Icons", description: "Icon style for the UI" },
+    { marker: "# == All ==", label: "Show All", description: "Show all containers including stopped" },
+    { marker: "# == Sort ==", label: "Sort", description: "Default sort field for container list" },
   ];
 
   function parseConfigExample(raw) {
@@ -69,6 +69,58 @@
   }
 
   const { locations, examples } = parseConfigExample(configExample);
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function highlightYaml(code) {
+    return code
+      .split("\n")
+      .map((line) => {
+        const escaped = escapeHtml(line);
+
+        // Full comment lines
+        if (/^\s*#/.test(line)) {
+          return `<span class="hl-comment">${escaped}</span>`;
+        }
+
+        // Key: value lines
+        const kvMatch = escaped.match(/^(\s*-?\s*)([a-zA-Z_][\w-]*)(:\s*)(.*)/);
+        if (kvMatch) {
+          const [, indent, key, colon, value] = kvMatch;
+          let highlightedValue = value;
+
+          if (/^#/.test(value)) {
+            // Inline comment after key:
+            highlightedValue = `<span class="hl-comment">${value}</span>`;
+          } else if (/^(true|false|null|~)$/i.test(value)) {
+            highlightedValue = `<span class="hl-bool">${value}</span>`;
+          } else if (/^\d[\d.]*$/.test(value)) {
+            highlightedValue = `<span class="hl-number">${value}</span>`;
+          } else if (value) {
+            // Check for trailing inline comment
+            const inlineComment = value.match(/^(.+?)\s+(#.*)$/);
+            if (inlineComment) {
+              highlightedValue = `<span class="hl-string">${inlineComment[1]}</span> <span class="hl-comment">${inlineComment[2]}</span>`;
+            } else {
+              highlightedValue = `<span class="hl-string">${value}</span>`;
+            }
+          }
+
+          return `${indent}<span class="hl-key">${key}</span>${colon}${highlightedValue}`;
+        }
+
+        // List items with just a value (e.g., "  - status=running")
+        const listMatch = escaped.match(/^(\s*-\s+)(.*)/);
+        if (listMatch) {
+          return `${listMatch[1]}<span class="hl-string">${listMatch[2]}</span>`;
+        }
+
+        return escaped;
+      })
+      .join("\n");
+  }
 
   async function copyCode(code, id) {
     if (!browser) return;
@@ -150,7 +202,7 @@
         </div>
         <div class="relative px-5 py-4">
           <pre
-            class="overflow-x-auto font-mono text-sm leading-relaxed text-(--c-text)">{example.code}</pre>
+            class="yaml-highlight overflow-x-auto font-mono text-sm leading-relaxed text-(--c-text)">{@html highlightYaml(example.code)}</pre>
           <button
             class="absolute right-3 top-3 flex shrink-0 items-center justify-center border border-(--c-border) p-1.5 text-(--c-text-dim) transition-all hover:border-(--c-text-muted) hover:text-(--c-text)"
             aria-label="Copy to clipboard"
@@ -198,3 +250,22 @@
     </p>
   </div>
 </section>
+
+<style>
+  :global(.yaml-highlight .hl-comment) {
+    color: var(--c-text-dim);
+    font-style: italic;
+  }
+  :global(.yaml-highlight .hl-key) {
+    color: var(--c-cyan);
+  }
+  :global(.yaml-highlight .hl-string) {
+    color: var(--c-accent);
+  }
+  :global(.yaml-highlight .hl-bool) {
+    color: var(--c-orange);
+  }
+  :global(.yaml-highlight .hl-number) {
+    color: var(--c-orange);
+  }
+</style>
