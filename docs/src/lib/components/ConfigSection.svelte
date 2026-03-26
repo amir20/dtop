@@ -1,47 +1,74 @@
 <script>
   import { browser } from "$app/environment";
   import { reveal } from "$lib/actions/reveal.js";
-  import readme from "../../../../README.md?raw";
+  import configExample from "../../../../config.example.yaml?raw";
 
   let copiedId = $state(null);
 
   const colors = ["var(--c-purple)", "var(--c-orange)", "var(--c-cyan)", "var(--c-blue)", "var(--c-accent)"];
 
-  function parseConfigSection(md) {
-    const section = md.split("## Configuration File")[1]?.split(/\n## [^#]/)[0];
-    if (!section) return { locations: [], examples: [] };
+  // Section markers: top-level comment lines that start a new config section
+  const sectionMarkers = [
+    { marker: "# Docker host(s)", label: "Hosts", description: "Docker hosts to monitor" },
+    { marker: "# Icon style", label: "Icons", description: "Icon style for the UI" },
+    { marker: "# Show all containers", label: "Show All", description: "Show all containers including stopped" },
+    { marker: "# Default sort field", label: "Sort", description: "Default sort field for container list" },
+  ];
 
-    // Parse numbered locations: "1. `./config.yaml` or `./config.yml`"
-    const locationRegex = /^\d+\.\s+`([^`]+)`(?:\s+or\s+`([^`]+)`)?/gm;
+  function parseConfigExample(raw) {
+    const lines = raw.split("\n");
+
+    // Parse locations from header comments (lines like "# 1. ./config.yaml, ...")
     const locations = [];
-    let locMatch;
-    while ((locMatch = locationRegex.exec(section)) !== null) {
-      locations.push({ path: locMatch[1], note: locMatch[2] ? `or ${locMatch[2]}` : "" });
+    const locRegex = /^#\s+(\d+)\.\s+(.+)/;
+    for (const line of lines) {
+      const m = line.match(locRegex);
+      if (m) {
+        const paths = m[2].match(/\.\S+/g) || [];
+        const parts = paths.map((p) => p.replace(/,\s*$/, "").replace(/\s+or\s+/, ""));
+        if (parts.length > 0) {
+          locations.push({
+            path: parts[0],
+            note: parts.length > 1 ? `or ${parts.slice(1).join(", ")}` : "",
+          });
+        }
+      }
     }
 
-    // Parse yaml code blocks with their preceding description
-    const examples = [];
-    const blockRegex = /(?:^|\n)([^\n`#>]+?):\s*\n+```yaml\n([\s\S]*?)```/g;
-    let match;
-    while ((match = blockRegex.exec(section)) !== null) {
-      const description = match[1].trim().replace(/^\*\*|\*\*$/g, "");
-      const code = match[2].trimEnd();
-      const firstComment = code.match(/^#\s*(.+)/);
-      const label = firstComment ? firstComment[1] : description;
-      const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      examples.push({
+    // Find line indices for each section marker
+    const sectionIndices = sectionMarkers.map(({ marker }) => {
+      const idx = lines.findIndex((l) => l.startsWith(marker));
+      return idx;
+    });
+
+    // Build examples from sections
+    const examples = sectionMarkers.map((section, i) => {
+      const start = sectionIndices[i];
+      const end = i + 1 < sectionIndices.length ? sectionIndices[i + 1] : lines.length;
+      if (start === -1) return null;
+
+      // Grab all lines for this section, trimming trailing blank lines
+      const sectionLines = lines.slice(start, end);
+      while (sectionLines.length > 0 && sectionLines[sectionLines.length - 1].trim() === "") {
+        sectionLines.pop();
+      }
+
+      const code = sectionLines.join("\n");
+      const id = section.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+      return {
         id,
-        label,
-        description,
-        color: colors[examples.length % colors.length],
+        label: section.label,
+        description: section.description,
+        color: colors[i % colors.length],
         code,
-      });
-    }
+      };
+    }).filter(Boolean);
 
     return { locations, examples };
   }
 
-  const { locations, examples } = parseConfigSection(readme);
+  const { locations, examples } = parseConfigExample(configExample);
 
   async function copyCode(code, id) {
     if (!browser) return;
