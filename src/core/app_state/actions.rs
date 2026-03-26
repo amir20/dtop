@@ -47,10 +47,7 @@ impl AppState {
                 // Exit action menu
             }
             ViewState::ColumnSelector => {
-                return self.handle_column_selector_key(crossterm::event::KeyEvent::new(
-                    crossterm::event::KeyCode::Esc,
-                    crossterm::event::KeyModifiers::NONE,
-                ));
+                return self.handle_close_column_selector();
             }
             _ => {
                 // Ignore Escape in other views

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::core::app_state::AppState;
 use crate::core::types::{RenderAction, ViewState};
 
@@ -76,17 +78,20 @@ impl AppState {
                 }
                 RenderAction::Render
             }
-            KeyCode::Esc | KeyCode::Char('v') => {
-                if let Some(ref snapshot) = self.column_config_snapshot
-                    && *snapshot != self.column_config
-                {
-                    self.column_save_prompt = true;
-                    return RenderAction::Render;
-                }
-                self.close_column_selector()
-            }
+            KeyCode::Esc | KeyCode::Char('v') => self.handle_close_column_selector(),
             _ => RenderAction::None,
         }
+    }
+
+    /// Handles closing the column selector, showing save prompt if config changed
+    pub(super) fn handle_close_column_selector(&mut self) -> RenderAction {
+        if let Some(ref snapshot) = self.column_config_snapshot
+            && *snapshot != self.column_config
+        {
+            self.column_save_prompt = true;
+            return RenderAction::Render;
+        }
+        self.close_column_selector()
     }
 
     fn close_column_selector(&mut self) -> RenderAction {
@@ -98,8 +103,6 @@ impl AppState {
     }
 
     fn save_column_config(&self) {
-        use std::path::PathBuf;
-
         let config_path = self.config_path.clone().unwrap_or_else(|| {
             dirs::home_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
@@ -108,58 +111,66 @@ impl AppState {
                 .join("config.yaml")
         });
 
-        let mut config: serde_yaml::Value = if config_path.exists() {
-            let contents = match std::fs::read_to_string(&config_path) {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("Failed to read config file: {}", e);
-                    return;
-                }
-            };
-            match serde_yaml::from_str(&contents) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!("Failed to parse config file: {}", e);
-                    return;
-                }
-            }
-        } else {
-            serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
-        };
+        let column_strings = self.column_config.to_config_strings();
 
-        let columns_value: Vec<serde_yaml::Value> = self
-            .column_config
-            .to_config_strings()
-            .into_iter()
-            .map(serde_yaml::Value::String)
-            .collect();
+        // Use spawn_blocking to avoid blocking the async event loop
+        tokio::task::spawn_blocking(move || {
+            write_column_config(&config_path, &column_strings);
+        });
+    }
+}
 
-        if let serde_yaml::Value::Mapping(ref mut map) = config {
-            map.insert(
-                serde_yaml::Value::String("columns".to_string()),
-                serde_yaml::Value::Sequence(columns_value),
-            );
-        }
-
-        if let Some(parent) = config_path.parent()
-            && let Err(e) = std::fs::create_dir_all(parent)
-        {
-            tracing::error!("Failed to create config directory: {}", e);
-            return;
-        }
-
-        let yaml_string = match serde_yaml::to_string(&config) {
-            Ok(s) => s,
+/// Writes column configuration to the config file (blocking I/O, run off main thread)
+fn write_column_config(config_path: &std::path::Path, column_strings: &[String]) {
+    let mut config: serde_yaml::Value = if config_path.exists() {
+        let contents = match std::fs::read_to_string(config_path) {
+            Ok(c) => c,
             Err(e) => {
-                tracing::error!("Failed to serialize config: {}", e);
+                tracing::error!("Failed to read config file: {}", e);
                 return;
             }
         };
-
-        if let Err(e) = std::fs::write(&config_path, yaml_string) {
-            tracing::error!("Failed to write config file: {}", e);
-        } else {
-            tracing::debug!("Saved column config to: {}", config_path.display());
+        match serde_yaml::from_str(&contents) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("Failed to parse config file: {}", e);
+                return;
+            }
         }
+    } else {
+        serde_yaml::Value::Mapping(serde_yaml::Mapping::new())
+    };
+
+    let columns_value: Vec<serde_yaml::Value> = column_strings
+        .iter()
+        .map(|s| serde_yaml::Value::String(s.clone()))
+        .collect();
+
+    if let serde_yaml::Value::Mapping(ref mut map) = config {
+        map.insert(
+            serde_yaml::Value::String("columns".to_string()),
+            serde_yaml::Value::Sequence(columns_value),
+        );
+    }
+
+    if let Some(parent) = config_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        tracing::error!("Failed to create config directory: {}", e);
+        return;
+    }
+
+    let yaml_string = match serde_yaml::to_string(&config) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("Failed to serialize config: {}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = std::fs::write(config_path, yaml_string) {
+        tracing::error!("Failed to write config file: {}", e);
+    } else {
+        tracing::debug!("Saved column config to: {}", config_path.display());
     }
 }
