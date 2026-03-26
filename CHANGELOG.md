@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2026-03-26
+
+### Features
+
+- *(docs)* Add config section and version badge to docs site
+- *(docs)* Add changelog page and improve navbar navigation
+- *(docs)* Link issue references to GitHub on changelog page
+- *(docs)* Use config.example.yaml as source for ConfigSection (#262)
+- Add column visibility selector popup (#261)
+
+### Bug Fixes
+
+- *(docs)* Fix deploy cancelled by PR concurrency group
+- *(docs)* Fix changelog not visible on small viewports and mobile nav overflow
+- Correct logo path in README after SvelteKit migration
+
+### Refactor
+
+- Clean up config.example.yaml with lsd-style section headers
+
 ## [0.7.0] - 2026-03-17
 
 ### Bug Fixes
