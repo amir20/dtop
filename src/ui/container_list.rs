@@ -63,7 +63,7 @@ pub fn render_container_list(
 /// Creates a table row for a single container
 fn create_container_row<'a>(
     container: &'a Container,
-    styles: &UiStyles,
+    styles: &'a UiStyles,
     visible_columns: &[Column],
     show_host_column: bool,
     show_progress_bars: bool,
@@ -91,7 +91,7 @@ fn create_container_row<'a>(
                     };
                     Cell::from(display).style(get_percentage_style(container.stats.cpu, styles))
                 } else {
-                    Cell::from(String::new())
+                    Cell::from("")
                 }
             }
             Column::Memory => {
@@ -108,7 +108,7 @@ fn create_container_row<'a>(
                     };
                     Cell::from(display).style(get_percentage_style(container.stats.memory, styles))
                 } else {
-                    Cell::from(String::new())
+                    Cell::from("")
                 }
             }
             Column::NetTx => {
@@ -117,7 +117,7 @@ fn create_container_row<'a>(
                         container.stats.network_tx_bytes_per_sec,
                     ))
                 } else {
-                    Cell::from(String::new())
+                    Cell::from("")
                 }
             }
             Column::NetRx => {
@@ -126,14 +126,14 @@ fn create_container_row<'a>(
                         container.stats.network_rx_bytes_per_sec,
                     ))
                 } else {
-                    Cell::from(String::new())
+                    Cell::from("")
                 }
             }
             Column::Uptime => {
                 if is_running {
                     Cell::from(format_time_elapsed(container.created.as_ref()))
                 } else {
-                    Cell::from("N/A".to_string())
+                    Cell::from("N/A")
                 }
             }
         })
@@ -182,14 +182,14 @@ fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usi
 }
 
 /// Returns the status icon and color based on container health (if available) or state
-fn get_status_icon(
+fn get_status_icon<'a>(
     state: &ContainerState,
     health: &Option<HealthStatus>,
-    styles: &UiStyles,
-) -> (String, Style) {
+    styles: &'a UiStyles,
+) -> (&'a str, Style) {
     // Prioritize health status if container has health checks configured
     if let Some(health_status) = health {
-        let icon = styles.icons.health(health_status).to_string();
+        let icon = styles.icons.health(health_status);
         let style = match health_status {
             HealthStatus::Healthy => Style::default().fg(Color::Green),
             HealthStatus::Unhealthy => Style::default().fg(Color::Red),
@@ -199,7 +199,7 @@ fn get_status_icon(
     }
 
     // Use state-based icon if no health check is configured
-    let icon = styles.icons.state(state).to_string();
+    let icon = styles.icons.state(state);
     let style = match state {
         ContainerState::Running => Style::default().fg(Color::Green),
         ContainerState::Paused => Style::default().fg(Color::Yellow),
@@ -231,44 +231,46 @@ fn create_header_row(
     show_host_column: bool,
     sort_state: SortState,
 ) -> Row<'static> {
+    use std::borrow::Cow;
+
     let sort_symbol = sort_state.direction.symbol();
     let sort_field = sort_state.field;
 
-    let headers: Vec<String> = visible_columns
+    let headers: Vec<Cow<'static, str>> = visible_columns
         .iter()
         .filter(|col| **col != Column::Host || show_host_column)
         .map(|col| match col {
-            Column::Status => "".to_string(),
+            Column::Status => Cow::Borrowed(""),
             Column::Name => {
                 if sort_field == SortField::Name {
-                    format!("Name {}", sort_symbol)
+                    Cow::Owned(format!("Name {}", sort_symbol))
                 } else {
-                    "Name".to_string()
+                    Cow::Borrowed("Name")
                 }
             }
-            Column::Id => "ID".to_string(),
-            Column::Host => "Host".to_string(),
+            Column::Id => Cow::Borrowed("ID"),
+            Column::Host => Cow::Borrowed("Host"),
             Column::Cpu => {
                 if sort_field == SortField::Cpu {
-                    format!("CPU % {}", sort_symbol)
+                    Cow::Owned(format!("CPU % {}", sort_symbol))
                 } else {
-                    "CPU %".to_string()
+                    Cow::Borrowed("CPU %")
                 }
             }
             Column::Memory => {
                 if sort_field == SortField::Memory {
-                    format!("Memory % {}", sort_symbol)
+                    Cow::Owned(format!("Memory % {}", sort_symbol))
                 } else {
-                    "Memory %".to_string()
+                    Cow::Borrowed("Memory %")
                 }
             }
-            Column::NetTx => "Net TX".to_string(),
-            Column::NetRx => "Net RX".to_string(),
+            Column::NetTx => Cow::Borrowed("Net TX"),
+            Column::NetRx => Cow::Borrowed("Net RX"),
             Column::Uptime => {
                 if sort_field == SortField::Uptime {
-                    format!("Created {}", sort_symbol)
+                    Cow::Owned(format!("Created {}", sort_symbol))
                 } else {
-                    "Created".to_string()
+                    Cow::Borrowed("Created")
                 }
             }
         })
