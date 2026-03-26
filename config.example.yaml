@@ -40,7 +40,7 @@ sort: uptime
 # == Columns ==
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.
-# Omitted columns are hidden. Press 'v' in the UI to toggle columns interactively.
+# Omitted columns are hidden. Press 'c' in the UI to toggle columns interactively.
 # Possible values: status, name, id, host, cpu, memory, net_tx, net_rx, uptime
 # columns:
 #   - status

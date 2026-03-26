@@ -1,5 +1,7 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerState, RenderAction, SortDirection, SortField, SortState, ViewState};
+use crate::core::types::{
+    ContainerState, RenderAction, SortDirection, SortField, SortState, ViewState,
+};
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
@@ -55,23 +57,21 @@ impl AppState {
                 RenderAction::Render
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
-                if let Some(idx) = self.sort_selector_state.selected() {
-                    if let Some(&field) = SORT_FIELDS.get(idx) {
-                        if self.sort_state.field == field {
-                            // Same field: toggle direction
-                            self.sort_state.direction = self.sort_state.direction.toggle();
-                        } else {
-                            // Different field: set with default direction
-                            self.sort_state = SortState::new(field);
-                        }
-                        self.force_sort_containers();
+                if let Some(idx) = self.sort_selector_state.selected()
+                    && let Some(&field) = SORT_FIELDS.get(idx)
+                {
+                    if self.sort_state.field == field {
+                        // Same field: toggle direction
+                        self.sort_state.direction = self.sort_state.direction.toggle();
+                    } else {
+                        // Different field: set with default direction
+                        self.sort_state = SortState::new(field);
                     }
+                    self.force_sort_containers();
                 }
                 RenderAction::Render
             }
-            KeyCode::Esc | KeyCode::Char('s') => {
-                self.close_sort_selector()
-            }
+            KeyCode::Esc | KeyCode::Char('s') => self.close_sort_selector(),
             _ => RenderAction::None,
         }
     }

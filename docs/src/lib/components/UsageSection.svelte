@@ -3,13 +3,13 @@
 
   const shortcuts = [
     { keys: ["?"], action: "Show help overlay" },
-    { keys: ["u", "n", "c", "m"], action: "Sort by uptime, name, CPU, or memory" },
+    { keys: ["s"], action: "Open sort selector" },
+    { keys: ["c"], action: "Column visibility" },
     { keys: ["Enter"], action: "Open container action menu" },
     { keys: ["\u2192"], action: "View container logs" },
     { keys: ["\u2190"], action: "Return to container list" },
     { keys: ["/"], action: "Search and filter containers" },
     { keys: ["a"], action: "Toggle showing all containers" },
-    { keys: ["s"], action: "Cycle through sort fields" },
   ];
 </script>
 
