@@ -6,16 +6,18 @@ use ratatui::{
 };
 
 use crate::core::app_state::AppState;
-use crate::core::app_state::sorting::sort_fields;
 use crate::ui::render::UiStyles;
 
 /// Renders the sort selector popup
 pub fn render_sort_selector(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let area = f.area();
 
-    // Compact popup - only 4 sort fields
+    let visible_columns = state.column_config.visible_columns();
+    let item_count = visible_columns.len() as u16;
+
+    // Dynamic popup height based on visible column count
     let popup_width = 36u16.min(area.width.saturating_sub(4));
-    let popup_height = 9u16.min(area.height.saturating_sub(4)); // border(2) + items(4) + footer(1) + padding(2)
+    let popup_height = (item_count + 5).min(area.height.saturating_sub(4)); // border(2) + items + footer(1) + padding(2)
 
     let popup_x = (area.width.saturating_sub(popup_width)) / 2;
     let popup_y = (area.height.saturating_sub(popup_height)) / 2;
@@ -47,23 +49,16 @@ pub fn render_sort_selector(f: &mut Frame, state: &mut AppState, styles: &UiStyl
         inner_area.height.saturating_sub(2),
     );
 
-    let fields = sort_fields();
-    let list_items: Vec<ListItem> = fields
+    let list_items: Vec<ListItem> = visible_columns
         .iter()
-        .map(|field| {
-            let is_active = state.sort_state.field == *field;
+        .map(|col| {
+            let is_active = state.sort_state.field == *col;
             let indicator = if is_active {
                 state.sort_state.direction.symbol()
             } else {
                 " "
             };
-            let label = match field {
-                crate::core::types::SortField::Uptime => "Uptime",
-                crate::core::types::SortField::Name => "Name",
-                crate::core::types::SortField::Cpu => "CPU",
-                crate::core::types::SortField::Memory => "Memory",
-            };
-            let text = format!("  {:<20} {}", label, indicator);
+            let text = format!("  {:<20} {}", col.sort_label(), indicator);
             ListItem::new(text).style(Style::default().fg(Color::White))
         })
         .collect();

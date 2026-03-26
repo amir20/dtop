@@ -1,5 +1,5 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{Column, Container, ContainerState, HealthStatus, SortField, SortState};
+use crate::core::types::{Column, Container, ContainerState, HealthStatus, SortState};
 use crate::ui::formatters::{format_bytes, format_bytes_per_sec, format_time_elapsed};
 use crate::ui::render::UiStyles;
 use ratatui::{
@@ -246,42 +246,25 @@ fn create_header_row(
     let headers: Vec<Cow<'static, str>> = visible_columns
         .iter()
         .filter(|col| **col != Column::Host || show_host_column)
-        .map(|col| match col {
-            Column::Status => Cow::Borrowed(""),
-            Column::Name => {
-                if sort_field == SortField::Name {
-                    Cow::Owned(format!("Name {}", sort_symbol))
-                } else {
-                    Cow::Borrowed("Name")
-                }
+        .map(|col| {
+            let base_label = match col {
+                Column::Status => "",
+                Column::Name => "Name",
+                Column::Id => "ID",
+                Column::Host => "Host",
+                Column::Compose => "Compose",
+                Column::Cpu => "CPU %",
+                Column::Memory => "Memory %",
+                Column::NetTx => "Net TX",
+                Column::NetRx => "Net RX",
+                Column::Uptime => "Created",
+                Column::Restarts => "Restarts",
+            };
+            if *col == sort_field && !base_label.is_empty() {
+                Cow::Owned(format!("{} {}", base_label, sort_symbol))
+            } else {
+                Cow::Borrowed(base_label)
             }
-            Column::Id => Cow::Borrowed("ID"),
-            Column::Host => Cow::Borrowed("Host"),
-            Column::Compose => Cow::Borrowed("Compose"),
-            Column::Cpu => {
-                if sort_field == SortField::Cpu {
-                    Cow::Owned(format!("CPU % {}", sort_symbol))
-                } else {
-                    Cow::Borrowed("CPU %")
-                }
-            }
-            Column::Memory => {
-                if sort_field == SortField::Memory {
-                    Cow::Owned(format!("Memory % {}", sort_symbol))
-                } else {
-                    Cow::Borrowed("Memory %")
-                }
-            }
-            Column::NetTx => Cow::Borrowed("Net TX"),
-            Column::NetRx => Cow::Borrowed("Net RX"),
-            Column::Uptime => {
-                if sort_field == SortField::Uptime {
-                    Cow::Owned(format!("Created {}", sort_symbol))
-                } else {
-                    Cow::Borrowed("Created")
-                }
-            }
-            Column::Restarts => Cow::Borrowed("Restarts"),
         })
         .collect();
 

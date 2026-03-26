@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction, SortField,
+    AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction,
     SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
@@ -75,7 +75,7 @@ impl AppState {
         connected_hosts: HashMap<String, DockerHost>,
         event_tx: mpsc::Sender<AppEvent>,
         show_all: bool,
-        sort_field: SortField,
+        sort_field: Column,
         column_config: ColumnConfig,
         config_path: Option<std::path::PathBuf>,
     ) -> Self {
