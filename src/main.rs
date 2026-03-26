@@ -240,7 +240,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         ColumnConfig::default()
     };
-    let config_path_for_state = if cli_provided { None } else { config_path };
+    let config_path_for_state = config_path;
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);

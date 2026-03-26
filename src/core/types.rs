@@ -492,7 +492,7 @@ impl Column {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ColumnConfig {
     pub columns: Vec<(Column, bool)>,
 }
@@ -528,10 +528,6 @@ impl ColumnConfig {
         if index + 1 < self.columns.len() {
             self.columns.swap(index, index + 1);
         }
-    }
-
-    pub fn has_changed(&self, other: &ColumnConfig) -> bool {
-        self.columns != other.columns
     }
 
     pub fn from_config_strings(strings: &[String]) -> Self {
@@ -716,13 +712,13 @@ mod tests {
     }
 
     #[test]
-    fn test_column_config_has_changed() {
+    fn test_column_config_equality() {
         let config1 = ColumnConfig::default();
         let mut config2 = ColumnConfig::default();
-        assert!(!config1.has_changed(&config2));
+        assert_eq!(config1, config2);
         let id_idx = config2.columns.iter().position(|(c, _)| *c == Column::Id).unwrap();
         config2.toggle(id_idx);
-        assert!(config1.has_changed(&config2));
+        assert_ne!(config1, config2);
     }
 
     #[test]

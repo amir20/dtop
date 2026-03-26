@@ -78,7 +78,7 @@ impl AppState {
             }
             KeyCode::Esc | KeyCode::Char('F') => {
                 if let Some(ref snapshot) = self.column_config_snapshot {
-                    if snapshot.has_changed(&self.column_config) {
+                    if *snapshot != self.column_config {
                         self.column_save_prompt = true;
                         return RenderAction::Render;
                     }
