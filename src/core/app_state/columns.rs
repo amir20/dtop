@@ -76,7 +76,7 @@ impl AppState {
                 }
                 RenderAction::Render
             }
-            KeyCode::Esc | KeyCode::Char('F') => {
+            KeyCode::Esc | KeyCode::Char('v') => {
                 if let Some(ref snapshot) = self.column_config_snapshot
                     && *snapshot != self.column_config
                 {

@@ -224,7 +224,7 @@ impl AppState {
                 self.handle_set_sort_field(SortField::Memory)
             }
             KeyCode::Char('a') | KeyCode::Char('A') => self.handle_toggle_show_all(),
-            KeyCode::Char('F') => self.handle_open_column_selector(),
+            KeyCode::Char('v') => self.handle_open_column_selector(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
             KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
             KeyCode::Char('g') => self.handle_scroll_to_top(),

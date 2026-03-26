@@ -91,7 +91,7 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
     let footer_text = if state.column_save_prompt {
         "y: Save  n: Don't save  Esc: Cancel"
     } else {
-        "Enter/Space: Toggle  Esc: Close  F: Close"
+        "Enter/Space: Toggle  Esc: Close  v: Close"
     };
 
     let footer = ratatui::widgets::Paragraph::new(footer_text)
