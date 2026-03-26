@@ -55,6 +55,18 @@ nix flake check                              # Verify flake is valid
 nix develop                                  # Enter dev shell with Rust tooling
 ```
 
+## Documentation Site
+
+The docs site is a SvelteKit static site in the `docs/` directory. **Use `bun` (not npm) for all docs commands.**
+
+```bash
+cd docs
+bun install                                  # Install dependencies
+bun run dev                                  # Start dev server
+bun run build                                # Production build
+bun run preview                              # Preview production build
+```
+
 ## Nix Flake
 
 The project includes a Nix flake (`flake.nix`) for reproducible builds and easy installation.
