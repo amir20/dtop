@@ -13,6 +13,7 @@
     { marker: "# == Icons ==", label: "Icons", description: "Icon style for the UI" },
     { marker: "# == All ==", label: "Show All", description: "Show all containers including stopped" },
     { marker: "# == Sort ==", label: "Sort", description: "Default sort field for container list" },
+    { marker: "# == Columns ==", label: "Columns", description: "Column visibility and order" },
   ];
 
   function parseConfigExample(raw) {

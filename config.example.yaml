@@ -36,3 +36,19 @@ all: false
 # Default sort field for the container list.
 # Possible values: uptime, name, cpu, memory
 sort: uptime
+
+# == Columns ==
+# Column visibility and order.
+# List only the columns you want to see, in the order you want them.
+# Omitted columns are hidden. Press 'v' in the UI to toggle columns interactively.
+# Possible values: status, name, id, host, cpu, memory, net_tx, net_rx, uptime
+# columns:
+#   - status
+#   - name
+#   - id
+#   - host
+#   - cpu
+#   - memory
+#   - net_tx
+#   - net_rx
+#   - uptime
