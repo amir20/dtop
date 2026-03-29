@@ -19,9 +19,24 @@
   ];
 
   const iconColors = [
-    { text: "text-(--c-accent)", bg: "bg-(--c-accent-dim)", border: "border-[rgba(0,255,136,0.2)]", glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-accent-dim)]" },
-    { text: "text-(--c-blue)", bg: "bg-(--c-blue-dim)", border: "border-[rgba(56,189,248,0.2)]", glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-blue-dim)]" },
-    { text: "text-(--c-orange)", bg: "bg-(--c-orange-dim)", border: "border-[rgba(251,146,60,0.2)]", glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-orange-dim)]" },
+    {
+      text: "text-(--c-accent)",
+      bg: "bg-(--c-accent-dim)",
+      border: "border-[rgba(0,255,136,0.2)]",
+      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-accent-dim)]",
+    },
+    {
+      text: "text-(--c-blue)",
+      bg: "bg-(--c-blue-dim)",
+      border: "border-[rgba(56,189,248,0.2)]",
+      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-blue-dim)]",
+    },
+    {
+      text: "text-(--c-orange)",
+      bg: "bg-(--c-orange-dim)",
+      border: "border-[rgba(251,146,60,0.2)]",
+      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-orange-dim)]",
+    },
   ];
 
   const cardAccents = [
@@ -38,16 +53,23 @@
   >
     {#each features as feature, i}
       <div
-        class="group relative bg-(--c-bg) p-10 transition-all duration-300 hover:bg-(--c-bg-elevated) before:absolute before:top-0 before:left-0 before:h-0 before:w-0.75 before:transition-all before:duration-300 hover:before:h-full {cardAccents[i]}"
+        class="group relative bg-(--c-bg) p-10 transition-all duration-300 hover:bg-(--c-bg-elevated) before:absolute before:top-0 before:left-0 before:h-0 before:w-0.75 before:transition-all before:duration-300 hover:before:h-full {cardAccents[
+          i
+        ]}"
       >
         <div
-          class="mb-5 inline-flex size-11 items-center justify-center border transition-shadow duration-300 {iconColors[i].text} {iconColors[i].bg} {iconColors[i].border} {iconColors[i].glow}"
+          class="mb-5 inline-flex size-11 items-center justify-center border transition-shadow duration-300 {iconColors[
+            i
+          ].text} {iconColors[i].bg} {iconColors[i].border} {iconColors[i]
+            .glow}"
         >
           <span class="size-5">
             {@html featureIcons[i]}
           </span>
         </div>
-        <h3 class="mb-2.5 font-display text-lg font-bold tracking-tight text-(--c-text)">
+        <h3
+          class="mb-2.5 font-display text-lg font-bold tracking-tight text-(--c-text)"
+        >
           {feature.title}
         </h3>
         <p class="text-sm leading-relaxed text-(--c-text-muted)">

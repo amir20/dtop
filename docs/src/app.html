@@ -3,13 +3,30 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="dtop — a blazing-fast, Rust-powered TUI for monitoring Docker containers across multiple hosts. Track CPU, memory, and network metrics in real time." />
-    <meta name="theme-color" content="#0a0e17" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)" />
+    <meta
+      name="description"
+      content="dtop — a blazing-fast, Rust-powered TUI for monitoring Docker containers across multiple hosts. Track CPU, memory, and network metrics in real time."
+    />
+    <meta
+      name="theme-color"
+      content="#0a0e17"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#f4f6f9"
+      media="(prefers-color-scheme: light)"
+    />
 
     <!-- Open Graph -->
-    <meta property="og:title" content="dtop — Docker Monitoring In Your Terminal" />
-    <meta property="og:description" content="A real-time TUI for monitoring Docker containers across multiple hosts. Built with Rust." />
+    <meta
+      property="og:title"
+      content="dtop — Docker Monitoring In Your Terminal"
+    />
+    <meta
+      property="og:description"
+      content="A real-time TUI for monitoring Docker containers across multiple hosts. Built with Rust."
+    />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://dtop.dev" />
     <meta property="og:image" content="https://dtop.dev/dtop-icon.svg" />
@@ -22,14 +39,19 @@
       rel="stylesheet"
     />
     <script>
-      ;(() => {
-        const saved = localStorage.getItem("theme")
-        const dark = saved ? saved === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches
-        document.documentElement.classList.toggle("dark", dark)
-      })()
+      (() => {
+        const saved = localStorage.getItem("theme");
+        const dark = saved
+          ? saved === "dark"
+          : !window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.classList.toggle("dark", dark);
+      })();
     </script>
     <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-093HLGSNY6"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-093HLGSNY6"
+    ></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag() {
@@ -41,7 +63,11 @@
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
-    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-[var(--c-accent)] focus:text-[var(--c-bg)] focus:px-4 focus:py-2 focus:font-mono focus:text-sm">Skip to content</a>
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-[var(--c-accent)] focus:text-[var(--c-bg)] focus:px-4 focus:py-2 focus:font-mono focus:text-sm"
+      >Skip to content</a
+    >
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>
