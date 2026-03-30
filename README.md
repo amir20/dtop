@@ -187,6 +187,19 @@ Options:
           
           This is equivalent to pressing 'a' in the UI to toggle show all.
 
+  -s, --sort <SORT>
+          Default sort field for container list
+
+          Options:
+            uptime  - Sort by container uptime/creation time (default, newest first)
+            name    - Sort by container name (alphabetically)
+            cpu     - Sort by CPU usage (highest first)
+            memory  - Sort by memory usage (highest first)
+
+          You can also use short forms: u, n, c, m
+
+          The sort direction can be toggled in the UI by pressing the same key again.
+
   -h, --help
           Print help (see a summary with '-h')
 
