@@ -2,6 +2,7 @@
     import { browser } from "$app/environment";
 
     let isDark = $state(true);
+    let menuOpen = $state(false);
 
     if (browser) {
         isDark = document.documentElement.classList.contains("dark");
@@ -11,6 +12,14 @@
         isDark = !isDark;
         document.documentElement.classList.toggle("dark", isDark);
         localStorage.setItem("theme", isDark ? "dark" : "light");
+    }
+
+    function toggleMenu() {
+        menuOpen = !menuOpen;
+    }
+
+    function closeMenu() {
+        menuOpen = false;
     }
 </script>
 
@@ -88,10 +97,62 @@
             </button>
             <a
                 href="/#install"
-                class="bg-(--c-accent) px-5 py-2 font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)] hover:-translate-y-px"
+                class="hidden bg-(--c-accent) px-5 py-2 font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)] hover:-translate-y-px sm:inline-block"
             >
                 Install
             </a>
+            <!-- Mobile hamburger button -->
+            <button
+                class="flex size-9 items-center justify-center border border-(--c-border-bright) text-(--c-text-muted) transition-all hover:border-(--c-text-muted) hover:text-(--c-text) sm:hidden"
+                aria-label="Toggle menu"
+                onclick={toggleMenu}
+            >
+                {#if menuOpen}
+                    <svg class="size-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                {:else}
+                    <svg class="size-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                {/if}
+            </button>
         </div>
     </div>
+
+    <!-- Mobile dropdown menu -->
+    {#if menuOpen}
+        <div class="border-t border-(--c-border) bg-(--c-nav-bg) sm:hidden">
+            <div class="flex flex-col px-4 py-3 gap-1">
+                <a
+                    href="/#cli"
+                    class="px-3 py-2.5 font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:bg-(--c-bg-elevated) hover:text-(--c-text)"
+                    onclick={closeMenu}
+                >
+                    CLI
+                </a>
+                <a
+                    href="/#config"
+                    class="px-3 py-2.5 font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:bg-(--c-bg-elevated) hover:text-(--c-text)"
+                    onclick={closeMenu}
+                >
+                    Config
+                </a>
+                <a
+                    href="/changelog"
+                    class="px-3 py-2.5 font-mono text-[0.8rem] text-(--c-text-muted) no-underline transition-colors hover:bg-(--c-bg-elevated) hover:text-(--c-text)"
+                    onclick={closeMenu}
+                >
+                    Changelog
+                </a>
+                <a
+                    href="/#install"
+                    class="mt-1 bg-(--c-accent) px-3 py-2.5 text-center font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)]"
+                    onclick={closeMenu}
+                >
+                    Install
+                </a>
+            </div>
+        </div>
+    {/if}
 </nav>
