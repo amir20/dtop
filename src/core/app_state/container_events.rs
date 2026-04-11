@@ -28,8 +28,14 @@ impl AppState {
 
     pub(super) fn handle_container_created(&mut self, container: Container) -> RenderAction {
         let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        let is_new = !self.containers.contains_key(&key);
         self.containers.insert(key.clone(), container);
-        self.sorted_container_keys.push(key);
+
+        // Only add to sorted keys if this is a genuinely new container
+        // (avoid duplicates during restarts where container already exists)
+        if is_new {
+            self.sorted_container_keys.push(key);
+        }
 
         // Force immediate sort when new container is added
         self.force_sort_containers();
