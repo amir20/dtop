@@ -545,7 +545,7 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 **Sorting:** Containers can be sorted by multiple fields:
 - Default sort: Uptime (newest first, descending)
 - Sort fields: Uptime, Name, CPU, Memory
-- Containers are always sorted by `host_id` first, then by the selected field within each host
+- Containers are sorted globally across all hosts by the selected field, with `host_id` as tiebreaker
 - Press 's' to open sort selector popup
 - In the sort popup, select a field to sort by; selecting the active field toggles direction
 - Each field has a default direction: Name (ascending), Uptime/CPU/Memory (descending)
@@ -775,9 +775,11 @@ Run tests with `cargo test` or `cargo insta test` for snapshot tests.
 
 ## Pre-Commit Checklist
 
+**IMPORTANT: These checks MUST pass before creating any PR or commit.**
+
 Before committing or submitting a pull request, always run:
-1. `cargo fmt` - Fix formatting
-2. `cargo clippy` - Fix all warnings
+1. `cargo fmt --check` - Verify formatting (run `cargo fmt` to fix)
+2. `cargo clippy` - Ensure no warnings
 3. `cargo test` - Ensure all tests pass
 4. `cargo insta accept` - Accept any updated snapshots (if applicable)
 
