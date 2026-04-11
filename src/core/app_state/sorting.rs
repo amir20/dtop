@@ -145,53 +145,52 @@ impl AppState {
         let direction = self.sort_state.direction;
         let sort_field = self.sort_state.field;
 
-        key_container_pairs.sort_by(|(_, a), (_, b)| match a.host_id.cmp(&b.host_id) {
-            std::cmp::Ordering::Equal => {
-                let ord = match sort_field {
-                    Column::Uptime => match (&a.created, &b.created) {
-                        (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
-                        (Some(_), None) => std::cmp::Ordering::Greater,
-                        (None, Some(_)) => std::cmp::Ordering::Less,
-                        (None, None) => std::cmp::Ordering::Equal,
-                    },
-                    Column::Name => a.name.cmp(&b.name),
-                    Column::Id => a.id.cmp(&b.id),
-                    Column::Host => a.host_id.cmp(&b.host_id),
-                    Column::Compose => a.compose_project.cmp(&b.compose_project),
-                    Column::Cpu => a
-                        .stats
-                        .cpu
-                        .partial_cmp(&b.stats.cpu)
-                        .unwrap_or(std::cmp::Ordering::Equal),
-                    Column::Memory => a
-                        .stats
-                        .memory
-                        .partial_cmp(&b.stats.memory)
-                        .unwrap_or(std::cmp::Ordering::Equal),
-                    Column::NetTx => a
-                        .stats
-                        .network_tx_bytes_per_sec
-                        .partial_cmp(&b.stats.network_tx_bytes_per_sec)
-                        .unwrap_or(std::cmp::Ordering::Equal),
-                    Column::NetRx => a
-                        .stats
-                        .network_rx_bytes_per_sec
-                        .partial_cmp(&b.stats.network_rx_bytes_per_sec)
-                        .unwrap_or(std::cmp::Ordering::Equal),
-                    Column::Status => {
-                        let a_state = format!("{:?}", a.state);
-                        let b_state = format!("{:?}", b.state);
-                        a_state.cmp(&b_state)
-                    }
-                    Column::Restarts => a.restart_count.cmp(&b.restart_count),
-                };
-                if direction == SortDirection::Descending {
-                    ord.reverse()
-                } else {
-                    ord
+        key_container_pairs.sort_by(|(_, a), (_, b)| {
+            let ord = match sort_field {
+                Column::Uptime => match (&a.created, &b.created) {
+                    (Some(a_time), Some(b_time)) => a_time.cmp(b_time),
+                    (Some(_), None) => std::cmp::Ordering::Greater,
+                    (None, Some(_)) => std::cmp::Ordering::Less,
+                    (None, None) => std::cmp::Ordering::Equal,
+                },
+                Column::Name => a.name.cmp(&b.name),
+                Column::Id => a.id.cmp(&b.id),
+                Column::Host => a.host_id.cmp(&b.host_id),
+                Column::Compose => a.compose_project.cmp(&b.compose_project),
+                Column::Cpu => a
+                    .stats
+                    .cpu
+                    .partial_cmp(&b.stats.cpu)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                Column::Memory => a
+                    .stats
+                    .memory
+                    .partial_cmp(&b.stats.memory)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                Column::NetTx => a
+                    .stats
+                    .network_tx_bytes_per_sec
+                    .partial_cmp(&b.stats.network_tx_bytes_per_sec)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                Column::NetRx => a
+                    .stats
+                    .network_rx_bytes_per_sec
+                    .partial_cmp(&b.stats.network_rx_bytes_per_sec)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                Column::Status => {
+                    let a_state = format!("{:?}", a.state);
+                    let b_state = format!("{:?}", b.state);
+                    a_state.cmp(&b_state)
                 }
-            }
-            other => other,
+                Column::Restarts => a.restart_count.cmp(&b.restart_count),
+            };
+            let ord = if direction == SortDirection::Descending {
+                ord.reverse()
+            } else {
+                ord
+            };
+            // Use host_id as tiebreaker for stable ordering
+            ord.then_with(|| a.host_id.cmp(&b.host_id))
         });
 
         // Extract sorted keys
