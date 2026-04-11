@@ -254,6 +254,7 @@ impl DockerHost {
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
     ) {
         let truncated_id = container_id[..12.min(container_id.len())].to_string();
+        let key = ContainerKey::new(self.host_id.clone(), truncated_id.clone());
 
         // Get container details
         if let Ok(inspect) = self
@@ -267,12 +268,10 @@ impl DockerHost {
                 .map(|n| n.trim_start_matches('/').to_string())
                 .unwrap_or_default();
 
-            let state = inspect
-                .state
-                .as_ref()
-                .and_then(|s| s.status.as_ref())
-                .and_then(|s| format!("{:?}", s).parse().ok())
-                .unwrap_or(ContainerState::Unknown);
+            // We received a "start" event, so the container is running.
+            // Don't trust inspect state here — there's a race where inspect
+            // can still report "restarting" right after the start event fires.
+            let state = ContainerState::Running;
 
             // Parse health status from state (None if no health check configured)
             let health = inspect
@@ -297,8 +296,8 @@ impl DockerHost {
                 .and_then(|config| config.labels.as_ref())
                 .and_then(|labels| labels.get("com.docker.compose.project").cloned());
 
-            // Start monitoring the new container
             if !active_containers.contains_key(&truncated_id) {
+                // New container or restarted container — create/update and start monitoring
                 let container = Container {
                     id: truncated_id.clone(),
                     name: name.clone(),
@@ -315,6 +314,10 @@ impl DockerHost {
                 let _ = tx.send(AppEvent::ContainerCreated(container)).await;
 
                 self.start_container_monitoring(&truncated_id, tx, active_containers);
+            } else {
+                // Container already monitored (e.g., "start" event without preceding "die")
+                // — just update the state to Running
+                let _ = tx.send(AppEvent::ContainerStateChanged(key, state)).await;
             }
         }
     }
