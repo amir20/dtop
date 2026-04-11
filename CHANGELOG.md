@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.3] - 2026-04-11
+
+### Bug Fixes
+
+- *(deps)* Update rust crate self_update to 0.44 (#275)
+- *(sort)* Sort containers globally across all hosts (#281)
+- Container state icon stuck in restarting after restart (#280)
+
 ## [0.7.2] - 2026-03-26
 
 ### Features
