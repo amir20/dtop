@@ -317,9 +317,7 @@ impl DockerHost {
             } else {
                 // Container already monitored (e.g., "start" event without preceding "die")
                 // — just update the state to Running
-                let _ = tx
-                    .send(AppEvent::ContainerStateChanged(key, state))
-                    .await;
+                let _ = tx.send(AppEvent::ContainerStateChanged(key, state)).await;
             }
         }
     }
