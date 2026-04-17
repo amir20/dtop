@@ -1,5 +1,5 @@
 # Multi-stage build for dtop (amd64/arm64)
-FROM --platform=$BUILDPLATFORM rust:1.94-slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1.95-slim AS builder
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
