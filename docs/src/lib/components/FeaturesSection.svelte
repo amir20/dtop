@@ -9,73 +9,69 @@
     features.push({ title: match[1], description: match[2] });
   }
 
-  const featureIcons = [
-    // Multi-host: network/globe
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
-    // Metrics: bar chart
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>`,
-    // Fast: lightning bolt
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
-  ];
-
-  const iconColors = [
-    {
-      text: "text-(--c-accent)",
-      bg: "bg-(--c-accent-dim)",
-      border: "border-[rgba(0,255,136,0.2)]",
-      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-accent-dim)]",
-    },
-    {
-      text: "text-(--c-blue)",
-      bg: "bg-(--c-blue-dim)",
-      border: "border-[rgba(56,189,248,0.2)]",
-      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-blue-dim)]",
-    },
-    {
-      text: "text-(--c-orange)",
-      bg: "bg-(--c-orange-dim)",
-      border: "border-[rgba(251,146,60,0.2)]",
-      glow: "group-hover:shadow-[0_0_24px_-4px_var(--c-orange-dim)]",
-    },
-  ];
-
-  const cardAccents = [
-    "before:bg-(--c-accent)",
-    "before:bg-(--c-blue)",
-    "before:bg-(--c-orange)",
+  const featureMeta = [
+    { tag: "topology", meta: "ssh · tcp · tls · local" },
+    { tag: "telemetry", meta: "ema · α=0.3 · 500ms" },
+    { tag: "footprint", meta: "rust · minimal alloc" },
   ];
 </script>
 
-<section class="relative z-1 mx-auto max-w-300 px-6 py-24">
-  <div
-    use:reveal
-    class="grid grid-cols-1 gap-px border border-(--c-border) bg-(--c-border) md:grid-cols-3"
+<section
+  use:reveal
+  class="relative z-1 mx-auto max-w-300 px-6 py-24"
+>
+  <header
+    class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
   >
-    {#each features as feature, i}
-      <div
-        class="group relative bg-(--c-bg) p-10 transition-all duration-300 hover:bg-(--c-bg-elevated) before:absolute before:top-0 before:left-0 before:h-0 before:w-0.75 before:transition-all before:duration-300 hover:before:h-full {cardAccents[
-          i
-        ]}"
+    <div class="col-span-12 md:col-span-2">
+      <span
+        class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
       >
-        <div
-          class="mb-5 inline-flex size-11 items-center justify-center border transition-shadow duration-300 {iconColors[
-            i
-          ].text} {iconColors[i].bg} {iconColors[i].border} {iconColors[i]
-            .glow}"
-        >
-          <span class="size-5">
-            {@html featureIcons[i]}
+        § 01 / Capabilities
+      </span>
+    </div>
+    <h2
+      class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
+    >
+      Three things,<br />
+      <span class="italic text-(--c-accent)">done well.</span>
+    </h2>
+    <p
+      class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
+    >
+      No dashboards to configure, no agents to install, no plans to choose. Open the terminal, see the containers, close the terminal.
+    </p>
+  </header>
+
+  <div>
+    {#each features as feature, i}
+      <article
+        class="grid grid-cols-12 items-start gap-x-4 border-b border-(--c-border) py-12 md:gap-x-6 md:py-16 last:border-b-0"
+      >
+        <div class="col-span-2 md:col-span-2">
+          <span
+            class="font-display text-[clamp(3rem,7vw,5.5rem)] font-extrabold leading-none text-(--c-accent)"
+          >
+            0{i + 1}
           </span>
         </div>
-        <h3
-          class="mb-2.5 font-display text-lg font-bold tracking-tight text-(--c-text)"
-        >
-          {feature.title}
-        </h3>
-        <p class="text-sm leading-relaxed text-(--c-text-muted)">
-          {feature.description}
-        </p>
-      </div>
+
+        <div class="col-span-10 md:col-span-7 md:pr-6">
+          <div
+            class="mb-3 font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-text-dim)"
+          >
+            {featureMeta[i].tag} / {featureMeta[i].meta}
+          </div>
+          <h3
+            class="mb-4 font-display text-[clamp(1.6rem,2.8vw,2.4rem)] font-bold leading-[0.95] tracking-tight text-(--c-text)"
+          >
+            {feature.title}.
+          </h3>
+          <p class="text-base leading-[1.65] text-(--c-text-muted)">
+            {feature.description}
+          </p>
+        </div>
+      </article>
     {/each}
   </div>
 </section>

@@ -9,13 +9,13 @@
 >
   <div class="animate-fade-up [animation-delay:0.1s] flex items-center justify-center gap-3">
     <span
-      class="mb-8 inline-flex items-center gap-2 border border-[rgba(0,255,136,0.2)] bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs uppercase tracking-widest text-(--c-accent) before:size-1.5 before:rounded-full before:bg-(--c-accent) before:animate-glow before:content-['']"
+      class="mb-8 inline-flex items-center gap-2 border border-(--c-accent)/20 bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs uppercase tracking-[0.22em] text-(--c-accent) before:size-1.5 before:rounded-full before:bg-(--c-accent) before:animate-glow before:content-['']"
     >
       Built with Rust
     </span>
     {#if version}
       <span
-        class="mb-8 inline-flex items-center border border-[rgba(0,255,136,0.2)] bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs tracking-widest text-(--c-accent)"
+        class="mb-8 inline-flex items-center border border-(--c-accent)/20 bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs tracking-[0.22em] text-(--c-accent)"
       >
         v{version}
       </span>
@@ -26,9 +26,7 @@
     class="animate-fade-up [animation-delay:0.2s] font-display text-[clamp(2.5rem,6vw,5rem)] font-extrabold leading-none tracking-tight text-(--c-text)"
   >
     Docker Monitoring<br />
-    <span
-      class="bg-gradient-to-br from-(--c-accent) via-(--c-cyan) to-(--c-blue) bg-clip-text text-transparent"
-    >
+    <span class="font-display font-black italic text-(--c-accent)">
       In Your Terminal
     </span>
   </h1>
@@ -37,11 +35,11 @@
     class="animate-fade-up [animation-delay:0.35s] mx-auto mb-4 mt-6 max-w-140 text-lg leading-relaxed text-(--c-text-muted)"
   >
     A real-time TUI for monitoring Docker containers across multiple hosts. Track CPU, memory, and
-    network metrics — all from your terminal.
+    network metrics, all from your terminal.
   </p>
 
   <p class="animate-fade-up [animation-delay:0.35s] font-mono text-sm text-(--c-text-dim)">
-    <strong class="font-medium text-(--c-orange)">Blazing fast.</strong> Minimal resource usage.
+    <strong class="font-medium text-(--c-accent)">Blazing fast.</strong> Minimal resource usage.
   </p>
 
   <div

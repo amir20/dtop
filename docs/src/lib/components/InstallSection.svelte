@@ -10,7 +10,7 @@
         docker: { color: "var(--c-purple)" },
         "install script": { color: "var(--c-blue)" },
         "install from source": { color: "var(--c-orange)" },
-        nix: { color: "var(--c-cyan)" },
+        nix: { color: "var(--c-text-dim)" },
     };
 
     function parseInstallMethods(md) {
@@ -49,16 +49,29 @@
 </script>
 
 <section id="install" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-    <div use:reveal class="mb-12 text-center">
+    <header
+        use:reveal
+        class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
+    >
+        <div class="col-span-12 md:col-span-2">
+            <span
+                class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
+            >
+                § 02 / Install
+            </span>
+        </div>
         <h2
-            class="mb-3 font-display text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight text-(--c-text)"
+            class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
         >
-            Get Started
+            Pick a package<br />
+            <span class="italic text-(--c-accent)">manager.</span>
         </h2>
-        <p class="text-(--c-text-muted)">
-            Choose your preferred installation method
+        <p
+            class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
+        >
+            Homebrew, Docker, Cargo, Nix, or the install script. One line. Same binary. Pick whatever you already have.
         </p>
-    </div>
+    </header>
 
     <div use:reveal={{ delay: 150 }} class="mx-auto grid max-w-180 gap-3">
         {#each installMethods as method}
@@ -126,14 +139,15 @@
         {/each}
     </div>
 
-    <div class="mt-12 text-center">
-        <p class="mb-4 font-mono text-sm text-(--c-text-dim)">Then run:</p>
-        <div
-            class="inline-flex items-center gap-3 border border-[rgba(0,255,136,0.2)] bg-(--c-bg-card) px-8 py-4 font-mono text-xl font-semibold text-(--c-accent) shadow-[0_0_40px_-10px_var(--c-accent-dim)]"
+    <div class="mt-12 flex items-center justify-center gap-4">
+        <span class="font-mono text-sm text-(--c-text-dim)">then run</span>
+        <span aria-hidden="true" class="h-px flex-1 max-w-12 bg-(--c-border-bright)"></span>
+        <code
+            class="inline-flex items-center gap-2 border border-(--c-border-bright) bg-(--c-bg-card) px-6 py-3 font-mono text-lg font-semibold text-(--c-accent)"
         >
-            <span class="text-(--c-text-dim)">$</span> dtop<span
+            <span class="text-(--c-text-dim)">$</span>dtop<span
                 class="animate-blink">_</span
             >
-        </div>
+        </code>
     </div>
 </section>

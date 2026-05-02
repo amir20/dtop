@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-02T00:00:00Z",
+  "title": "Design System: dtop",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Terminal Green",
+        "canonical": "#00ff88",
+        "tonalRamp": ["#001a0e", "#00331c", "#005c33", "#008a4d", "#00b364", "#00d97a", "#00ff88", "#5cffaf"]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Deep Navy",
+        "canonical": "#0a0e17",
+        "tonalRamp": ["#05070c", "#0a0e17", "#111827", "#141c2b", "#1a2332", "#1e293b", "#2d3d52", "#3d5170"]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "#e2e8f0",
+        "tonalRamp": ["#1e293b", "#2d3d52", "#4a5e73", "#5d7286", "#7d8fa3", "#8899aa", "#b0bcc8", "#e2e8f0"]
+      },
+      "tag-blue": {
+        "role": "tertiary",
+        "displayName": "Tag Sky",
+        "canonical": "#38bdf8",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc"]
+      },
+      "tag-purple": {
+        "role": "tertiary",
+        "displayName": "Tag Iris",
+        "canonical": "#a78bfa",
+        "tonalRamp": ["#2e1065", "#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd"]
+      },
+      "tag-orange": {
+        "role": "tertiary",
+        "displayName": "Tag Ember",
+        "canonical": "#fb923c",
+        "tonalRamp": ["#431407", "#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fdba74"]
+      },
+      "tag-cyan": {
+        "role": "tertiary",
+        "displayName": "Tag Cyan",
+        "canonical": "#22d3ee",
+        "tonalRamp": ["#083344", "#164e63", "#155e75", "#0e7490", "#0891b2", "#06b6d4", "#22d3ee", "#67e8f9"]
+      }
+    },
+    "typographyMeta": {
+      "hero": { "displayName": "Hero", "purpose": "The page-top headline, used once." },
+      "display": { "displayName": "Display", "purpose": "Section headlines under the kicker pattern." },
+      "title": { "displayName": "Title", "purpose": "Feature row titles and table headings." },
+      "body": { "displayName": "Body", "purpose": "Paragraph copy, capped near 75ch by column span." },
+      "mono": { "displayName": "Mono Code", "purpose": "Inline code, command lines, YAML excerpts." },
+      "label": { "displayName": "Label", "purpose": "Kickers, tag/meta straplines, kbd content, footer links." }
+    },
+    "shadows": [
+      { "name": "kbd-keycap", "value": "0 2px 0 var(--c-border)", "purpose": "Flat 2px keycap shadow on <kbd> elements only." },
+      { "name": "demo-frame", "value": "0 0 0 1px rgba(0,0,0,0.3), 0 24px 80px -12px rgba(0,0,0,0.6), 0 0 120px -40px var(--c-accent-dim)", "purpose": "Reserved for the hero demo video frame. The only accent-glow on the page." }
+    ],
+    "motion": [
+      { "name": "ease-out-quint", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default easing for fade-up and reveal." },
+      { "name": "fade-up", "value": "fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both", "purpose": "Hero element entrances." },
+      { "name": "reveal", "value": "reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both", "purpose": "Scroll-into-view section reveals." },
+      { "name": "glow-pulse", "value": "glow 2s ease-in-out infinite", "purpose": "The accent dot in the 'Built with Rust' hero pill." },
+      { "name": "cursor-blink", "value": "blink 1.2s step-end infinite", "purpose": "The underscore in '$ dtop_' logo and install CTA." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button (Install CTA)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The Install CTA in the navbar and mobile menu. Solid accent, mono uppercase, square.",
+      "html": "<a href=\"#install\" class=\"ds-btn-primary\">Install</a>",
+      "css": ".ds-btn-primary { display: inline-block; background: #00ff88; color: #0a0e17; padding: 0.5rem 1.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 500; letter-spacing: 0.1em; text-decoration: none; transition: background 200ms cubic-bezier(0.16, 1, 0.3, 1); border: none; border-radius: 0; } .ds-btn-primary:hover { background: rgba(0, 255, 136, 0.9); } .ds-btn-primary:focus-visible { outline: 2px solid #00ff88; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button (Theme toggle)",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Bordered ghost button. Hover lifts the border color and text color only.",
+      "html": "<button class=\"ds-btn-ghost\" aria-label=\"Toggle theme\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.7-.7M6.34 6.34l-.7-.7m12.72 0l-.7.7M6.34 17.66l-.7.7M16 12a4 4 0 11-8 0 4 4 0 018 0z\"/></svg></button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; background: transparent; color: #8899aa; border: 1px solid #2d3d52; border-radius: 0; cursor: pointer; transition: color 200ms, border-color 200ms; } .ds-btn-ghost:hover { color: #e2e8f0; border-color: #8899aa; } .ds-btn-ghost:focus-visible { outline: 2px solid #00ff88; outline-offset: 2px; }"
+    },
+    {
+      "name": "kbd Keycap",
+      "kind": "chip",
+      "refersTo": "kbd",
+      "description": "Keyboard shortcut chip. Square, monospace, with a 2px flat keycap shadow.",
+      "html": "<kbd class=\"ds-kbd\">Enter</kbd>",
+      "css": ".ds-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; padding: 0.375rem 0.625rem; background: #1a2332; color: #e2e8f0; border: 1px solid #2d3d52; border-radius: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; box-shadow: 0 2px 0 #1e293b; }"
+    },
+    {
+      "name": "Section Header",
+      "kind": "custom",
+      "refersTo": "section-header",
+      "description": "The signature page-section header: 12-col grid with mono kicker / italic display headline / offset prose.",
+      "html": "<header class=\"ds-section-header\"><div class=\"ds-section-kicker\">§ 02 / Install</div><h2 class=\"ds-section-headline\">Pick a package<br/><em>manager.</em></h2><p class=\"ds-section-aside\">Homebrew, Docker, Cargo, Nix, or the install script. One line. Same binary.</p></header>",
+      "css": ".ds-section-header { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 1.5rem; align-items: end; padding-bottom: 1.5rem; border-bottom: 1px solid #2d3d52; margin-bottom: 4rem; } .ds-section-kicker { grid-column: span 2; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.22em; color: #00ff88; } .ds-section-headline { grid-column: span 7; margin: 0; font-family: Orbitron, sans-serif; font-size: clamp(2rem, 5vw, 4rem); font-weight: 800; line-height: 0.9; letter-spacing: -0.02em; color: #e2e8f0; } .ds-section-headline em { font-style: italic; color: #00ff88; } .ds-section-aside { grid-column: span 3; margin: 0; font-family: 'DM Sans', sans-serif; font-size: 0.875rem; line-height: 1.625; color: #8899aa; }"
+    },
+    {
+      "name": "Install Method Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Repeating bordered list-item card with a 1px header strip carrying a colored category dot.",
+      "html": "<div class=\"ds-install-card\"><div class=\"ds-install-header\"><span class=\"ds-install-dot\" style=\"background:#22d3ee\"></span><span class=\"ds-install-label\">Homebrew</span></div><div class=\"ds-install-body\"><code class=\"ds-install-cmd\"><span class=\"ds-install-prompt\">$&nbsp;</span>brew install amir20/dtop/dtop</code></div></div>",
+      "css": ".ds-install-card { border: 1px solid #1e293b; background: #141c2b; border-radius: 0; transition: border-color 200ms; } .ds-install-card:hover { border-color: #2d3d52; } .ds-install-header { display: flex; align-items: center; gap: 0.625rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid #1e293b; } .ds-install-dot { width: 0.5rem; height: 0.5rem; border-radius: 9999px; flex-shrink: 0; } .ds-install-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: #4a5e73; } .ds-install-body { padding: 1rem 1.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; color: #e2e8f0; } .ds-install-prompt { color: #4a5e73; user-select: none; }"
+    },
+    {
+      "name": "Inline Code Chip",
+      "kind": "chip",
+      "refersTo": "input",
+      "description": "Inline code chip used inside paragraph copy.",
+      "html": "<code class=\"ds-code-inline\">dtop --host ssh://user@host</code>",
+      "css": ".ds-code-inline { display: inline-block; padding: 0.125rem 0.375rem; background: #1a2332; color: #e2e8f0; border: 1px solid #2d3d52; border-radius: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Sticky top navbar. Solid background, no glassmorphism.",
+      "html": "<nav class=\"ds-nav\"><a href=\"/\" class=\"ds-nav-logo\"><span class=\"ds-nav-prompt\">$</span> dtop<span class=\"ds-nav-cursor\">_</span></a><div class=\"ds-nav-links\"><a href=\"/#config\">Config</a><a href=\"/changelog\">Changelog</a></div></nav>",
+      "css": ".ds-nav { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; height: 4rem; padding: 0 1.5rem; background: #0a0e17; border-bottom: 1px solid #1e293b; } .ds-nav-logo { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.025em; color: #e2e8f0; text-decoration: none; } .ds-nav-prompt, .ds-nav-cursor { color: #00ff88; } .ds-nav-cursor { animation: ds-blink 1.2s step-end infinite; } @keyframes ds-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } } .ds-nav-links { display: flex; gap: 1.5rem; } .ds-nav-links a { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #8899aa; text-decoration: none; transition: color 200ms; } .ds-nav-links a:hover { color: #e2e8f0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Documented Binary",
+    "overview": "`dtop` is a terminal program. The docs page is the program's manual page with a video clip pasted in. Every visual choice answers to that. The page is dense, left-aligned where it can be, sharp-edged everywhere (no rounded corners except the demo video frame), and runs at a low visual idle, the same way the binary runs at a low CPU idle.\n\nThe system rejects the developer-tool marketing reflex: gradient-mesh heroes, three identical icon-cards, glassmorphism navbars, neon-on-black drenched in glow shadows. It also rejects the opposite reflex, the retro-terminal costume: VT323 pixel display fonts, drenched amber CRT pastiche, ASCII art that decorates rather than informs. `dtop` is a real terminal tool, not a mood board for one.\n\nDensity beats spectacle. Show the demo video, list the flags, ship the install lines. Prose is connective tissue.",
+    "keyCharacteristics": [
+      "Sharp-edged surfaces (radius 0). The only rounded element is the demo video frame.",
+      "Restrained color: tinted dark navy neutrals plus one terminal-green accent.",
+      "Sectioned like a printed reference: numbered '§ NN / Topic' kickers, one repeating header pattern.",
+      "Display type from Orbitron at extreme weight (800); mono for everything technical.",
+      "Motion is restrained: fade-up reveals, blinking cursor, glowing status dot. Nothing choreographed."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Terminal Green (#00ff88) is the single accent. It carries the cursor, the kickers, the italicized headline word, and hover/focus states. No other color does headline duty.", "section": "colors" },
+      { "name": "The Categorical Palette Stays in Lists", "body": "Tag colors (blue / purple / orange / cyan) appear only as 8px dots inside repeating list items. They never escape into headings, body type, borders, or backgrounds.", "section": "colors" },
+      { "name": "The Tinted-Neutral Rule", "body": "Every background, border, and 'gray' is tinted blue (hue ≈ 220–225). Pure black, pure white, and pure gray are forbidden.", "section": "colors" },
+      { "name": "The Italic-Accent Rule", "body": "In every section headline, the second line is italicized in Terminal Green. This is the system's only sanctioned use of italic display type.", "section": "typography" },
+      { "name": "The Uppercase-Mono Rule", "body": "Anything secondary, navigational, or metadata-shaped is set in JetBrains Mono, uppercase, 0.22em letter-spacing, 0.7rem.", "section": "typography" },
+      { "name": "The No-Restated-Subhead Rule", "body": "Section headlines are not followed by a paragraph that re-states them. The right-column aside must add information.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat. Containers are bordered, not elevated. The kbd 2px keycap shadow and the hero demo frame are the only sanctioned shadows.", "section": "elevation" },
+      { "name": "The Glow-Goes-on-the-Demo Rule", "body": "The accent-dim outer glow is reserved for the demo video frame. It will never appear on a button, a CTA, a navbar, or a pill.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Terminal Green (#00ff88) as the only headline-italic / kicker / cursor color. Light theme uses #00a85a.",
+      "Do keep every container, button, kbd, card, and input at radius 0. The demo frame at 12px is the only exception.",
+      "Do open every section below the hero with '§ NN / Topic' in mono uppercase 0.22em letter-spacing 0.7rem accent.",
+      "Do italicize the second line of every section headline in accent color via <span class='italic text-(--c-accent)'>.",
+      "Do keep paragraphs in DM Sans at body line-height 1.65, capped at ~75ch by column span.",
+      "Do keep type tags / kickers / kbd / footer links / file paths in JetBrains Mono.",
+      "Do rely on borders, not shadows, to define cards. Hover should shift border color, not lift.",
+      "Do put the categorical tag colors only on 8px dots inside repeating list-item header strips.",
+      "Do use transition-colors, not transition-all, for hover states."
+    ],
+    "donts": [
+      "Don't ship a gradient-mesh hero, a 'loved by teams at' logo strip, three identical icon-and-heading cards, or any other AI-driven landing-page archetype.",
+      "Don't dress the page in retro-terminal costume: VT323, pixel bitmap display fonts, drenched amber/green CRT pastiche, ASCII art that decorates rather than documents real behavior.",
+      "Don't use background-clip: text with a gradient. Headline emphasis comes from italic + accent color.",
+      "Don't add glassmorphism (backdrop-blur, backdrop-saturate) to the navbar, modals, or cards. The navbar is solid bg.",
+      "Don't use border-left greater than 1px as a colored side stripe on cards or callouts. Full 1px borders only.",
+      "Don't wrap the install-final $ dtop_ strip in a glow shadow. The accent-dim glow is reserved for the hero demo frame.",
+      "Don't introduce rounded corners on buttons, cards, kbd chips, install rows, flag rows, or config blocks.",
+      "Don't restate the section headline in the right-column aside.",
+      "Don't use the categorical tag colors (blue / purple / orange / cyan) for type, headings, borders, fills, or icons.",
+      "Don't ship ASCII diagrams, screenshots, or feature lists that imply behavior the binary doesn't have.",
+      "Don't add bounce, elastic, or scroll-driven choreographed motion. Motion vocabulary is fade-up, blink, glow-pulse.",
+      "Don't center every section. The numbered specimen pattern is left-aligned grid. The hero is the only intentionally centered surface."
+    ]
+  }
+}

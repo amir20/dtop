@@ -7,7 +7,6 @@
 </script>
 
 <footer class="relative z-1">
-  <div class="h-px bg-gradient-to-r from-transparent via-(--c-accent)/30 to-transparent"></div>
   <div class="border-t border-(--c-border)">
     <div
       class="mx-auto flex max-w-300 flex-col items-center justify-between gap-6 px-6 py-10 sm:flex-row sm:gap-4"

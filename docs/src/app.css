@@ -157,6 +157,15 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+
   body::before {
     content: "";
     position: fixed;

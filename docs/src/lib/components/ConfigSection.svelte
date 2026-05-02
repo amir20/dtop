@@ -136,16 +136,29 @@
 </script>
 
 <section id="config" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-  <div use:reveal class="mb-12 text-center">
+  <header
+    use:reveal
+    class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
+  >
+    <div class="col-span-12 md:col-span-2">
+      <span
+        class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
+      >
+        § 04 / Configure
+      </span>
+    </div>
     <h2
-      class="mb-3 font-display text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight text-(--c-text)"
+      class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
     >
-      Configuration
+      One YAML file,<br />
+      <span class="italic text-(--c-accent)">five sections.</span>
     </h2>
-    <p class="text-(--c-text-muted)">
-      Configure dtop with a YAML file for persistent settings
+    <p
+      class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
+    >
+      Hosts, icons, sort, columns, and the show-all toggle. CLI flags always win when they conflict.
     </p>
-  </div>
+  </header>
 
   {#if locations.length > 0}
     <div use:reveal={{ delay: 100 }} class="mx-auto mb-10 max-w-180">
@@ -157,7 +170,7 @@
             Config File Locations
           </h3>
           <p class="mt-1.5 text-sm text-(--c-text-dim)">
-            Searched in priority order &mdash; first found wins
+            Searched in priority order. First found wins.
           </p>
         </div>
         {#each locations as loc, i}
@@ -246,8 +259,7 @@
 
   <div class="mt-10 text-center">
     <p class="font-mono text-xs text-(--c-text-dim)">
-      <span class="text-(--c-accent)">tip</span> &mdash; CLI arguments always
-      take precedence over config file values
+      <span class="text-(--c-accent)">tip:</span> CLI arguments always take precedence over config file values.
     </p>
   </div>
 </section>

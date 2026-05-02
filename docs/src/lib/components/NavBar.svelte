@@ -24,7 +24,7 @@
 </script>
 
 <nav
-    class="sticky top-0 z-50 border-b border-(--c-border) backdrop-blur-xl backdrop-saturate-180 bg-(--c-nav-bg)"
+    class="sticky top-0 z-50 border-b border-(--c-border) bg-(--c-bg)"
 >
     <div class="mx-auto flex h-16 max-w-300 items-center justify-between px-4 md:px-6">
         <div class="flex items-center gap-4 md:gap-6">
@@ -97,7 +97,7 @@
             </button>
             <a
                 href="/#install"
-                class="hidden bg-(--c-accent) px-5 py-2 font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)] hover:-translate-y-px sm:inline-block"
+                class="hidden bg-(--c-accent) px-5 py-2 font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-colors hover:bg-(--c-accent)/90 sm:inline-block"
             >
                 Install
             </a>
@@ -147,7 +147,7 @@
                 </a>
                 <a
                     href="/#install"
-                    class="mt-1 bg-(--c-accent) px-3 py-2.5 text-center font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-all hover:shadow-[0_0_20px_var(--c-accent-glow)]"
+                    class="mt-1 bg-(--c-accent) px-3 py-2.5 text-center font-mono text-[0.8rem] font-medium tracking-wide text-(--c-bg) no-underline transition-colors hover:bg-(--c-accent)/90"
                     onclick={closeMenu}
                 >
                     Install
