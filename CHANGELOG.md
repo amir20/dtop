@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.4] - 2026-05-04
+
+### Bug Fixes
+
+- *(search)* Allow typing j/k in search input (#292)
+
 ## [0.7.3] - 2026-04-11
 
 ### Bug Fixes
