@@ -167,8 +167,8 @@ impl AppState {
             return match key.code {
                 KeyCode::Enter => self.handle_enter_pressed(),
                 KeyCode::Esc => self.handle_cancel_action_menu(),
-                KeyCode::Up | KeyCode::Char('k') => self.handle_select_previous(),
-                KeyCode::Down | KeyCode::Char('j') => self.handle_select_next(),
+                KeyCode::Up => self.handle_select_previous(),
+                KeyCode::Down => self.handle_select_next(),
                 _ => self.handle_search_key_event(key),
             };
         }
