@@ -210,10 +210,8 @@ impl DockerHost {
                                 self.handle_container_destroy(&container_id, tx, active_containers)
                                     .await;
                             }
-                            "health_status"
-                            | "health_status: healthy"
-                            | "health_status: unhealthy" => {
-                                self.handle_health_status_change(&container_id, &actor, tx)
+                            a if a.starts_with("health_status") => {
+                                self.handle_health_status_change(&container_id, a, &actor, tx)
                                     .await;
                             }
                             _ => {}
@@ -365,32 +363,43 @@ impl DockerHost {
     async fn handle_health_status_change(
         &self,
         container_id: &str,
+        action: &str,
         actor: &bollard::models::EventActor,
         tx: &EventSender,
     ) {
         let truncated_id = container_id[..12.min(container_id.len())].to_string();
 
-        // Try to get health status from actor attributes
-        let health = if let Some(attributes) = &actor.attributes {
-            attributes
-                .get("health_status")
-                .or_else(|| attributes.get("HealthStatus"))
+        // Docker emits actions like "health_status: healthy" — parse from the action first.
+        let health = action.parse().ok().or_else(|| {
+            actor
+                .attributes
+                .as_ref()
+                .and_then(|attrs| {
+                    attrs
+                        .get("health_status")
+                        .or_else(|| attrs.get("HealthStatus"))
+                })
                 .and_then(|status| status.parse().ok())
-        } else {
-            // Fallback: inspect the container to get current health status
-            if let Ok(inspect) = self
-                .docker
-                .inspect_container(container_id, None::<InspectContainerOptions>)
-                .await
-            {
-                inspect
-                    .state
-                    .as_ref()
-                    .and_then(|s| s.health.as_ref())
-                    .and_then(|h| h.status.as_ref())
-                    .and_then(|status| format!("{:?}", status).parse().ok())
-            } else {
-                None
+        });
+
+        // Fallback: inspect the container if we couldn't parse the status from the event.
+        let health = match health {
+            Some(h) => Some(h),
+            None => {
+                if let Ok(inspect) = self
+                    .docker
+                    .inspect_container(container_id, None::<InspectContainerOptions>)
+                    .await
+                {
+                    inspect
+                        .state
+                        .as_ref()
+                        .and_then(|s| s.health.as_ref())
+                        .and_then(|h| h.status.as_ref())
+                        .and_then(|status| format!("{:?}", status).parse().ok())
+                } else {
+                    None
+                }
             }
         };
 
