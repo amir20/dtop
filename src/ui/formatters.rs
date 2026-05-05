@@ -21,7 +21,14 @@ fn format_byte_value(
     let b = if include_b { "B" } else { "" };
 
     if value >= GB {
-        format!("{:.prec$}G{}{}", value / GB, b, suffix, prec = gb_prec)
+        let gb = value / GB;
+        // When precision is 0, show one decimal for fractional values so
+        // 1.5G doesn't render as 2G. Whole numbers stay clean (e.g. "4G").
+        if gb_prec == 0 && (gb - gb.round()).abs() >= 0.05 {
+            format!("{:.1}G{}{}", gb, b, suffix)
+        } else {
+            format!("{:.prec$}G{}{}", gb, b, suffix, prec = gb_prec)
+        }
     } else if value >= MB {
         format!("{:.prec$}M{}{}", value / MB, b, suffix, prec = mb_prec)
     } else if value >= KB {
@@ -88,6 +95,15 @@ mod tests {
         assert_eq!(format_bytes(1073741824), "1G"); // Exactly 1GB
         assert_eq!(format_bytes(4294967296), "4G"); // 4GB
         assert_eq!(format_bytes(17179869184), "16G"); // 16GB
+    }
+
+    #[test]
+    fn test_format_bytes_fractional_gigabytes() {
+        assert_eq!(format_bytes(1610612736), "1.5G"); // 1.5GB
+        assert_eq!(format_bytes(2684354560), "2.5G"); // 2.5GB
+        assert_eq!(format_bytes(11274289152), "10.5G"); // 10.5GB
+        // 1500 MiB = ~1.46 GiB
+        assert_eq!(format_bytes(1500 * 1024 * 1024), "1.5G");
     }
 
     #[test]
