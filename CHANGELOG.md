@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.5] - 2026-05-05
+
+### Bug Fixes
+
+- *(deps)* Update rust crate bollard to 0.21.0 (#294)
+- *(ui)* Show fractional GB values in format_bytes (#295) (#296)
+
 ## [0.7.4] - 2026-05-04
 
 ### Bug Fixes
