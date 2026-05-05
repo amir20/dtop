@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.6] - 2026-05-05
+
+### Bug Fixes
+
+- *(events)* Update container health status on all transitions (#297)
+
 ## [0.7.5] - 2026-05-05
 
 ### Bug Fixes
