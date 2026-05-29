@@ -16,21 +16,19 @@ use std::collections::HashMap;
 /// assert_eq!(parsed.get("status"), Some(&vec!["running".to_string()]));
 /// ```
 pub fn parse_filters(filter_args: &[String]) -> Result<HashMap<String, Vec<String>>, String> {
-    let mut filters = HashMap::new();
+    let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
     for filter in filter_args {
-        let parts: Vec<&str> = filter.splitn(2, '=').collect();
-        if parts.len() != 2 {
+        let Some((key, value)) = filter.split_once('=') else {
             return Err(format!(
-                "Invalid filter format: '{}'. Expected 'key=value'",
-                filter
+                "Invalid filter format: '{filter}'. Expected 'key=value'"
             ));
-        }
+        };
 
-        let key = parts[0].to_string();
-        let value = parts[1].to_string();
-
-        filters.entry(key).or_insert_with(Vec::new).push(value);
+        filters
+            .entry(key.to_string())
+            .or_default()
+            .push(value.to_string());
     }
 
     Ok(filters)
