@@ -51,26 +51,11 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 prev_net_rx = rx_bytes;
                 prev_timestamp = Some(Instant::now());
 
-                // Apply exponential moving average
-                let cpu = match smoothed_cpu {
-                    Some(prev) => ALPHA * cpu_percent + (1.0 - ALPHA) * prev,
-                    None => cpu_percent, // First value, no smoothing
-                };
-
-                let memory = match smoothed_memory {
-                    Some(prev) => ALPHA * memory_percent + (1.0 - ALPHA) * prev,
-                    None => memory_percent, // First value, no smoothing
-                };
-
-                let network_tx_bytes_per_sec = match smoothed_net_tx {
-                    Some(prev) => ALPHA * net_tx_rate + (1.0 - ALPHA) * prev,
-                    None => net_tx_rate,
-                };
-
-                let network_rx_bytes_per_sec = match smoothed_net_rx {
-                    Some(prev) => ALPHA * net_rx_rate + (1.0 - ALPHA) * prev,
-                    None => net_rx_rate,
-                };
+                // Apply exponential moving average (first value passes through unsmoothed)
+                let cpu = ema(smoothed_cpu, cpu_percent, ALPHA);
+                let memory = ema(smoothed_memory, memory_percent, ALPHA);
+                let network_tx_bytes_per_sec = ema(smoothed_net_tx, net_tx_rate, ALPHA);
+                let network_rx_bytes_per_sec = ema(smoothed_net_rx, net_rx_rate, ALPHA);
 
                 // Update smoothed values for next iteration
                 smoothed_cpu = Some(cpu);
@@ -107,6 +92,14 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
         truncated_id,
         host.host_id
     );
+}
+
+/// Applies one step of an exponential moving average.
+///
+/// Returns `sample` unchanged for the first value (when `prev` is `None`),
+/// otherwise `alpha * sample + (1 - alpha) * prev`.
+fn ema(prev: Option<f64>, sample: f64, alpha: f64) -> f64 {
+    prev.map_or(sample, |prev| alpha * sample + (1.0 - alpha) * prev)
 }
 
 /// Calculates CPU usage percentage from container stats

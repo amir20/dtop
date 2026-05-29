@@ -10,6 +10,16 @@ use crate::core::types::{
 };
 use crate::docker::stats::stream_container_stats;
 
+/// Docker container IDs are 64-char hex strings; like the Docker CLI we track
+/// and display only the first 12 characters.
+const SHORT_ID_LEN: usize = 12;
+
+/// Returns the first [`SHORT_ID_LEN`] characters of a container ID, or the whole
+/// ID if it is shorter.
+fn short_id(id: &str) -> &str {
+    id.get(..SHORT_ID_LEN).unwrap_or(id)
+}
+
 /// Represents a Docker host connection with its identifier
 #[derive(Clone, Debug)]
 pub struct DockerHost {
@@ -61,7 +71,7 @@ impl DockerHost {
                     tracing::warn!("Skipping container with empty ID");
                     continue;
                 }
-                let truncated_id = full_id[..12.min(full_id.len())].to_string();
+                let truncated_id = short_id(&full_id).to_string();
                 let name = container
                     .names
                     .as_ref()
@@ -166,7 +176,7 @@ impl DockerHost {
                     // For events, id/name should be mapped to "container" filter
                     filters
                         .entry("container".to_string())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .extend(values.clone());
                 }
                 // Warn about incompatible filters
@@ -251,7 +261,7 @@ impl DockerHost {
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
     ) {
-        let truncated_id = container_id[..12.min(container_id.len())].to_string();
+        let truncated_id = short_id(container_id).to_string();
         let key = ContainerKey::new(self.host_id.clone(), truncated_id.clone());
 
         // Get container details
@@ -327,7 +337,7 @@ impl DockerHost {
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
     ) {
-        let truncated_id = container_id[..12.min(container_id.len())].to_string();
+        let truncated_id = short_id(container_id).to_string();
 
         // Stop stats monitoring but keep the container in the list
         if let Some(handle) = active_containers.remove(&truncated_id) {
@@ -348,7 +358,7 @@ impl DockerHost {
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
     ) {
-        let truncated_id = container_id[..12.min(container_id.len())].to_string();
+        let truncated_id = short_id(container_id).to_string();
 
         // Stop monitoring if still active and remove from UI
         if let Some(handle) = active_containers.remove(&truncated_id) {
@@ -367,7 +377,7 @@ impl DockerHost {
         actor: &bollard::models::EventActor,
         tx: &EventSender,
     ) {
-        let truncated_id = container_id[..12.min(container_id.len())].to_string();
+        let truncated_id = short_id(container_id).to_string();
 
         // Docker emits actions like "health_status: healthy" — parse from the action first.
         let health = action.parse().ok().or_else(|| {
