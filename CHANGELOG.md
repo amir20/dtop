@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.7] - 2026-06-05
+
+### Refactor
+
+- Adopt modern stdlib idioms for sorting, stats, and filters (#302)
+
 ## [0.7.6] - 2026-05-05
 
 ### Bug Fixes
