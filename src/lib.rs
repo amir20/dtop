@@ -1,3 +1,11 @@
+// Test-only allocation counting allocator, used by allocation-regression tests.
+#[cfg(test)]
+mod alloc_counter;
+
+#[cfg(test)]
+#[global_allocator]
+static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingAllocator;
+
 // Core modules
 pub mod core {
     pub mod app_state;
