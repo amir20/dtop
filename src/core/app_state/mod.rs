@@ -28,8 +28,9 @@ pub struct AppState {
     pub sorted_container_keys: Vec<ContainerKey>,
     /// Reusable buffer of currently visible columns, refreshed each frame in
     /// place (clear + extend) so rendering does not allocate a new `Vec` per
-    /// frame. See `refresh_visible_columns`.
-    pub visible_columns_cache: Vec<Column>,
+    /// frame. Internal render scratch space — read only after calling
+    /// [`AppState::refresh_visible_columns`], hence `pub(crate)`.
+    pub(crate) visible_columns_cache: Vec<Column>,
     /// Whether the application should quit
     pub should_quit: bool,
     /// Table selection state
@@ -139,7 +140,7 @@ impl AppState {
     ///
     /// Reuses the existing `Vec`'s capacity (`clear` + `extend`), so after the
     /// first frame this does not allocate even though it runs every frame.
-    pub fn refresh_visible_columns(&mut self) {
+    pub(crate) fn refresh_visible_columns(&mut self) {
         self.visible_columns_cache.clear();
         self.visible_columns_cache.extend(
             self.column_config

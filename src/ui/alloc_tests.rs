@@ -7,8 +7,10 @@
 //!
 //! The measurement uses the test-only `CountingAllocator` (see
 //! `src/alloc_counter.rs`) which counts allocations on the current thread.
+//!
+//! This module is already gated behind `#[cfg(test)]` at its declaration in
+//! `src/ui/mod.rs`, so no inner `#[cfg(test)]` is needed.
 
-#[cfg(test)]
 mod tests {
     use crate::alloc_counter::count_allocations;
     use crate::core::app_state::AppState;
@@ -45,6 +47,9 @@ mod tests {
     }
 
     fn build_state(count: usize, hosts: &[&str]) -> AppState {
+        // Containers are assigned round-robin via `hosts[i % hosts.len()]`,
+        // which would divide by zero on an empty slice.
+        assert!(!hosts.is_empty(), "build_state requires at least one host");
         let (tx, _rx) = mpsc::channel(100);
         let mut state = AppState::new(
             HashMap::new(),
@@ -84,6 +89,22 @@ mod tests {
             terminal.draw(|f| render_ui(f, state, &styles)).unwrap();
         })
     }
+
+    // About the allocation bounds asserted below.
+    //
+    // These bounds count Rust-level calls into the global allocator, which is
+    // a function of the code and the `ratatui`/`std` versions, not of the host
+    // OS or system allocator — so they are stable across Linux/macOS for a
+    // given toolchain, but expect to re-baseline them after a `ratatui` or Rust
+    // upgrade changes the widget tree or `Vec`/format internals.
+    //
+    // Last measured (dtop's pinned `ratatui`, Rust on aarch64-darwin):
+    //   single-host  = 1271 (bound 1300)
+    //   multi-host   = 1365 (bound 1400)
+    //   per-container = 41.5 (bound 42)
+    // The headroom is deliberately tight so a real regression trips the test;
+    // if a routine toolchain bump pushes a value just over, re-measure (the
+    // `println!`s report the live numbers) and lift the bound to match.
 
     #[test]
     fn render_container_list_steady_state_allocations() {

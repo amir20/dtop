@@ -62,9 +62,20 @@ unsafe impl GlobalAlloc for CountingAllocator {
 /// Nested/parallel measurements on the same thread are not supported; this is
 /// intended to wrap a single hot-path call in a test.
 pub fn count_allocations<F: FnOnce()>(f: F) -> u64 {
+    // Disable counting on drop so a panic inside `f` cannot leave `ENABLED`
+    // stuck at `true`. The test harness reuses worker threads, so a leaked
+    // flag would silently pollute later measurements on the same thread (and
+    // count allocations performed during unwinding).
+    struct DisableOnDrop;
+    impl Drop for DisableOnDrop {
+        fn drop(&mut self) {
+            ENABLED.with(|e| e.set(false));
+        }
+    }
+
     COUNT.with(|c| c.set(0));
+    let _guard = DisableOnDrop;
     ENABLED.with(|e| e.set(true));
     f();
-    ENABLED.with(|e| e.set(false));
     COUNT.with(|c| c.get())
 }

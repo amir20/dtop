@@ -26,23 +26,23 @@ fn write_byte_value(
     let (gb_prec, mb_prec, kb_prec, b_prec) = precisions;
     let b = if include_b { "B" } else { "" };
 
-    // `write!` to a `String` is infallible; the `let _` discards the Result.
-    let _ = if value >= GB {
+    // `write!` to a `String` is infallible, so each `let _` discards the Result.
+    if value >= GB {
         let gb = value / GB;
         // When precision is 0, show one decimal for fractional values so
         // 1.5G doesn't render as 2G. Whole numbers stay clean (e.g. "4G").
         if gb_prec == 0 && (gb - gb.round()).abs() >= 0.05 {
-            write!(buf, "{:.1}G{}{}", gb, b, suffix)
+            let _ = write!(buf, "{:.1}G{}{}", gb, b, suffix);
         } else {
-            write!(buf, "{:.prec$}G{}{}", gb, b, suffix, prec = gb_prec)
+            let _ = write!(buf, "{:.prec$}G{}{}", gb, b, suffix, prec = gb_prec);
         }
     } else if value >= MB {
-        write!(buf, "{:.prec$}M{}{}", value / MB, b, suffix, prec = mb_prec)
+        let _ = write!(buf, "{:.prec$}M{}{}", value / MB, b, suffix, prec = mb_prec);
     } else if value >= KB {
-        write!(buf, "{:.prec$}K{}{}", value / KB, b, suffix, prec = kb_prec)
+        let _ = write!(buf, "{:.prec$}K{}{}", value / KB, b, suffix, prec = kb_prec);
     } else {
-        write!(buf, "{:.prec$}B{}", value, suffix, prec = b_prec)
-    };
+        let _ = write!(buf, "{:.prec$}B{}", value, suffix, prec = b_prec);
+    }
 }
 
 /// Writes a human-readable byte value (B, K, M, G) into an existing buffer.
