@@ -10,4 +10,6 @@ pub mod render;
 pub mod sort_selector;
 
 #[cfg(test)]
+mod alloc_tests;
+#[cfg(test)]
 mod ui_tests;

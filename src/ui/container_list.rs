@@ -1,6 +1,6 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{Column, Container, ContainerState, HealthStatus, SortState};
-use crate::ui::formatters::{format_bytes, format_bytes_per_sec, format_time_elapsed};
+use crate::ui::formatters::{format_bytes_per_sec, format_time_elapsed, write_bytes};
 use crate::ui::render::UiStyles;
 use ratatui::{
     Frame,
@@ -24,7 +24,10 @@ pub fn render_container_list(
 
     app_state.sort_containers();
 
-    let visible_columns = app_state.column_config.visible_columns();
+    // Refresh the reusable visible-columns buffer in place (no per-frame alloc),
+    // then borrow it for the rest of the render.
+    app_state.refresh_visible_columns();
+    let visible_columns = &app_state.visible_columns_cache;
 
     let rows: Vec<Row> = app_state
         .sorted_container_keys
@@ -34,7 +37,7 @@ pub fn render_container_list(
             create_container_row(
                 c,
                 styles,
-                &visible_columns,
+                visible_columns,
                 show_host_column,
                 show_progress_bars,
             )
@@ -43,7 +46,7 @@ pub fn render_container_list(
 
     let header = create_header_row(
         styles,
-        &visible_columns,
+        visible_columns,
         show_host_column,
         app_state.sort_state,
     );
@@ -52,7 +55,7 @@ pub fn render_container_list(
         header,
         app_state.sorted_container_keys.len(),
         styles,
-        &visible_columns,
+        visible_columns,
         show_host_column,
         show_progress_bars,
     );
@@ -176,7 +179,6 @@ fn create_progress_bar(percentage: f64, width: usize) -> String {
 
 /// Creates a text-based progress bar with memory used/limit display
 fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usize) -> String {
-    use std::fmt::Write;
     // Clamp the bar visual to 100%, but display the actual percentage value
     let bar_percentage = percentage.clamp(0.0, 100.0);
     let filled_width = ((bar_percentage / 100.0) * width as f64).round() as usize;
@@ -184,7 +186,12 @@ fn create_memory_progress_bar(percentage: f64, used: u64, limit: u64, width: usi
 
     let mut result = String::with_capacity(width * 3 + 20);
     write_bar(&mut result, filled_width, empty_width);
-    let _ = write!(result, " {}/{}", format_bytes(used), format_bytes(limit));
+    // Format the byte values directly into `result` to avoid two intermediate
+    // String allocations per row.
+    result.push(' ');
+    write_bytes(&mut result, used);
+    result.push('/');
+    write_bytes(&mut result, limit);
     result
 }
 

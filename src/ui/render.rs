@@ -74,11 +74,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     // Render main content
     match &state.view_state {
         ViewState::ContainerList | ViewState::SearchMode => {
-            // Calculate unique hosts to determine if host column should be shown
-            let unique_hosts: std::collections::HashSet<_> =
-                state.containers.keys().map(|key| &key.host_id).collect();
-            let show_host_column = unique_hosts.len() > 1;
-
+            let show_host_column = state.has_multiple_hosts();
             render_container_list(f, size, state, styles, show_host_column);
         }
         ViewState::LogView(container_key) => {
@@ -86,9 +82,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
             render_log_view(f, size, &container_key, state, styles);
         }
         ViewState::ColumnSelector | ViewState::SortSelector => {
-            let unique_hosts: std::collections::HashSet<_> =
-                state.containers.keys().map(|key| &key.host_id).collect();
-            let show_host_column = unique_hosts.len() > 1;
+            let show_host_column = state.has_multiple_hosts();
             render_container_list(f, size, state, styles, show_host_column);
             if state.view_state == ViewState::ColumnSelector {
                 render_column_selector(f, state, styles);
@@ -98,10 +92,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
         }
         ViewState::ActionMenu(_) => {
             // First render the container list in the background
-            let unique_hosts: std::collections::HashSet<_> =
-                state.containers.keys().map(|key| &key.host_id).collect();
-            let show_host_column = unique_hosts.len() > 1;
-
+            let show_host_column = state.has_multiple_hosts();
             render_container_list(f, size, state, styles, show_host_column);
 
             // Then render the action menu on top

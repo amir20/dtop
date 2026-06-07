@@ -26,6 +26,10 @@ pub struct AppState {
     pub containers: HashMap<ContainerKey, Container>,
     /// Pre-sorted list of container keys for efficient rendering
     pub sorted_container_keys: Vec<ContainerKey>,
+    /// Reusable buffer of currently visible columns, refreshed each frame in
+    /// place (clear + extend) so rendering does not allocate a new `Vec` per
+    /// frame. See `refresh_visible_columns`.
+    pub visible_columns_cache: Vec<Column>,
     /// Whether the application should quit
     pub should_quit: bool,
     /// Table selection state
@@ -87,6 +91,7 @@ impl AppState {
         Self {
             containers: HashMap::new(),
             sorted_container_keys: Vec::new(),
+            visible_columns_cache: Vec::new(),
             should_quit: false,
             table_state: TableState::default(),
             view_state: ViewState::ContainerList,
@@ -111,6 +116,38 @@ impl AppState {
             connection_errors: HashMap::new(),
             last_sort_time: Instant::now(),
         }
+    }
+
+    /// Returns true if containers span more than one Docker host.
+    ///
+    /// This is used every frame to decide whether to show the "Host" column.
+    /// It iterates keys with an early return instead of collecting into a
+    /// `HashSet`, so it performs no heap allocation.
+    pub fn has_multiple_hosts(&self) -> bool {
+        let mut first: Option<&str> = None;
+        for key in self.containers.keys() {
+            match first {
+                None => first = Some(key.host_id.as_str()),
+                Some(h) if h != key.host_id.as_str() => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// Rebuilds the cached list of visible columns in place.
+    ///
+    /// Reuses the existing `Vec`'s capacity (`clear` + `extend`), so after the
+    /// first frame this does not allocate even though it runs every frame.
+    pub fn refresh_visible_columns(&mut self) {
+        self.visible_columns_cache.clear();
+        self.visible_columns_cache.extend(
+            self.column_config
+                .columns
+                .iter()
+                .filter(|(_, visible)| *visible)
+                .map(|(col, _)| *col),
+        );
     }
 
     /// Processes a single event and returns what action to take

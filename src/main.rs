@@ -3,6 +3,17 @@ mod core;
 mod docker;
 mod ui;
 
+// Test-only allocation counting allocator. `main.rs` is a separate crate root
+// that recompiles the module tree (including the allocation-regression tests),
+// so it needs its own copy of the allocator and global registration.
+#[cfg(test)]
+#[path = "alloc_counter.rs"]
+mod alloc_counter;
+
+#[cfg(test)]
+#[global_allocator]
+static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingAllocator;
+
 use clap::Parser;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{
