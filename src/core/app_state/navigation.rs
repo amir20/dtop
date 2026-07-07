@@ -40,6 +40,70 @@ impl AppState {
         RenderAction::Render // Force draw - selection changed
     }
 
+    pub(super) fn handle_page_up(&mut self) -> RenderAction {
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
+            return RenderAction::None;
+        }
+
+        let container_count = self.sorted_container_keys.len();
+        if container_count > 0 {
+            let page = self.last_list_viewport_height.max(1);
+            let selected = self.table_state.selected().unwrap_or(0);
+            self.table_state.select(Some(selected.saturating_sub(page)));
+        }
+        RenderAction::Render // Force draw - selection changed
+    }
+
+    pub(super) fn handle_page_down(&mut self) -> RenderAction {
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
+            return RenderAction::None;
+        }
+
+        let container_count = self.sorted_container_keys.len();
+        if container_count > 0 {
+            let page = self.last_list_viewport_height.max(1);
+            let selected = self.table_state.selected().unwrap_or(0);
+            let target = (selected + page).min(container_count - 1);
+            self.table_state.select(Some(target));
+        }
+        RenderAction::Render // Force draw - selection changed
+    }
+
+    pub(super) fn handle_select_first(&mut self) -> RenderAction {
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
+            return RenderAction::None;
+        }
+
+        if !self.sorted_container_keys.is_empty() {
+            self.table_state.select(Some(0));
+        }
+        RenderAction::Render // Force draw - selection changed
+    }
+
+    pub(super) fn handle_select_last(&mut self) -> RenderAction {
+        if !matches!(
+            self.view_state,
+            ViewState::ContainerList | ViewState::SearchMode
+        ) {
+            return RenderAction::None;
+        }
+
+        let container_count = self.sorted_container_keys.len();
+        if container_count > 0 {
+            self.table_state.select(Some(container_count - 1));
+        }
+        RenderAction::Render // Force draw - selection changed
+    }
+
     /// Note: In search mode, '?' is routed to handle_search_key_event by handle_key_input,
     /// so this method is only called outside of search mode.
     pub(super) fn handle_toggle_help(&mut self) -> RenderAction {
