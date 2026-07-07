@@ -54,6 +54,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             "  a           Show all containers         /      Filter         o      Open Dozzle",
         ),
         Line::from("  s           Sort by                     c      Column visibility"),
+        Line::from("  PgUp/PgDn   Page up/down                Home   First          End    Last"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Log View Scrolling",

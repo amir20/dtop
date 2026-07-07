@@ -2,9 +2,11 @@
 mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
-        Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats, ViewState,
+        AppEvent, Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats,
+        ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;
@@ -820,5 +822,101 @@ mod tests {
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
         assert_snapshot_with_redaction!(output);
+    }
+
+    /// Populates the given state with `count` running containers on the local host.
+    fn populate_containers(state: &mut AppState, count: usize) {
+        for i in 0..count {
+            let container = create_test_container(
+                &format!("id{i:010}"),
+                &format!("c{i}"),
+                "local",
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+            );
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+        state.table_state.select(Some(0));
+    }
+
+    #[test]
+    fn test_page_down_moves_by_viewport_height() {
+        let mut state = create_test_app_state();
+        populate_containers(&mut state, 100);
+        state.last_list_viewport_height = 10;
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::PageDown,
+            KeyModifiers::NONE,
+        )));
+
+        assert_eq!(state.table_state.selected(), Some(10));
+    }
+
+    #[test]
+    fn test_page_up_moves_by_viewport_height() {
+        let mut state = create_test_app_state();
+        populate_containers(&mut state, 100);
+        state.last_list_viewport_height = 10;
+        state.table_state.select(Some(25));
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::PageUp,
+            KeyModifiers::NONE,
+        )));
+
+        assert_eq!(state.table_state.selected(), Some(15));
+    }
+
+    #[test]
+    fn test_page_down_clamps_to_last_container() {
+        let mut state = create_test_app_state();
+        populate_containers(&mut state, 5);
+        state.last_list_viewport_height = 10;
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::PageDown,
+            KeyModifiers::NONE,
+        )));
+
+        assert_eq!(state.table_state.selected(), Some(4));
+    }
+
+    #[test]
+    fn test_page_up_clamps_to_first_container() {
+        let mut state = create_test_app_state();
+        populate_containers(&mut state, 100);
+        state.last_list_viewport_height = 10;
+        state.table_state.select(Some(3));
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::PageUp,
+            KeyModifiers::NONE,
+        )));
+
+        assert_eq!(state.table_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_home_and_end_jump_to_bounds() {
+        let mut state = create_test_app_state();
+        populate_containers(&mut state, 50);
+        state.table_state.select(Some(20));
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::End,
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(state.table_state.selected(), Some(49));
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Home,
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(state.table_state.selected(), Some(0));
     }
 }

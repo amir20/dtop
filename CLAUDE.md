@@ -734,6 +734,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 
 **Container List View:**
 - `↑/↓` - Navigate between containers
+- `PageUp/PageDown` (or `Ctrl-U`/`Ctrl-D`) - Move selection up/down by one page
+- `Home`/`End` - Jump to first/last container
 - `Enter` - Open action menu for selected container
 - `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application

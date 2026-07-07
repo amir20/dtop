@@ -45,6 +45,8 @@ pub struct AppState {
     pub last_viewport_height: usize,
     /// Last known viewport inner width for visual line calculations
     pub last_viewport_width: usize,
+    /// Last known number of visible container rows (for container list page up/down)
+    pub last_list_viewport_height: usize,
     /// Connected Docker hosts for log streaming
     pub connected_hosts: HashMap<String, DockerHost>,
     /// Event sender for spawning log streams
@@ -100,6 +102,7 @@ impl AppState {
             is_at_bottom: true,
             last_viewport_height: 20, // Default to 20 lines (will be updated on first render)
             last_viewport_width: 80,  // Default width (will be updated on first render)
+            last_list_viewport_height: 20, // Default visible rows (updated on first render)
             connected_hosts,
             event_tx,
             is_ssh_session,
@@ -222,8 +225,14 @@ impl AppState {
         // Ctrl modifiers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return match key.code {
-                KeyCode::Char('u') => self.handle_scroll_page_up(),
-                KeyCode::Char('d') => self.handle_scroll_page_down(),
+                KeyCode::Char('u') => match &self.view_state {
+                    ViewState::ContainerList | ViewState::SearchMode => self.handle_page_up(),
+                    _ => self.handle_scroll_page_up(),
+                },
+                KeyCode::Char('d') => match &self.view_state {
+                    ViewState::ContainerList | ViewState::SearchMode => self.handle_page_down(),
+                    _ => self.handle_scroll_page_down(),
+                },
                 _ => RenderAction::None,
             };
         }
@@ -252,10 +261,22 @@ impl AppState {
                 // ColumnSelector/SortSelector handled by early returns above
                 ViewState::ColumnSelector | ViewState::SortSelector => RenderAction::None,
             },
-            KeyCode::PageUp => self.handle_scroll_page_up(),
-            KeyCode::PageDown => self.handle_scroll_page_down(),
-            KeyCode::Home => self.handle_scroll_to_top(),
-            KeyCode::End => self.handle_scroll_to_bottom(),
+            KeyCode::PageUp => match &self.view_state {
+                ViewState::ContainerList | ViewState::SearchMode => self.handle_page_up(),
+                _ => self.handle_scroll_page_up(),
+            },
+            KeyCode::PageDown => match &self.view_state {
+                ViewState::ContainerList | ViewState::SearchMode => self.handle_page_down(),
+                _ => self.handle_scroll_page_down(),
+            },
+            KeyCode::Home => match &self.view_state {
+                ViewState::ContainerList | ViewState::SearchMode => self.handle_select_first(),
+                _ => self.handle_scroll_to_top(),
+            },
+            KeyCode::End => match &self.view_state {
+                ViewState::ContainerList | ViewState::SearchMode => self.handle_select_last(),
+                _ => self.handle_scroll_to_bottom(),
+            },
             KeyCode::Enter => self.handle_enter_pressed(),
             KeyCode::Esc => self.handle_cancel_action_menu(),
             KeyCode::Char('o') => self.handle_open_dozzle(),

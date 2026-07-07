@@ -22,6 +22,11 @@ pub fn render_container_list(
     let width = area.width;
     let show_progress_bars = width >= 128;
 
+    // Track visible data rows for page up/down navigation.
+    // Layout consumes: proportional(1) block padding (top+bottom = 2 rows) and
+    // the header row plus its bottom_margin(1) = 2 rows.
+    app_state.last_list_viewport_height = (area.height as usize).saturating_sub(4).max(1);
+
     app_state.sort_containers();
 
     // Refresh the reusable visible-columns buffer in place (no per-frame alloc),
