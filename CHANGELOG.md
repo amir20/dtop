@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.8] - 2026-07-08
+
+### Features
+
+- *(navigation)* Add PageUp/PageDown to container list (#314)
+
 ## [0.7.7] - 2026-06-05
 
 ### Refactor
