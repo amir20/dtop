@@ -529,7 +529,11 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
     if host == "local" {
         // Follow the Docker CLI's endpoint resolution (DOCKER_HOST, DOCKER_CONTEXT,
         // config.json currentContext) so dtop works with colima, Rancher Desktop, etc.
-        if let Some(endpoint) = crate::docker::context::resolve_local_endpoint() {
+        // Guard against a resolved endpoint of "local" (e.g. DOCKER_HOST=local) to
+        // avoid infinite recursion back into this branch.
+        if let Some(endpoint) = crate::docker::context::resolve_local_endpoint()
+            && endpoint != "local"
+        {
             debug!("Resolved local Docker endpoint to: {}", endpoint);
             return connect_docker(&endpoint);
         }

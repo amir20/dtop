@@ -100,6 +100,10 @@ fn resolve_with(
 }
 
 /// Reads the Docker endpoint for a named context from its `meta.json`.
+///
+/// Logs a warning (and returns `None`, so the caller falls back to the default
+/// socket) when the context metadata is missing, unreadable, or malformed — a
+/// typo'd context name is the common case and is otherwise hard to diagnose.
 fn context_endpoint(name: &str, home: Option<PathBuf>) -> Option<String> {
     let meta_path = home?
         .join(".docker")
@@ -108,12 +112,46 @@ fn context_endpoint(name: &str, home: Option<PathBuf>) -> Option<String> {
         .join(context_dir_name(name))
         .join("meta.json");
 
-    let contents = std::fs::read_to_string(&meta_path).ok()?;
-    let meta: ContextMeta = serde_json::from_str(&contents).ok()?;
-    meta.endpoints
+    let contents = match std::fs::read_to_string(&meta_path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            tracing::warn!(
+                "Docker context '{}' could not be read at {} ({}); falling back to the default socket",
+                name,
+                meta_path.display(),
+                e
+            );
+            return None;
+        }
+    };
+
+    let meta: ContextMeta = match serde_json::from_str(&contents) {
+        Ok(meta) => meta,
+        Err(e) => {
+            tracing::warn!(
+                "Docker context '{}' metadata at {} is malformed ({}); falling back to the default socket",
+                name,
+                meta_path.display(),
+                e
+            );
+            return None;
+        }
+    };
+
+    let endpoint = meta
+        .endpoints
         .docker
         .and_then(|d| d.host)
-        .filter(|h| !h.is_empty())
+        .filter(|h| !h.is_empty());
+
+    if endpoint.is_none() {
+        tracing::warn!(
+            "Docker context '{}' has no docker endpoint host; falling back to the default socket",
+            name
+        );
+    }
+
+    endpoint
 }
 
 /// The metadata directory for a context is the lowercase hex SHA-256 of its name.
