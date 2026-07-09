@@ -76,7 +76,8 @@ struct Args {
     /// Docker host(s) to connect to. Can be specified multiple times.
     ///
     /// Examples:
-    ///   --host local                    (Connect to local Docker daemon)
+    ///   --host local                    (Connect to local Docker daemon / active Docker context)
+    ///   --host unix:///path/docker.sock (Connect to a specific Unix socket)
     ///   --host ssh://user@host          (Connect via SSH)
     ///   --host ssh://user@host:2222     (Connect via SSH with custom port)
     ///   --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
@@ -85,6 +86,9 @@ struct Args {
     ///
     /// For TLS connections, set DOCKER_CERT_PATH to a directory containing:
     ///   key.pem, cert.pem, and ca.pem
+    ///
+    /// "local" follows the Docker CLI's endpoint resolution: it honors DOCKER_HOST,
+    /// DOCKER_CONTEXT, and the active `docker context` from ~/.docker/config.json.
     ///
     /// If not specified, will use config file or default to "local"
     #[arg(short = 'H', long, verbatim_doc_comment)]
