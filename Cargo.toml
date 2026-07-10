@@ -29,7 +29,7 @@ ansi-to-tui = "8.0"
 timeago = "0.6"
 url = "2.5"
 tui-input = "0.15"
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 self_update = { version = "0.44", default-features = false, features = ["archive-tar", "compression-flate2", "rustls", "ureq"], optional = true }
 tracing = "0.1"
