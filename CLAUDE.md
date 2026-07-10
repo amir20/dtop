@@ -492,13 +492,25 @@ The application supports interactive container management through an action menu
 
 ### Docker Connection
 
-The `connect_docker()` function in `main.rs` handles four connection modes:
-- `--host local`: Uses local Docker socket
+The `connect_docker()` function (`docker/connection.rs`) handles these connection modes:
+- `--host local`: Resolves the endpoint via the Docker CLI's rules (see below), falling back to the OS default socket
+- `--host unix:///path/to/docker.sock`: Connects to a specific Unix socket
 - `--host ssh://user@host[:port]`: Connects via SSH (requires Bollard SSH feature)
 - `--host tcp://host:port`: Connects via TCP to remote Docker daemon (unencrypted)
 - `--host tls://host:port`: Connects via TLS to remote Docker daemon (encrypted, requires DOCKER_CERT_PATH)
 
 Multiple `--host` arguments can be provided to monitor multiple Docker hosts simultaneously.
+
+**Docker Context Resolution (`docker/context.rs`):**
+For the `local` host, dtop mirrors the Docker CLI's endpoint resolution so it works
+out of the box with colima, Rancher Desktop, and similar tools. Resolution order:
+1. `DOCKER_HOST` environment variable (any scheme)
+2. `DOCKER_CONTEXT` environment variable naming a context
+3. `currentContext` in `~/.docker/config.json`
+4. The `default` context (OS default socket)
+
+For a named context, the endpoint is read from `~/.docker/contexts/meta/<sha256(name)>/meta.json`.
+The `local` host_id is preserved in the UI regardless of the resolved endpoint.
 
 **Note:** TCP connections are unencrypted. Only use on trusted networks or with proper firewall rules. For encrypted connections, use TLS with certificates.
 

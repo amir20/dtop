@@ -506,7 +506,11 @@ pub async fn container_manager(host: DockerHost, tx: EventSender) {
 /// Connects to Docker based on the host string
 ///
 /// # Arguments
-/// * `host` - Host specification string (e.g., "local", "ssh://user@host", "tcp://host:port", "tls://host:port")
+/// * `host` - Host specification string (e.g., "local", "unix:///path/to/docker.sock", "ssh://user@host", "tcp://host:port", "tls://host:port")
+///
+/// The `"local"` host follows the Docker CLI's endpoint resolution: it honors the
+/// `DOCKER_HOST` and `DOCKER_CONTEXT` environment variables and the active context
+/// from `~/.docker/config.json`, so it works with colima, Rancher Desktop, etc.
 ///
 /// # Returns
 /// * `Ok(Docker)` - Successfully connected Docker instance
@@ -523,10 +527,29 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
     use tracing::{debug, error};
 
     if host == "local" {
-        debug!("Connecting to local Docker daemon");
-        // Connect to local Docker daemon using default settings
+        // Follow the Docker CLI's endpoint resolution (DOCKER_HOST, DOCKER_CONTEXT,
+        // config.json currentContext) so dtop works with colima, Rancher Desktop, etc.
+        // Guard against a resolved endpoint of "local" (e.g. DOCKER_HOST=local) to
+        // avoid infinite recursion back into this branch.
+        if let Some(endpoint) = crate::docker::context::resolve_local_endpoint()
+            && endpoint != "local"
+        {
+            debug!("Resolved local Docker endpoint to: {}", endpoint);
+            return connect_docker(&endpoint);
+        }
+
+        debug!("Connecting to local Docker daemon using default socket");
         Docker::connect_with_local_defaults().map_err(|e| {
             error!("Local Docker connection failed: {:?}", e);
+            e.into()
+        })
+    } else if host.starts_with("unix://") {
+        debug!("Connecting to Docker via Unix socket: {}", host);
+        Docker::connect_with_unix(host, 120, API_DEFAULT_VERSION).map_err(|e| {
+            error!(
+                "Unix socket Docker connection failed for '{}': {:?}",
+                host, e
+            );
             e.into()
         })
     } else if host.starts_with("ssh://") {
@@ -579,7 +602,7 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
         )?)
     } else {
         Err(format!(
-            "Invalid host format: '{}'. Use 'local', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
+            "Invalid host format: '{}'. Use 'local', 'unix:///path/to/docker.sock', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
             host
         )
         .into())
