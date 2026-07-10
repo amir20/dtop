@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.9] - 2026-07-10
+
+### Features
+
+- Docker context & unix:// socket support (#316)
+
+### Bug Fixes
+
+- *(deps)* Update rust crate sha2 to 0.11 (#318)
+
 ## [0.7.8] - 2026-07-08
 
 ### Features
