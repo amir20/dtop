@@ -13,28 +13,6 @@ use crate::ui::render::UiStyles;
 pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
     let area = f.area();
 
-    // Create a centered popup (80% width, 50% height for compact layout)
-    let popup_width = (area.width as f32 * 0.8) as u16;
-    let popup_height = (area.height as f32 * 0.5) as u16;
-
-    let popup_x = (area.width.saturating_sub(popup_width)) / 2;
-    let popup_y = (area.height.saturating_sub(popup_height)) / 2;
-
-    let popup_area = Rect::new(popup_x, popup_y, popup_width, popup_height);
-
-    // Clear the background area first to prevent bleed-through
-    f.render_widget(Clear, popup_area);
-
-    // Render the popup block
-    let block = Block::default()
-        .title(" Help - Press ? or ESC to close ")
-        .title_alignment(Alignment::Center)
-        .borders(Borders::ALL)
-        .border_style(styles.header)
-        .style(Style::default().bg(Color::Black));
-
-    f.render_widget(block, popup_area);
-
     // Create help content - compact layout
     let help_text = vec![
         Line::from(""),
@@ -129,6 +107,30 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             Span::raw(" (>80%)"),
         ]),
     ];
+
+    // Size the popup to fit the content (2 rows top padding + 1 row bottom border),
+    // capped to the available area so it never overflows the terminal.
+    let popup_width = (area.width as f32 * 0.8) as u16;
+    let content_height = help_text.len() as u16 + 3;
+    let popup_height = content_height.min(area.height);
+
+    let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+    let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+
+    let popup_area = Rect::new(popup_x, popup_y, popup_width, popup_height);
+
+    // Clear the background area first to prevent bleed-through
+    f.render_widget(Clear, popup_area);
+
+    // Render the popup block
+    let block = Block::default()
+        .title(" Help - Press ? or ESC to close ")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL)
+        .border_style(styles.header)
+        .style(Style::default().bg(Color::Black));
+
+    f.render_widget(block, popup_area);
 
     // Calculate inner area (inside the border)
     let inner_area = Rect::new(
