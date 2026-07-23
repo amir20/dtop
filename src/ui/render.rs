@@ -60,11 +60,14 @@ impl UiStyles {
     }
 }
 
-/// Cleans up expired connection errors. Call this from the event loop, not during rendering.
+/// Cleans up expired connection errors and notifications. Call this from the event loop, not during rendering.
 pub fn cleanup_expired_errors(state: &mut AppState) {
     state
         .connection_errors
         .retain(|_, (_, timestamp)| timestamp.elapsed().as_secs() < 10);
+
+    // Clear expired notifications
+    state.clear_expired_notification();
 }
 
 /// Renders the main UI - either container list, log view, or action menu
@@ -121,6 +124,9 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
 
     // Render connection error notifications in top right corner
     render_error_notifications(f, state, styles);
+
+    // Render notification (save/reset confirmations) at the bottom
+    render_notification(f, state);
 }
 
 /// Renders the search bar at the bottom of the screen (vi-style)
@@ -208,4 +214,60 @@ fn render_error_notifications(f: &mut Frame, state: &AppState, styles: &UiStyles
 
         y_offset += error_height;
     }
+}
+
+/// Renders notification messages (save/reset confirmations) at the bottom center
+fn render_notification(f: &mut Frame, state: &AppState) {
+    use std::time::Instant;
+
+    let (message, expiry) = match &state.notification {
+        Some((msg, exp)) => (msg, exp),
+        None => return,
+    };
+
+    // Don't render if expired
+    if Instant::now() > *expiry {
+        return;
+    }
+
+    let screen_area = f.area();
+    let message_width = (message.len() + 4).min(screen_area.width as usize) as u16;
+
+    // Position at bottom center, above any search bar
+    let y_pos = screen_area.height.saturating_sub(3);
+    let x_pos = (screen_area.width.saturating_sub(message_width)) / 2;
+
+    let notification_area = Rect {
+        x: x_pos,
+        y: y_pos,
+        width: message_width,
+        height: 3,
+    };
+
+    // Use different styling based on whether it's a confirmation prompt
+    let is_confirm = state.reset_confirm_pending;
+    let border_style = if is_confirm {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+    let text_style = if is_confirm {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
+    };
+
+    let notification_widget = Paragraph::new(Line::from(vec![Span::styled(message, text_style)]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(border_style),
+        )
+        .alignment(Alignment::Center);
+
+    f.render_widget(notification_widget, notification_area);
 }

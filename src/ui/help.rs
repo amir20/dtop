@@ -57,6 +57,14 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  PgUp/PgDn   Page up/down                Home   First          End    Last"),
         Line::from(""),
         Line::from(vec![Span::styled(
+            "Preferences",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from("  Ctrl+S      Save preferences            Ctrl+R Reset to defaults"),
+        Line::from(""),
+        Line::from(vec![Span::styled(
             "Log View Scrolling",
             Style::default()
                 .fg(Color::Cyan)

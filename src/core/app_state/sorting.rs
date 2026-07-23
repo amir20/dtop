@@ -166,6 +166,14 @@ impl AppState {
                     .stats
                     .network_rx_bytes_per_sec
                     .total_cmp(&b.stats.network_rx_bytes_per_sec),
+                Column::DiskRead => a
+                    .stats
+                    .disk_read_bytes_per_sec
+                    .total_cmp(&b.stats.disk_read_bytes_per_sec),
+                Column::DiskWrite => a
+                    .stats
+                    .disk_write_bytes_per_sec
+                    .total_cmp(&b.stats.disk_write_bytes_per_sec),
                 Column::Status => {
                     let a_state = format!("{:?}", a.state);
                     let b_state = format!("{:?}", b.state);

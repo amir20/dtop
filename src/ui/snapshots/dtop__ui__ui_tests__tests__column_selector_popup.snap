@@ -1,5 +1,6 @@
 ---
 source: src/ui/ui_tests.rs
+assertion_line: 800
 expression: output
 ---
 dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)                                              
@@ -20,9 +21,9 @@ dtop vX.X.X - 0 containers ('?' for help, 'q' to quit)
                          │    Memory %                      [X]           │                         
                          │    Net TX                        [X]           │                         
                          │    Net RX                        [X]           │                         
+                         │    Disk R                        [ ]           │                         
+                         │    Disk W                        [ ]           │                         
                          │    Uptime                        [X]           │                         
-                         │    Restarts                      [ ]           │                         
-                         │                                                │                         
                          │                                                │                         
                          │    Enter/Space: Toggle  Esc: Close  c: Close   │                         
                          └────────────────────────────────────────────────┘

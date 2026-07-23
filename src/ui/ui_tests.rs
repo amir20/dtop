@@ -50,6 +50,7 @@ mod tests {
             tx,
             false,
             Column::Uptime,
+            None, // sort_direction
             ColumnConfig::default(),
             None,
         )
@@ -64,6 +65,21 @@ mod tests {
         memory: f64,
         net_tx: f64,
         net_rx: f64,
+    ) -> Container {
+        create_test_container_full(id, name, host_id, cpu, memory, net_tx, net_rx, 0.0, 0.0)
+    }
+
+    /// Helper function to create a test container with disk I/O values
+    fn create_test_container_full(
+        id: &str,
+        name: &str,
+        host_id: &str,
+        cpu: f64,
+        memory: f64,
+        net_tx: f64,
+        net_rx: f64,
+        disk_read: f64,
+        disk_write: f64,
     ) -> Container {
         use chrono::Utc;
 
@@ -83,6 +99,8 @@ mod tests {
                 memory_limit_bytes: 1_000_000_000,                 // 1GB limit
                 network_tx_bytes_per_sec: net_tx,
                 network_rx_bytes_per_sec: net_rx,
+                disk_read_bytes_per_sec: disk_read,
+                disk_write_bytes_per_sec: disk_write,
             },
             host_id: host_id.to_string(),
             dozzle_url: None,
@@ -766,7 +784,6 @@ mod tests {
 
         state.view_state = ViewState::ColumnSelector;
         state.column_selector_state.select(Some(0));
-        state.column_config_snapshot = Some(state.column_config.clone());
 
         let styles = UiStyles::default();
         let backend = TestBackend::new(100, 30);

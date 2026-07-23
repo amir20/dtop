@@ -92,6 +92,10 @@ pub struct ContainerStats {
     pub network_tx_bytes_per_sec: f64,
     /// Network receive rate in bytes per second
     pub network_rx_bytes_per_sec: f64,
+    /// Disk read rate in bytes per second
+    pub disk_read_bytes_per_sec: f64,
+    /// Disk write rate in bytes per second
+    pub disk_write_bytes_per_sec: f64,
 }
 
 /// Unique key for identifying containers across multiple hosts
@@ -258,6 +262,15 @@ impl SortState {
             direction: field.default_sort_direction(),
         }
     }
+
+    /// Creates a new SortState with an optional explicit direction.
+    /// If direction is None, uses the field's default direction.
+    pub fn new_with_direction(field: Column, direction: Option<SortDirection>) -> Self {
+        Self {
+            field,
+            direction: direction.unwrap_or_else(|| field.default_sort_direction()),
+        }
+    }
 }
 
 impl Default for SortState {
@@ -379,6 +392,8 @@ pub enum Column {
     Memory,
     NetTx,
     NetRx,
+    DiskRead,
+    DiskWrite,
     Uptime,
     Restarts,
 }
@@ -395,6 +410,8 @@ impl Column {
             Column::Memory => "Memory %",
             Column::NetTx => "Net TX",
             Column::NetRx => "Net RX",
+            Column::DiskRead => "Disk R",
+            Column::DiskWrite => "Disk W",
             Column::Uptime => "Uptime",
             Column::Restarts => "Restarts",
         }
@@ -411,6 +428,8 @@ impl Column {
             Column::Memory => "memory",
             Column::NetTx => "net_tx",
             Column::NetRx => "net_rx",
+            Column::DiskRead => "disk_read",
+            Column::DiskWrite => "disk_write",
             Column::Uptime => "uptime",
             Column::Restarts => "restarts",
         }
@@ -427,6 +446,8 @@ impl Column {
             "memory" => Some(Column::Memory),
             "net_tx" => Some(Column::NetTx),
             "net_rx" => Some(Column::NetRx),
+            "disk_read" => Some(Column::DiskRead),
+            "disk_write" => Some(Column::DiskWrite),
             "uptime" => Some(Column::Uptime),
             "restarts" => Some(Column::Restarts),
             _ => None,
@@ -444,6 +465,8 @@ impl Column {
             Column::Memory,
             Column::NetTx,
             Column::NetRx,
+            Column::DiskRead,
+            Column::DiskWrite,
             Column::Uptime,
             Column::Restarts,
         ]
@@ -451,7 +474,10 @@ impl Column {
 
     /// Returns whether this column is visible by default
     pub fn default_visible(self) -> bool {
-        !matches!(self, Column::Restarts | Column::Compose)
+        !matches!(
+            self,
+            Column::Restarts | Column::Compose | Column::DiskRead | Column::DiskWrite
+        )
     }
 
     /// Returns the default sort direction when sorting by this column
@@ -465,6 +491,8 @@ impl Column {
             | Column::Memory
             | Column::NetTx
             | Column::NetRx
+            | Column::DiskRead
+            | Column::DiskWrite
             | Column::Restarts => SortDirection::Descending,
         }
     }
@@ -492,6 +520,8 @@ impl Column {
             Column::Memory => "Memory",
             Column::NetTx => "Net TX",
             Column::NetRx => "Net RX",
+            Column::DiskRead => "Disk Read",
+            Column::DiskWrite => "Disk Write",
             Column::Uptime => "Uptime",
             Column::Restarts => "Restarts",
         }
@@ -603,6 +633,14 @@ mod tests {
             SortDirection::Descending
         );
         assert_eq!(
+            Column::DiskRead.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
+            Column::DiskWrite.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
             Column::Id.default_sort_direction(),
             SortDirection::Ascending
         );
@@ -637,6 +675,8 @@ mod tests {
         assert_eq!(Column::Memory.label(), "Memory %");
         assert_eq!(Column::NetTx.label(), "Net TX");
         assert_eq!(Column::NetRx.label(), "Net RX");
+        assert_eq!(Column::DiskRead.label(), "Disk R");
+        assert_eq!(Column::DiskWrite.label(), "Disk W");
         assert_eq!(Column::Uptime.label(), "Uptime");
         assert_eq!(Column::Restarts.label(), "Restarts");
     }
@@ -644,8 +684,8 @@ mod tests {
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 11);
-        // All columns except Restarts and Compose should be visible by default
+        assert_eq!(config.columns.len(), 13);
+        // All columns except Restarts, Compose, DiskRead, DiskWrite should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -662,7 +702,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
-        // Default has 9 visible (Restarts is hidden), minus Id = 8
+        // Default has 9 visible (Restarts, Compose, DiskRead, DiskWrite hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -747,7 +787,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 11);
+        assert_eq!(config.columns.len(), 13);
     }
 
     #[test]
@@ -774,6 +814,8 @@ mod tests {
         assert_eq!(Column::Memory.id(), "memory");
         assert_eq!(Column::NetTx.id(), "net_tx");
         assert_eq!(Column::NetRx.id(), "net_rx");
+        assert_eq!(Column::DiskRead.id(), "disk_read");
+        assert_eq!(Column::DiskWrite.id(), "disk_write");
         assert_eq!(Column::Uptime.id(), "uptime");
         assert_eq!(Column::Restarts.id(), "restarts");
     }
@@ -788,6 +830,8 @@ mod tests {
         assert_eq!(Column::from_id("memory"), Some(Column::Memory));
         assert_eq!(Column::from_id("net_tx"), Some(Column::NetTx));
         assert_eq!(Column::from_id("net_rx"), Some(Column::NetRx));
+        assert_eq!(Column::from_id("disk_read"), Some(Column::DiskRead));
+        assert_eq!(Column::from_id("disk_write"), Some(Column::DiskWrite));
         assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
         assert_eq!(Column::from_id("restarts"), Some(Column::Restarts));
         assert_eq!(Column::from_id("invalid"), None);

@@ -38,6 +38,10 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<String>,
 
+    /// Sort direction ("asc" or "desc")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_direction: Option<String>,
+
     /// Visible columns in order
     #[serde(skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<String>>,
@@ -160,6 +164,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -185,6 +190,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -206,6 +212,7 @@ mod tests {
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -284,6 +291,7 @@ hosts:
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -308,6 +316,7 @@ hosts:
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -331,6 +340,7 @@ hosts:
             icons: None,
             all: Some(false), // Config says false
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -350,6 +360,7 @@ hosts:
             icons: None,
             all: Some(true), // Config says true
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -369,6 +380,7 @@ hosts:
             icons: None,
             all: None, // No config value
             sort: None,
+            sort_direction: None,
             columns: None,
         };
 
@@ -388,6 +400,7 @@ hosts:
             icons: None,
             all: None,
             sort: Some("name".to_string()), // Config says name
+            sort_direction: None,
             columns: None,
         };
 
@@ -412,6 +425,7 @@ hosts:
             icons: None,
             all: None,
             sort: Some("memory".to_string()), // Config says memory
+            sort_direction: None,
             columns: None,
         };
 
@@ -470,11 +484,44 @@ hosts:
             icons: None,
             all: None,
             sort: None,
+            sort_direction: None,
             columns: Some(vec!["name".to_string(), "cpu".to_string()]),
         };
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("columns:"));
         assert!(yaml.contains("- name"));
         assert!(yaml.contains("- cpu"));
+    }
+
+    #[test]
+    fn test_yaml_deserialization_with_sort_direction() {
+        let yaml = r#"
+hosts:
+  - host: local
+sort: cpu
+sort_direction: asc
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.sort, Some("cpu".to_string()));
+        assert_eq!(config.sort_direction, Some("asc".to_string()));
+    }
+
+    #[test]
+    fn test_yaml_serialization_with_sort_direction() {
+        let config = Config {
+            hosts: vec![HostConfig {
+                host: "local".to_string(),
+                dozzle: None,
+                filter: None,
+            }],
+            icons: None,
+            all: None,
+            sort: Some("memory".to_string()),
+            sort_direction: Some("desc".to_string()),
+            columns: None,
+        };
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("sort: memory"));
+        assert!(yaml.contains("sort_direction: desc"));
     }
 }
