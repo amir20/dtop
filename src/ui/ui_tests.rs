@@ -70,6 +70,7 @@ mod tests {
     }
 
     /// Helper function to create a test container with disk I/O values
+    #[allow(clippy::too_many_arguments)]
     fn create_test_container_full(
         id: &str,
         name: &str,

@@ -12,12 +12,14 @@ impl AppState {
         self.notification = Some((message.to_string(), Instant::now() + Duration::from_secs(2)));
     }
 
-    /// Clears the notification if it has expired
+    /// Clears the notification if it has expired. Also cancels a pending reset
+    /// confirmation so a stray later `y` cannot trigger a reset with no prompt shown.
     pub fn clear_expired_notification(&mut self) {
         if let Some((_, expiry)) = &self.notification
             && Instant::now() > *expiry
         {
             self.notification = None;
+            self.reset_confirm_pending = false;
         }
     }
 

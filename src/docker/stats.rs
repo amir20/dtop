@@ -54,11 +54,38 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 let memory_percent = calculate_memory_percentage(&stats);
                 let (net_tx_rate, net_rx_rate) =
                     calculate_network_rates(&stats, prev_net_tx, prev_net_rx, prev_timestamp);
+
+                // Extract cumulative disk bytes exactly once per tick. The Docker API
+                // path is cheap; only the cgroups v2 filesystem fallback (moby#35352)
+                // touches the disk, and that runs off the async reactor via spawn_blocking.
+                let (disk_read_bytes, disk_write_bytes) = {
+                    let (read, write) = extract_disk_bytes(&stats);
+                    if read.is_some() || write.is_some() {
+                        (read, write)
+                    } else if is_local_host {
+                        let id = truncated_id.clone();
+                        let path = cached_cgroup_path.take();
+                        match tokio::task::spawn_blocking(move || {
+                            let mut path = path;
+                            let res = extract_cgroup_v2_disk_bytes(&id, &mut path);
+                            (res, path)
+                        })
+                        .await
+                        {
+                            Ok((res, path)) => {
+                                cached_cgroup_path = path;
+                                res
+                            }
+                            Err(_) => (None, None),
+                        }
+                    } else {
+                        (None, None)
+                    }
+                };
+
                 let (disk_read_rate, disk_write_rate) = calculate_disk_rates(
-                    &stats,
-                    &truncated_id,
-                    is_local_host,
-                    &mut cached_cgroup_path,
+                    disk_read_bytes,
+                    disk_write_bytes,
                     prev_disk_read,
                     prev_disk_write,
                     prev_timestamp,
@@ -70,14 +97,8 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 prev_net_rx = rx_bytes;
 
                 // Update previous disk I/O values for next iteration
-                let (read_bytes, write_bytes) = extract_disk_bytes_with_cgroup_fallback(
-                    &stats,
-                    &truncated_id,
-                    is_local_host,
-                    &mut cached_cgroup_path,
-                );
-                prev_disk_read = read_bytes;
-                prev_disk_write = write_bytes;
+                prev_disk_read = disk_read_bytes;
+                prev_disk_write = disk_write_bytes;
 
                 prev_timestamp = Some(Instant::now());
 
@@ -289,11 +310,9 @@ fn extract_disk_bytes(stats: &ContainerStatsResponse) -> (Option<u64>, Option<u6
         None => return (None, None),
     };
 
-    let entries = match blkio_stats
-        .io_service_bytes_recursive
-        .as_ref()
-        .or_else(|| blkio_stats.io_serviced_recursive.as_ref())
-    {
+    // Only io_service_bytes_recursive reports bytes. io_serviced_recursive counts
+    // operations (IOPS), not bytes, so it must not be used as a fallback here.
+    let entries = match blkio_stats.io_service_bytes_recursive.as_ref() {
         Some(e) => e,
         None => return (None, None),
     };
@@ -304,9 +323,9 @@ fn extract_disk_bytes(stats: &ContainerStatsResponse) -> (Option<u64>, Option<u6
     for entry in entries {
         let value = entry.value.unwrap_or(0);
         if let Some(op) = entry.op.as_deref() {
-            if op.eq_ignore_ascii_case("read") || op.eq_ignore_ascii_case("r") {
+            if op.eq_ignore_ascii_case("read") {
                 total_read += value;
-            } else if op.eq_ignore_ascii_case("write") || op.eq_ignore_ascii_case("w") {
+            } else if op.eq_ignore_ascii_case("write") {
                 total_write += value;
             }
         }
@@ -323,16 +342,16 @@ fn parse_io_stat_content(content: &str) -> (Option<u64>, Option<u64>) {
 
     for line in content.lines() {
         for part in line.split_whitespace() {
-            if let Some(r) = part.strip_prefix("rbytes=") {
-                if let Ok(val) = r.parse::<u64>() {
-                    total_read = total_read.saturating_add(val);
-                    found = true;
-                }
-            } else if let Some(w) = part.strip_prefix("wbytes=") {
-                if let Ok(val) = w.parse::<u64>() {
-                    total_write = total_write.saturating_add(val);
-                    found = true;
-                }
+            if let Some(r) = part.strip_prefix("rbytes=")
+                && let Ok(val) = r.parse::<u64>()
+            {
+                total_read = total_read.saturating_add(val);
+                found = true;
+            } else if let Some(w) = part.strip_prefix("wbytes=")
+                && let Ok(val) = w.parse::<u64>()
+            {
+                total_write = total_write.saturating_add(val);
+                found = true;
             }
         }
     }
@@ -354,10 +373,10 @@ fn extract_cgroup_v2_disk_bytes(
     cached_path: &mut Option<std::path::PathBuf>,
 ) -> (Option<u64>, Option<u64>) {
     // 1. Try cached path first
-    if let Some(path) = cached_path {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            return parse_io_stat_content(&content);
-        }
+    if let Some(path) = cached_path
+        && let Ok(content) = std::fs::read_to_string(path)
+    {
+        return parse_io_stat_content(&content);
     }
 
     // 2. Try direct cgroupfs path
@@ -372,15 +391,16 @@ fn extract_cgroup_v2_disk_bytes(
     if let Ok(entries) = std::fs::read_dir("/sys/fs/cgroup/system.slice") {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if let Some(scope_id) = name.strip_prefix("docker-") {
-                if scope_id.starts_with(container_id) && name.ends_with(".scope") {
-                    let io_stat_path = entry.path().join("io.stat");
-                    if let Ok(content) = std::fs::read_to_string(&io_stat_path) {
-                        let res = parse_io_stat_content(&content);
-                        if res.0.is_some() || res.1.is_some() {
-                            *cached_path = Some(io_stat_path);
-                            return res;
-                        }
+            if let Some(scope_id) = name.strip_prefix("docker-")
+                && scope_id.starts_with(container_id)
+                && name.ends_with(".scope")
+            {
+                let io_stat_path = entry.path().join("io.stat");
+                if let Ok(content) = std::fs::read_to_string(&io_stat_path) {
+                    let res = parse_io_stat_content(&content);
+                    if res.0.is_some() || res.1.is_some() {
+                        *cached_path = Some(io_stat_path);
+                        return res;
                     }
                 }
             }
@@ -390,39 +410,16 @@ fn extract_cgroup_v2_disk_bytes(
     (None, None)
 }
 
-fn extract_disk_bytes_with_cgroup_fallback(
-    stats: &ContainerStatsResponse,
-    container_id: &str,
-    is_local_host: bool,
-    cached_cgroup_path: &mut Option<std::path::PathBuf>,
-) -> (Option<u64>, Option<u64>) {
-    let (read, write) = extract_disk_bytes(stats);
-    if read.is_some() || write.is_some() {
-        (read, write)
-    } else if is_local_host {
-        extract_cgroup_v2_disk_bytes(container_id, cached_cgroup_path)
-    } else {
-        (None, None)
-    }
-}
-
-/// Calculates disk I/O rates in bytes per second
+/// Calculates disk I/O rates in bytes per second from pre-extracted cumulative
+/// byte counters. Byte extraction (including the potentially-blocking cgroups v2
+/// filesystem fallback) is done by the caller so it happens exactly once per tick.
 fn calculate_disk_rates(
-    stats: &ContainerStatsResponse,
-    container_id: &str,
-    is_local_host: bool,
-    cached_cgroup_path: &mut Option<std::path::PathBuf>,
+    current_read: Option<u64>,
+    current_write: Option<u64>,
     prev_read: Option<u64>,
     prev_write: Option<u64>,
     prev_time: Option<Instant>,
 ) -> (f64, f64) {
-    let (current_read, current_write) = extract_disk_bytes_with_cgroup_fallback(
-        stats,
-        container_id,
-        is_local_host,
-        cached_cgroup_path,
-    );
-
     // If we don't have previous values, return 0
     let (prev_read, prev_write, prev_time) = match (prev_read, prev_write, prev_time) {
         (Some(r), Some(w), Some(t)) => (r, w, t),
@@ -785,10 +782,15 @@ mod tests {
         let prev_read = Some(1_000_000u64);
         let prev_write = Some(500_000u64);
         let prev_time = Some(Instant::now() - std::time::Duration::from_secs(1));
-        let mut cached_path = None;
 
-        let (read_rate, write_rate) =
-            calculate_disk_rates(&stats, "test-id", false, &mut cached_path, prev_read, prev_write, prev_time);
+        let (current_read, current_write) = extract_disk_bytes(&stats);
+        let (read_rate, write_rate) = calculate_disk_rates(
+            current_read,
+            current_write,
+            prev_read,
+            prev_write,
+            prev_time,
+        );
 
         // Read: 2M - 1M = 1M bytes in ~1 second = ~1MB/s
         // Write: 1M - 500K = 500K bytes in ~1 second = ~500KB/s
@@ -810,8 +812,9 @@ mod tests {
             ..Default::default()
         };
 
-        let mut cached_path = None;
-        let (read_rate, write_rate) = calculate_disk_rates(&stats, "test-id", false, &mut cached_path, None, None, None);
+        let (current_read, current_write) = extract_disk_bytes(&stats);
+        let (read_rate, write_rate) =
+            calculate_disk_rates(current_read, current_write, None, None, None);
         assert_eq!(read_rate, 0.0);
         assert_eq!(write_rate, 0.0);
     }
@@ -824,9 +827,14 @@ mod tests {
         };
 
         let prev_time = Some(Instant::now() - std::time::Duration::from_secs(1));
-        let mut cached_path = None;
-        let (read_rate, write_rate) =
-            calculate_disk_rates(&stats, "test-id", false, &mut cached_path, Some(1_000_000), Some(500_000), prev_time);
+        let (current_read, current_write) = extract_disk_bytes(&stats);
+        let (read_rate, write_rate) = calculate_disk_rates(
+            current_read,
+            current_write,
+            Some(1_000_000),
+            Some(500_000),
+            prev_time,
+        );
 
         assert_eq!(read_rate, 0.0);
         assert_eq!(write_rate, 0.0);
