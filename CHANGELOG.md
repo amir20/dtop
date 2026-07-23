@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.10] - 2026-07-23
+
+### Features
+
+- Add Disk I/O monitoring with cgroups v2 fallback & persistent user preferences (#328)
+
+### Bug Fixes
+
+- *(stats)* Correct disk I/O extraction and follow-up cleanups (#329)
+
 ## [0.7.9] - 2026-07-10
 
 ### Features
