@@ -29,9 +29,37 @@ pub struct ContainerBlkioStatEntry {
 
 The `ContainerStatsResponse` struct has a `blkio_stats: Option<ContainerBlkioStats>` field.
 
-### Known Limitation
+### Known Limitation & Solution
 
-Per [moby/moby#35352](https://github.com/moby/moby/issues/35352), blkio stats may return zeros on some systems (especially with certain cgroup configurations). The implementation should handle this gracefully by showing 0 B/s or hiding the columns when no data is available.
+Per [moby/moby#35352](https://github.com/moby/moby/issues/35352), blkio stats return `null` via the Docker Engine API on Linux hosts running **cgroups v2** (e.g. RHEL 9 / EL 9).
+
+#### cgroups v2 Fallback Implementation (`src/docker/stats.rs`)
+
+To resolve this limitation, `dtop` implements an unprivileged cgroups v2 filesystem fallback:
+
+1. **Direct Path Resolution (`parse_io_stat_content`)**:
+   When `blkio_stats` from Docker API is `null`, `dtop` reads the container's cgroups v2 metrics directly from `/sys/fs/cgroup/docker/<container_id>/io.stat` or `/sys/fs/cgroup/system.slice/docker-<container_id>*.scope/io.stat`.
+2. **Unprivileged Metric Parsing**:
+   `io.stat` is world-readable on Linux cgroups v2 hosts. `dtop` parses `rbytes=` (read bytes) and `wbytes=` (write bytes) to compute real-time Disk R and Disk W rates without requiring `sudo` or root access.
+3. **Optimized Stream Path Caching**:
+   `stream_container_stats()` caches the resolved `PathBuf` (`cached_cgroup_path`) for each container stream after the first successful lookup, eliminating directory scanning on subsequent 1-second ticks.
+4. **Local Host Guard (`is_local_host`)**:
+   Local cgroups filesystem fallback is strictly guarded by checking `is_local_host` (`host.host_id == "local" || host.host_id.starts_with("unix://")`), preventing invalid local reads when monitoring remote Docker hosts over SSH or TCP.
+5. **Case-Insensitive Operation Matching**:
+   Operation label matching in `extract_disk_bytes()` uses `eq_ignore_ascii_case()` to support `"Read"`, `"Write"`, `"read"`, `"write"`, `"r"`, `"w"`.
+
+#### Triggering Condition: API Issue vs Idle Container (No I/O)
+
+The fallback is triggered **only when an API issue is detected (`None`/`null`)**, NOT when a container is idle with zero disk activity (`Some(0)`):
+
+| Scenario | Docker Stats API Return | `extract_disk_bytes()` Result | Triggers Fallback? | Behavior |
+|---|---|---|---|---|
+| **Container Idle (cgroups v1)** | `"blkio_stats": { "io_service_bytes_recursive": [...] }` | `(Some(0), Some(0))` | ❌ **NO** | Trusts Docker API. Displays `0 B/s`. |
+| **Active I/O (cgroups v1)** | `"blkio_stats": { "io_service_bytes_recursive": [...] }` | `(Some(1024), Some(2048))` | ❌ **NO** | Trusts Docker API. Displays rates. |
+| **cgroups v2 Issue (`moby#35352`)** | `"blkio_stats": null` | `(None, None)` | ✅ **YES** | **Triggers fallback.** Reads `/sys/fs/cgroup/.../io.stat`. |
+
+- `Some(0)` represents a valid API response indicating 0 cumulative bytes transferred (no I/O). The fallback is **skipped**.
+- `None` represents missing/null API data (the cgroups v2 API issue). The fallback **is executed**.
 
 ## Implementation Plan
 
