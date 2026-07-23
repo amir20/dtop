@@ -24,14 +24,8 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
 
     f.render_widget(Clear, popup_area);
 
-    let title = if state.column_save_prompt {
-        " Save to config? (y/n/esc) "
-    } else {
-        " Columns "
-    };
-
     let block = Block::default()
-        .title(title)
+        .title(" Columns ")
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
         .border_style(styles.header)
@@ -88,13 +82,7 @@ pub fn render_column_selector(f: &mut Frame, state: &mut AppState, styles: &UiSt
         1,
     );
 
-    let footer_text = if state.column_save_prompt {
-        "y: Save  n: Don't save  Esc: Cancel"
-    } else {
-        "Enter/Space: Toggle  Esc: Close  c: Close"
-    };
-
-    let footer = ratatui::widgets::Paragraph::new(footer_text)
+    let footer = ratatui::widgets::Paragraph::new("Enter/Space: Toggle  Esc: Close  c: Close")
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center);
 

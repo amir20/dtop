@@ -38,6 +38,8 @@ mod tests {
                 memory_limit_bytes: 2_000_000_000,
                 network_tx_bytes_per_sec: (i as f64) * 1024.0,
                 network_rx_bytes_per_sec: (i as f64) * 2048.0,
+                disk_read_bytes_per_sec: 0.0,
+                disk_write_bytes_per_sec: 0.0,
             },
             host_id: host.to_string(),
             dozzle_url: None,
@@ -56,6 +58,7 @@ mod tests {
             tx,
             false,
             Column::Uptime,
+            None, // sort_direction
             ColumnConfig::default(),
             None,
         );

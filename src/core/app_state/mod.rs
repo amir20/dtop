@@ -6,7 +6,7 @@ use tui_input::Input;
 
 use crate::core::types::{
     AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction,
-    SortState, ViewState,
+    SortDirection, SortState, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -17,6 +17,7 @@ mod container_events;
 mod integrations;
 mod log_view;
 mod navigation;
+mod preferences;
 mod search;
 pub mod sorting;
 
@@ -64,9 +65,7 @@ pub struct AppState {
     /// Search input widget
     pub search_input: Input,
     pub column_config: ColumnConfig,
-    pub column_config_snapshot: Option<ColumnConfig>,
     pub column_selector_state: ListState,
-    pub column_save_prompt: bool,
     pub config_path: Option<std::path::PathBuf>,
     /// Sort selector list state for selection tracking
     pub sort_selector_state: ListState,
@@ -74,6 +73,10 @@ pub struct AppState {
     pub connection_errors: HashMap<HostId, (String, Instant)>,
     /// Last time containers were sorted (for throttling)
     pub last_sort_time: Instant,
+    /// Notification message to display (message, expiry time)
+    pub notification: Option<(String, Instant)>,
+    /// Whether a reset confirmation is pending
+    pub reset_confirm_pending: bool,
 }
 
 impl AppState {
@@ -83,6 +86,7 @@ impl AppState {
         event_tx: mpsc::Sender<AppEvent>,
         show_all: bool,
         sort_field: Column,
+        sort_direction: Option<SortDirection>,
         column_config: ColumnConfig,
         config_path: Option<std::path::PathBuf>,
     ) -> Self {
@@ -107,18 +111,18 @@ impl AppState {
             event_tx,
             is_ssh_session,
             show_help: false,
-            sort_state: SortState::new(sort_field), // Use configured sort field with default direction
+            sort_state: SortState::new_with_direction(sort_field, sort_direction), // Use configured sort field and direction
             show_all_containers: show_all,
             action_menu_state: ListState::default(), // Default to no selection
             search_input: Input::default(),
             column_config,
-            column_config_snapshot: None,
             column_selector_state: ListState::default(),
-            column_save_prompt: false,
             config_path,
             sort_selector_state: ListState::default(),
             connection_errors: HashMap::new(),
             last_sort_time: Instant::now(),
+            notification: None,
+            reset_confirm_pending: false,
         }
     }
 
@@ -233,6 +237,21 @@ impl AppState {
                     ViewState::ContainerList | ViewState::SearchMode => self.handle_page_down(),
                     _ => self.handle_scroll_page_down(),
                 },
+                KeyCode::Char('s') => self.handle_save_preferences(),
+                KeyCode::Char('r') => self.handle_reset_preferences_prompt(),
+                _ => RenderAction::None,
+            };
+        }
+
+        // Handle reset confirmation if pending
+        if self.reset_confirm_pending {
+            return match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => self.handle_reset_preferences_confirm(),
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                    self.reset_confirm_pending = false;
+                    self.notification = None;
+                    RenderAction::Render
+                }
                 _ => RenderAction::None,
             };
         }

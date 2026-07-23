@@ -33,7 +33,7 @@ use tracing_subscriber::EnvFilter;
 use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
-use core::types::{AppEvent, Column, ColumnConfig, RenderAction};
+use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
 use docker::connection::{DockerHost, container_manager};
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
@@ -44,6 +44,7 @@ struct EventLoopConfig {
     icon_style: IconStyle,
     show_all: bool,
     sort_field: Column,
+    sort_direction: Option<SortDirection>,
     column_config: ColumnConfig,
     config_path: Option<std::path::PathBuf>,
 }
@@ -250,6 +251,16 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|s| Column::from_sort_str(s))
         .unwrap_or(Column::Uptime);
 
+    // Determine sort direction (from config, None means use column's default)
+    let sort_direction = merged_config
+        .sort_direction
+        .as_ref()
+        .and_then(|s| match s.as_str() {
+            "asc" => Some(SortDirection::Ascending),
+            "desc" => Some(SortDirection::Descending),
+            _ => None,
+        });
+
     let column_config = if let Some(ref cols) = merged_config.columns {
         ColumnConfig::from_config_strings(cols)
     } else {
@@ -298,6 +309,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             icon_style,
             show_all,
             sort_field,
+            sort_direction,
             column_config,
             config_path: config_path_for_state,
         },
@@ -357,6 +369,7 @@ async fn run_event_loop(
         tx,
         config.show_all,
         config.sort_field,
+        config.sort_direction,
         config.column_config,
         config.config_path,
     );

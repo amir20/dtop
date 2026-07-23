@@ -138,6 +138,24 @@ fn create_container_row<'a>(
                     Cell::from("")
                 }
             }
+            Column::DiskRead => {
+                if is_running {
+                    Cell::from(format_bytes_per_sec(
+                        container.stats.disk_read_bytes_per_sec,
+                    ))
+                } else {
+                    Cell::from("")
+                }
+            }
+            Column::DiskWrite => {
+                if is_running {
+                    Cell::from(format_bytes_per_sec(
+                        container.stats.disk_write_bytes_per_sec,
+                    ))
+                } else {
+                    Cell::from("")
+                }
+            }
             Column::Uptime => {
                 if is_running {
                     Cell::from(format_time_elapsed(container.created.as_ref()))
@@ -269,6 +287,8 @@ fn create_header_row(
                 Column::Memory => "Memory %",
                 Column::NetTx => "Net TX",
                 Column::NetRx => "Net RX",
+                Column::DiskRead => "Disk R",
+                Column::DiskWrite => "Disk W",
                 Column::Uptime => "Created",
                 Column::Restarts => "Restarts",
             };
@@ -309,6 +329,8 @@ fn create_table<'a>(
             Column::Memory => Constraint::Length(mem_width),
             Column::NetTx => Constraint::Length(12),
             Column::NetRx => Constraint::Length(12),
+            Column::DiskRead => Constraint::Length(12),
+            Column::DiskWrite => Constraint::Length(12),
             Column::Uptime => Constraint::Length(15),
             Column::Restarts => Constraint::Length(10),
         })

@@ -47,7 +47,10 @@ impl AppState {
                 // Exit action menu
             }
             ViewState::ColumnSelector => {
-                return self.handle_close_column_selector();
+                // Switch back to container list view
+                self.view_state = ViewState::ContainerList;
+                self.column_selector_state.select(None);
+                return RenderAction::Render;
             }
             _ => {
                 // Ignore Escape in other views

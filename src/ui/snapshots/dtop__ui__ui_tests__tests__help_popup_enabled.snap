@@ -1,5 +1,6 @@
 ---
 source: src/ui/ui_tests.rs
+assertion_line: 688
 expression: output
 ---
 dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)                                                                  
@@ -19,8 +20,8 @@ dtop vX.X.X - 1 containers ('?' for help, 'q' to quit)
             │   s           Sort by                     c      Column visibility                           │            
             │   PgUp/PgDn   Page up/down                Home   First          End    Last                  │            
             │                                                                                              │            
-            │ Log View Scrolling                                                                           │            
-            │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            
-            │   G/End       Bottom                                                                         │            
+            │ Preferences                                                                                  │            
+            │   Ctrl+S      Save preferences            Ctrl+R Reset to defaults                           │            
             │                                                                                              │            
+            │ Log View Scrolling                                                                           │            
             └──────────────────────────────────────────────────────────────────────────────────────────────┘

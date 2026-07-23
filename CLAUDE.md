@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`dtop` is a terminal-based Docker container monitoring tool built with Rust. It provides real-time CPU, memory, and network metrics for Docker containers through a TUI interface, with support for both local and remote (SSH/TCP) Docker daemons. The tool supports **monitoring multiple Docker hosts simultaneously** and includes a **built-in log viewer** for streaming container logs.
+`dtop` is a terminal-based Docker container monitoring tool built with Rust. It provides real-time CPU, memory, network, and disk I/O metrics for Docker containers through a TUI interface, with support for both local and remote (SSH/TCP) Docker daemons. The tool supports **monitoring multiple Docker hosts simultaneously** and includes a **built-in log viewer** for streaming container logs.
 
 ## Build & Run Commands
 
@@ -144,8 +144,22 @@ Global config options:
 - `icons`: Icon style to use ("unicode" or "nerd")
 - `all`: Show all containers including stopped/exited (default: false)
 - `sort`: Default sort field for container list ("uptime", "name", "cpu", "memory")
+- `sort_direction`: Sort direction ("asc" or "desc") - if omitted, uses field's default
+- `columns`: List of column IDs to show, in order (e.g., ["status", "name", "cpu", "memory"])
 
 See `config.example.yaml` for a complete example.
+
+### Preferences Persistence
+
+Preferences (columns, sort field, sort direction, show-all) can be saved to the config file:
+
+- **Ctrl-S** - Save current preferences to config file (creates `~/.config/dtop/config.yaml` if no config exists)
+- **Ctrl-R** - Reset preferences to defaults (requires y/n confirmation)
+
+**Behavior:**
+- Saving preserves other config keys (hosts, icons, filters)
+- Notifications show success/confirmation messages (auto-dismiss after 2 seconds)
+- Reset affects in-memory state only; saved config is not deleted
 
 ### Show All Containers
 
@@ -310,10 +324,12 @@ src/
 
 4. **Stats Streaming** (`docker/stats.rs::stream_container_stats`)
    - One async task per container that streams real-time stats
-   - Uses **exponential moving average (alpha=0.3)** to smooth CPU, memory, and network stats
+   - Uses **exponential moving average (alpha=0.3)** to smooth CPU, memory, network, and disk I/O stats
    - Calculates network TX/RX rates in bytes per second
+   - Calculates disk read/write rates in bytes per second from `blkio_stats.io_service_bytes_recursive`
    - CPU calculation: Delta between current and previous usage, normalized by system CPU delta and CPU count
    - Memory calculation: Current usage divided by limit, expressed as percentage
+   - **Note**: Disk I/O stats may return zeros on some systems with certain cgroup configurations (see [moby/moby#35352](https://github.com/moby/moby/issues/35352))
 
 5. **Log Streaming** (`docker/logs.rs::stream_container_logs`)
    - Streams logs from a container in real-time
@@ -405,7 +421,7 @@ pub struct Container {
     pub state: ContainerState,              // Running, Paused, Exited, etc.
     pub health: Option<HealthStatus>,       // Healthy, Unhealthy, Starting (None if no health check)
     pub created: Option<DateTime<Utc>>,     // Container creation timestamp
-    pub stats: ContainerStats,              // CPU, memory, network stats (updated in real-time)
+    pub stats: ContainerStats,              // CPU, memory, network, disk I/O stats (updated in real-time)
     pub host_id: HostId,                    // Which Docker host this container belongs to
     pub dozzle_url: Option<String>,         // Dozzle URL for this container's host
 }
@@ -520,6 +536,7 @@ Stats are calculated in `docker/stats.rs` with exponential smoothing applied:
 - **CPU**: Delta between current and previous CPU usage, normalized by system CPU delta and CPU count
 - **Memory**: Current usage divided by limit, expressed as percentage
 - **Network**: Calculates TX/RX rates by tracking byte deltas over time
+- **Disk I/O**: Calculates read/write rates from `blkio_stats.io_service_bytes_recursive`, aggregating "Read" and "Write" operations across all devices
 - **Smoothing**: Uses exponential moving average with alpha=0.3 to reduce noise and create smoother visualizations
 
 ### UI Rendering
@@ -529,9 +546,10 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 **Four View Modes:**
 1. **Container List View** - Main table showing all containers
    - Dynamically shows/hides "Host" column (only shown when multiple hosts are connected)
-   - Displays: ID, Name, Host (conditional), CPU%, Memory%, Net TX, Net RX, Status
+   - Displays: ID, Name, Host (conditional), CPU%, Memory%, Net TX, Net RX, Disk R, Disk W, Uptime, Status
+   - Disk I/O columns (Disk R, Disk W) are hidden by default - enable via column selector ('c')
    - Progress bars with percentage indicators for CPU and Memory
-   - Network rates formatted as B/s, KB/s, MB/s, or GB/s
+   - Network and disk rates formatted as B/s, KB/s, MB/s, or GB/s
    - Search bar at bottom when in SearchMode (filters containers as you type)
 2. **Log View** - Full-screen log streaming for selected container
    - Shows last 100 lines initially, then follows new logs
@@ -556,11 +574,11 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 
 **Sorting:** Containers can be sorted by multiple fields:
 - Default sort: Uptime (newest first, descending)
-- Sort fields: Uptime, Name, CPU, Memory
+- Sort fields: Uptime, Name, CPU, Memory, Net TX, Net RX, Disk Read, Disk Write, ID, Host, Status, Restarts
 - Containers are sorted globally across all hosts by the selected field, with `host_id` as tiebreaker
 - Press 's' to open sort selector popup
 - In the sort popup, select a field to sort by; selecting the active field toggles direction
-- Each field has a default direction: Name (ascending), Uptime/CPU/Memory (descending)
+- Each field has a default direction: Name/ID/Host (ascending), Uptime/CPU/Memory/Network/Disk (descending)
 - Sort state is tracked in `SortState` with field and direction
 
 **Container Filtering:**
@@ -757,6 +775,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `s` - Open sort selector popup (Uptime, Name, CPU, Memory)
 - `c` - Open column visibility selector
 - `a` - Toggle showing all containers (including stopped containers)
+- `Ctrl-S` - Save preferences (columns, sort, all) to config file
+- `Ctrl-R` - Reset preferences to defaults (requires y/n confirmation)
 
 **Log View:**
 - `↑/↓` - Scroll through logs manually
@@ -779,7 +799,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 ## Testing Strategy
 
 The codebase includes unit tests for:
-- Stats calculation logic (`docker/stats.rs`): CPU percentage, memory percentage, edge cases
+- Stats calculation logic (`docker/stats.rs`): CPU percentage, memory percentage, network rates, disk I/O rates, edge cases
 - UI color coding (`ui/render.rs`): Threshold boundaries for green/yellow/red
 - Log parsing (`docker/logs.rs`): Timestamp parsing, message extraction, edge cases
 - Config loading (`cli/config.rs`): YAML deserialization, CLI merging, host configurations
