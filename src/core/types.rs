@@ -96,6 +96,10 @@ pub struct ContainerStats {
     pub disk_read_bytes_per_sec: f64,
     /// Disk write rate in bytes per second
     pub disk_write_bytes_per_sec: f64,
+    /// Current number of PIDs (processes/threads) in the container's cgroup
+    pub pids_current: u64,
+    /// Hard limit on the number of PIDs (0 means no limit)
+    pub pids_limit: u64,
 }
 
 /// Unique key for identifying containers across multiple hosts
@@ -390,6 +394,7 @@ pub enum Column {
     Compose,
     Cpu,
     Memory,
+    Pids,
     NetTx,
     NetRx,
     DiskRead,
@@ -408,6 +413,7 @@ impl Column {
             Column::Compose => "Compose",
             Column::Cpu => "CPU %",
             Column::Memory => "Memory %",
+            Column::Pids => "PIDs",
             Column::NetTx => "Net TX",
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk R",
@@ -426,6 +432,7 @@ impl Column {
             Column::Compose => "compose",
             Column::Cpu => "cpu",
             Column::Memory => "memory",
+            Column::Pids => "pids",
             Column::NetTx => "net_tx",
             Column::NetRx => "net_rx",
             Column::DiskRead => "disk_read",
@@ -444,6 +451,7 @@ impl Column {
             "compose" => Some(Column::Compose),
             "cpu" => Some(Column::Cpu),
             "memory" => Some(Column::Memory),
+            "pids" => Some(Column::Pids),
             "net_tx" => Some(Column::NetTx),
             "net_rx" => Some(Column::NetRx),
             "disk_read" => Some(Column::DiskRead),
@@ -463,6 +471,7 @@ impl Column {
             Column::Compose,
             Column::Cpu,
             Column::Memory,
+            Column::Pids,
             Column::NetTx,
             Column::NetRx,
             Column::DiskRead,
@@ -476,7 +485,11 @@ impl Column {
     pub fn default_visible(self) -> bool {
         !matches!(
             self,
-            Column::Restarts | Column::Compose | Column::DiskRead | Column::DiskWrite
+            Column::Restarts
+                | Column::Compose
+                | Column::DiskRead
+                | Column::DiskWrite
+                | Column::Pids
         )
     }
 
@@ -489,6 +502,7 @@ impl Column {
             Column::Uptime
             | Column::Cpu
             | Column::Memory
+            | Column::Pids
             | Column::NetTx
             | Column::NetRx
             | Column::DiskRead
@@ -518,6 +532,7 @@ impl Column {
             Column::Compose => "Compose",
             Column::Cpu => "CPU",
             Column::Memory => "Memory",
+            Column::Pids => "PIDs",
             Column::NetTx => "Net TX",
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk Read",
@@ -625,6 +640,10 @@ mod tests {
             SortDirection::Descending
         );
         assert_eq!(
+            Column::Pids.default_sort_direction(),
+            SortDirection::Descending
+        );
+        assert_eq!(
             Column::NetTx.default_sort_direction(),
             SortDirection::Descending
         );
@@ -673,6 +692,7 @@ mod tests {
         assert_eq!(Column::Host.label(), "Host");
         assert_eq!(Column::Cpu.label(), "CPU %");
         assert_eq!(Column::Memory.label(), "Memory %");
+        assert_eq!(Column::Pids.label(), "PIDs");
         assert_eq!(Column::NetTx.label(), "Net TX");
         assert_eq!(Column::NetRx.label(), "Net RX");
         assert_eq!(Column::DiskRead.label(), "Disk R");
@@ -684,8 +704,8 @@ mod tests {
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 13);
-        // All columns except Restarts, Compose, DiskRead, DiskWrite should be visible by default
+        assert_eq!(config.columns.len(), 14);
+        // All columns except Restarts, Compose, DiskRead, DiskWrite, Pids should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -702,7 +722,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
-        // Default has 9 visible (Restarts, Compose, DiskRead, DiskWrite hidden), minus Id = 8
+        // Default has 9 visible (Restarts, Compose, DiskRead, DiskWrite, Pids hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -787,7 +807,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 13);
+        assert_eq!(config.columns.len(), 14);
     }
 
     #[test]
@@ -812,6 +832,7 @@ mod tests {
         assert_eq!(Column::Host.id(), "host");
         assert_eq!(Column::Cpu.id(), "cpu");
         assert_eq!(Column::Memory.id(), "memory");
+        assert_eq!(Column::Pids.id(), "pids");
         assert_eq!(Column::NetTx.id(), "net_tx");
         assert_eq!(Column::NetRx.id(), "net_rx");
         assert_eq!(Column::DiskRead.id(), "disk_read");
@@ -828,6 +849,7 @@ mod tests {
         assert_eq!(Column::from_id("host"), Some(Column::Host));
         assert_eq!(Column::from_id("cpu"), Some(Column::Cpu));
         assert_eq!(Column::from_id("memory"), Some(Column::Memory));
+        assert_eq!(Column::from_id("pids"), Some(Column::Pids));
         assert_eq!(Column::from_id("net_tx"), Some(Column::NetTx));
         assert_eq!(Column::from_id("net_rx"), Some(Column::NetRx));
         assert_eq!(Column::from_id("disk_read"), Some(Column::DiskRead));

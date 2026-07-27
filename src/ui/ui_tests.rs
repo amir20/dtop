@@ -102,6 +102,8 @@ mod tests {
                 network_rx_bytes_per_sec: net_rx,
                 disk_read_bytes_per_sec: disk_read,
                 disk_write_bytes_per_sec: disk_write,
+                pids_current: 0,
+                pids_limit: 0,
             },
             host_id: host_id.to_string(),
             dozzle_url: None,

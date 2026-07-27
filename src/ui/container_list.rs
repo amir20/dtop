@@ -120,6 +120,21 @@ fn create_container_row<'a>(
                     Cell::from("")
                 }
             }
+            Column::Pids => {
+                if is_running {
+                    let pids = container.stats.pids_current;
+                    // A limit of 0 means "no limit"; show "current/limit" when a
+                    // limit is set so users can watch it against the cap.
+                    let display = if container.stats.pids_limit > 0 {
+                        format!("{}/{}", pids, container.stats.pids_limit)
+                    } else {
+                        pids.to_string()
+                    };
+                    Cell::from(display)
+                } else {
+                    Cell::from("")
+                }
+            }
             Column::NetTx => {
                 if is_running {
                     Cell::from(format_bytes_per_sec(
@@ -285,6 +300,7 @@ fn create_header_row(
                 Column::Compose => "Compose",
                 Column::Cpu => "CPU %",
                 Column::Memory => "Memory %",
+                Column::Pids => "PIDs",
                 Column::NetTx => "Net TX",
                 Column::NetRx => "Net RX",
                 Column::DiskRead => "Disk R",
@@ -327,6 +343,7 @@ fn create_table<'a>(
             Column::Compose => Constraint::Length(20),
             Column::Cpu => Constraint::Length(cpu_width),
             Column::Memory => Constraint::Length(mem_width),
+            Column::Pids => Constraint::Length(12),
             Column::NetTx => Constraint::Length(12),
             Column::NetRx => Constraint::Length(12),
             Column::DiskRead => Constraint::Length(12),
