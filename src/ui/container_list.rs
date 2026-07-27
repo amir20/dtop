@@ -9,7 +9,12 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Row, Table},
 };
 
+#[cfg(not(test))]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Fixed in tests so UI snapshots don't shift columns when the real version
+/// changes length (e.g. 0.7.9 -> 0.7.10).
+#[cfg(test)]
+const VERSION: &str = "X.X.X";
 
 /// Renders the container list view
 pub fn render_container_list(
