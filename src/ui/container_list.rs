@@ -9,7 +9,12 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Row, Table},
 };
 
+#[cfg(not(test))]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Fixed in tests so UI snapshots don't shift columns when the real version
+/// changes length (e.g. 0.7.9 -> 0.7.10).
+#[cfg(test)]
+const VERSION: &str = "X.X.X";
 
 /// Renders the container list view
 pub fn render_container_list(
@@ -116,6 +121,21 @@ fn create_container_row<'a>(
                         format!("{:5.1}%", container.stats.memory)
                     };
                     Cell::from(display).style(get_percentage_style(container.stats.memory, styles))
+                } else {
+                    Cell::from("")
+                }
+            }
+            Column::Pids => {
+                if is_running {
+                    let pids = container.stats.pids_current;
+                    // A limit of 0 means "no limit"; show "current/limit" when a
+                    // limit is set so users can watch it against the cap.
+                    let display = if container.stats.pids_limit > 0 {
+                        format!("{}/{}", pids, container.stats.pids_limit)
+                    } else {
+                        pids.to_string()
+                    };
+                    Cell::from(display)
                 } else {
                     Cell::from("")
                 }
@@ -285,6 +305,7 @@ fn create_header_row(
                 Column::Compose => "Compose",
                 Column::Cpu => "CPU %",
                 Column::Memory => "Memory %",
+                Column::Pids => "PIDs",
                 Column::NetTx => "Net TX",
                 Column::NetRx => "Net RX",
                 Column::DiskRead => "Disk R",
@@ -327,6 +348,7 @@ fn create_table<'a>(
             Column::Compose => Constraint::Length(20),
             Column::Cpu => Constraint::Length(cpu_width),
             Column::Memory => Constraint::Length(mem_width),
+            Column::Pids => Constraint::Length(12),
             Column::NetTx => Constraint::Length(12),
             Column::NetRx => Constraint::Length(12),
             Column::DiskRead => Constraint::Length(12),

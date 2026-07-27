@@ -158,6 +158,7 @@ impl AppState {
                 // (including NaN) without needing to unwrap `partial_cmp`.
                 Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),
                 Column::Memory => a.stats.memory.total_cmp(&b.stats.memory),
+                Column::Pids => a.stats.pids_current.cmp(&b.stats.pids_current),
                 Column::NetTx => a
                     .stats
                     .network_tx_bytes_per_sec

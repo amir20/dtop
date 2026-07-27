@@ -121,6 +121,9 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 // Extract raw memory bytes for display
                 let (memory_used_bytes, memory_limit_bytes) = extract_memory_bytes(&stats);
 
+                // Extract PID counts (raw counts, no smoothing needed)
+                let (pids_current, pids_limit) = extract_pids(&stats);
+
                 let stats = ContainerStats {
                     cpu,
                     memory,
@@ -130,6 +133,8 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                     network_rx_bytes_per_sec,
                     disk_read_bytes_per_sec,
                     disk_write_bytes_per_sec,
+                    pids_current,
+                    pids_limit,
                 };
 
                 let key = ContainerKey::new(host.host_id.clone(), truncated_id.clone());
@@ -246,6 +251,17 @@ fn calculate_used_memory(memory_stats: &bollard::models::ContainerMemoryStats) -
         .unwrap_or(0) as f64;
 
     (usage - cache).max(0.0)
+}
+
+/// Extracts PID counts (current, limit) from container stats.
+///
+/// `pids_stats` is Linux-specific and absent for Windows containers, so both
+/// values default to 0 when unavailable. A limit of 0 means "no limit".
+fn extract_pids(stats: &ContainerStatsResponse) -> (u64, u64) {
+    match &stats.pids_stats {
+        Some(pids) => (pids.current.unwrap_or(0), pids.limit.unwrap_or(0)),
+        None => (0, 0),
+    }
 }
 
 /// Extracts total network bytes (tx, rx) from container stats
@@ -650,6 +666,43 @@ mod tests {
 
         // Should handle division by zero gracefully
         assert_eq!(calculate_memory_percentage(&stats), 0.0);
+    }
+
+    #[test]
+    fn test_extract_pids_with_limit() {
+        let stats = ContainerStatsResponse {
+            pids_stats: Some(bollard::models::ContainerPidsStats {
+                current: Some(42),
+                limit: Some(100),
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(extract_pids(&stats), (42, 100));
+    }
+
+    #[test]
+    fn test_extract_pids_no_limit() {
+        // A limit of 0 means "no limit"
+        let stats = ContainerStatsResponse {
+            pids_stats: Some(bollard::models::ContainerPidsStats {
+                current: Some(7),
+                limit: Some(0),
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(extract_pids(&stats), (7, 0));
+    }
+
+    #[test]
+    fn test_extract_pids_missing() {
+        let stats = ContainerStatsResponse {
+            pids_stats: None,
+            ..Default::default()
+        };
+
+        assert_eq!(extract_pids(&stats), (0, 0));
     }
 
     fn create_blkio_entry(op: &str, value: u64) -> ContainerBlkioStatEntry {
