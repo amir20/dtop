@@ -3,7 +3,7 @@ mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
         AppEvent, Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats,
-        ViewState,
+        SortState, ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -984,6 +984,83 @@ mod tests {
 
         // No duplicated keys in the rendered list
         assert_eq!(state.sorted_container_keys.len(), 3);
+    }
+
+    /// A resync zeroes the host's stats, so under a stats-based sort every row
+    /// compares equal and the list can come back in a different order. The cursor
+    /// must follow the selected *container*, not its old row index — otherwise the
+    /// next Enter opens the action menu on something the user never picked.
+    #[test]
+    fn test_resync_keeps_selection_on_same_container() {
+        let mut state = create_test_app_state();
+        state.sort_state = SortState::new(Column::Cpu);
+
+        let before = vec![
+            create_test_container("aaaaaaaaaaaa", "alpha", "local", 90.0, 1.0, 0.0, 0.0),
+            create_test_container("bbbbbbbbbbbb", "beta", "local", 50.0, 1.0, 0.0, 0.0),
+            create_test_container("cccccccccccc", "gamma", "local", 10.0, 1.0, 0.0, 0.0),
+        ];
+        state.handle_event(AppEvent::InitialContainerList("local".to_string(), before));
+
+        // Select "gamma" — last row while sorted by CPU descending.
+        let gamma = ContainerKey::new("local".to_string(), "cccccccccccc".to_string());
+        let gamma_row = state
+            .sorted_container_keys
+            .iter()
+            .position(|k| *k == gamma)
+            .unwrap();
+        state.table_state.select(Some(gamma_row));
+
+        // Reconnect: same containers, but stats reset to zero as they would be.
+        let after = vec![
+            create_test_container("aaaaaaaaaaaa", "alpha", "local", 0.0, 0.0, 0.0, 0.0),
+            create_test_container("bbbbbbbbbbbb", "beta", "local", 0.0, 0.0, 0.0, 0.0),
+            create_test_container("cccccccccccc", "gamma", "local", 0.0, 0.0, 0.0, 0.0),
+        ];
+        state.handle_event(AppEvent::InitialContainerList("local".to_string(), after));
+
+        let selected = state
+            .table_state
+            .selected()
+            .and_then(|i| state.sorted_container_keys.get(i))
+            .expect("a row should still be selected");
+        assert_eq!(
+            *selected, gamma,
+            "selection should follow the container across a resync"
+        );
+    }
+
+    /// If the selected container is gone after a reconnect, the selection falls
+    /// back to a valid row rather than pointing past the end of the list.
+    #[test]
+    fn test_resync_falls_back_when_selected_container_disappears() {
+        let mut state = create_test_app_state();
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                create_test_container("aaaaaaaaaaaa", "alpha", "local", 1.0, 1.0, 0.0, 0.0),
+                create_test_container("bbbbbbbbbbbb", "beta", "local", 1.0, 1.0, 0.0, 0.0),
+            ],
+        ));
+        state.table_state.select(Some(1));
+
+        // Only one container survives the restart.
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![create_test_container(
+                "aaaaaaaaaaaa",
+                "alpha",
+                "local",
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+            )],
+        ));
+
+        assert_eq!(state.sorted_container_keys.len(), 1);
+        assert_eq!(state.table_state.selected(), Some(0));
     }
 
     /// An empty list from a reconnected host clears its stale containers without

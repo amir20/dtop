@@ -20,6 +20,17 @@ fn short_id(id: &str) -> &str {
     id.get(..SHORT_ID_LEN).unwrap_or(id)
 }
 
+/// Delay before the first reconnect attempt after losing a host.
+const INITIAL_RECONNECT_DELAY: Duration = Duration::from_secs(1);
+/// Upper bound on the reconnect backoff, so a long outage still gets retried
+/// often enough to feel responsive when the daemon returns.
+const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(5);
+
+/// Doubles the reconnect delay, saturating at [`MAX_RECONNECT_DELAY`].
+fn next_reconnect_delay(current: Duration) -> Duration {
+    (current * 2).min(MAX_RECONNECT_DELAY)
+}
+
 /// Represents a Docker host connection with its identifier
 #[derive(Clone, Debug)]
 pub struct DockerHost {
@@ -264,11 +275,9 @@ impl DockerHost {
     /// Always sleeps before the first attempt so a daemon that drops the event
     /// stream repeatedly cannot spin the reconnect loop.
     async fn wait_until_reachable(&self) {
-        const INITIAL_DELAY: Duration = Duration::from_secs(1);
-        const MAX_DELAY: Duration = Duration::from_secs(5);
         const PING_TIMEOUT: Duration = Duration::from_secs(10);
 
-        let mut delay = INITIAL_DELAY;
+        let mut delay = INITIAL_RECONNECT_DELAY;
 
         loop {
             tokio::time::sleep(delay).await;
@@ -277,7 +286,7 @@ impl DockerHost {
                 return;
             }
 
-            delay = (delay * 2).min(MAX_DELAY);
+            delay = next_reconnect_delay(delay);
         }
     }
 
@@ -691,5 +700,36 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
             host
         )
         .into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_id_truncates_to_docker_short_form() {
+        assert_eq!(short_id("0123456789abcdef0123"), "0123456789ab");
+        assert_eq!(short_id("short"), "short");
+    }
+
+    #[test]
+    fn reconnect_delay_backs_off_and_caps() {
+        let mut delay = INITIAL_RECONNECT_DELAY;
+        assert_eq!(delay, Duration::from_secs(1));
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, Duration::from_secs(2));
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, Duration::from_secs(4));
+
+        // Caps rather than growing without bound, so a long outage is still
+        // noticed promptly once the daemon returns.
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, MAX_RECONNECT_DELAY);
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, MAX_RECONNECT_DELAY);
     }
 }
