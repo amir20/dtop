@@ -256,9 +256,13 @@ impl DockerHost {
                     }
                 }
                 Err(e) => {
-                    // Bollard's event stream does not recover from a broken
-                    // connection, so stop here and let the caller reconnect and
-                    // re-synchronize instead of spinning on a dead stream.
+                    // The stream is finished, whatever the error was: it is a
+                    // `FramedRead`, which routes both decode and transport errors
+                    // through `has_errored` and then returns `None` on the next
+                    // poll (tokio-rs/tokio#3976). Reading on would just see the
+                    // end of the stream, so hand back to the caller to reconnect
+                    // and re-synchronize — events can be missed while
+                    // re-subscribing, which a re-list repairs.
                     tracing::warn!(
                         "Docker event stream error for host '{}': {}",
                         self.host_id,
