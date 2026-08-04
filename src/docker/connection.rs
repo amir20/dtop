@@ -20,6 +20,17 @@ fn short_id(id: &str) -> &str {
     id.get(..SHORT_ID_LEN).unwrap_or(id)
 }
 
+/// Delay before the first reconnect attempt after losing a host.
+const INITIAL_RECONNECT_DELAY: Duration = Duration::from_secs(1);
+/// Upper bound on the reconnect backoff, so a long outage still gets retried
+/// often enough to feel responsive when the daemon returns.
+const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(5);
+
+/// Doubles the reconnect delay, saturating at [`MAX_RECONNECT_DELAY`].
+fn next_reconnect_delay(current: Duration) -> Duration {
+    (current * 2).min(MAX_RECONNECT_DELAY)
+}
+
 /// Represents a Docker host connection with its identifier
 #[derive(Clone, Debug)]
 pub struct DockerHost {
@@ -44,12 +55,17 @@ impl DockerHost {
         }
     }
 
-    /// Fetches the initial list of containers and starts monitoring them
+    /// Fetches the current list of containers and starts monitoring them.
+    ///
+    /// Also used to re-synchronize after the daemon comes back, so the emitted
+    /// [`AppEvent::InitialContainerList`] is the authoritative list for this host.
+    ///
+    /// Returns `false` when the daemon could not be queried.
     async fn fetch_initial_containers(
         &self,
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
-    ) {
+    ) -> bool {
         let mut list_options = ListContainersOptions {
             all: true, // Fetch all containers (including stopped ones)
             ..Default::default()
@@ -62,85 +78,96 @@ impl DockerHost {
 
         let list_options = Some(list_options);
 
-        if let Ok(container_list) = self.docker.list_containers(list_options).await {
-            let mut initial_containers = Vec::new();
-
-            for container in container_list {
-                let full_id = container.id.clone().unwrap_or_default();
-                if full_id.is_empty() {
-                    tracing::warn!("Skipping container with empty ID");
-                    continue;
-                }
-                let truncated_id = short_id(&full_id).to_string();
-                let name = container
-                    .names
-                    .as_ref()
-                    .and_then(|n| n.first().map(|s| s.trim_start_matches('/').to_string()))
-                    .unwrap_or_default();
-                let state = container
-                    .state
-                    .as_ref()
-                    .and_then(|s| format!("{:?}", s).parse().ok())
-                    .unwrap_or(ContainerState::Unknown);
-
-                // Parse created timestamp from Unix timestamp
-                let created = container
-                    .created
-                    .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0));
-
-                // Try to parse health status from Status field
-                let health = container
-                    .status
-                    .as_ref()
-                    .and_then(|status| status.parse().ok());
-
-                // Check if container is running before moving state
-                let is_running = state == ContainerState::Running;
-
-                // Fetch restart count via inspect (not available in list API)
-                let restart_count = self
-                    .docker
-                    .inspect_container(&full_id, None::<InspectContainerOptions>)
-                    .await
-                    .ok()
-                    .and_then(|inspect| inspect.restart_count);
-
-                let compose_project = container
-                    .labels
-                    .as_ref()
-                    .and_then(|labels| labels.get("com.docker.compose.project").cloned());
-
-                let container_info = Container {
-                    id: truncated_id.clone(),
-                    name: name.clone(),
-                    state,
-                    health,
-                    created,
-                    stats: ContainerStats::default(),
-                    host_id: self.host_id.clone(),
-                    dozzle_url: self.dozzle_url.clone(),
-                    restart_count,
-                    compose_project,
-                };
-
-                initial_containers.push(container_info);
-
-                // Only start monitoring for running containers
-                if is_running {
-                    self.start_container_monitoring(&truncated_id, tx, active_containers);
-                }
+        let container_list = match self.docker.list_containers(list_options).await {
+            Ok(list) => list,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to list containers for host '{}': {}",
+                    self.host_id,
+                    e
+                );
+                return false;
             }
+        };
 
-            // Send all initial containers in one event
-            if !initial_containers.is_empty() {
-                let _ = tx
-                    .send(AppEvent::InitialContainerList(
-                        self.host_id.clone(),
-                        initial_containers,
-                    ))
-                    .await;
+        let mut initial_containers = Vec::new();
+
+        for container in container_list {
+            let full_id = container.id.clone().unwrap_or_default();
+            if full_id.is_empty() {
+                tracing::warn!("Skipping container with empty ID");
+                continue;
+            }
+            let truncated_id = short_id(&full_id).to_string();
+            let name = container
+                .names
+                .as_ref()
+                .and_then(|n| n.first().map(|s| s.trim_start_matches('/').to_string()))
+                .unwrap_or_default();
+            let state = container
+                .state
+                .as_ref()
+                .and_then(|s| format!("{:?}", s).parse().ok())
+                .unwrap_or(ContainerState::Unknown);
+
+            // Parse created timestamp from Unix timestamp
+            let created = container
+                .created
+                .and_then(|timestamp| DateTime::from_timestamp(timestamp, 0));
+
+            // Try to parse health status from Status field
+            let health = container
+                .status
+                .as_ref()
+                .and_then(|status| status.parse().ok());
+
+            // Check if container is running before moving state
+            let is_running = state == ContainerState::Running;
+
+            // Fetch restart count via inspect (not available in list API)
+            let restart_count = self
+                .docker
+                .inspect_container(&full_id, None::<InspectContainerOptions>)
+                .await
+                .ok()
+                .and_then(|inspect| inspect.restart_count);
+
+            let compose_project = container
+                .labels
+                .as_ref()
+                .and_then(|labels| labels.get("com.docker.compose.project").cloned());
+
+            let container_info = Container {
+                id: truncated_id.clone(),
+                name: name.clone(),
+                state,
+                health,
+                created,
+                stats: ContainerStats::default(),
+                host_id: self.host_id.clone(),
+                dozzle_url: self.dozzle_url.clone(),
+                restart_count,
+                compose_project,
+            };
+
+            initial_containers.push(container_info);
+
+            // Only start monitoring for running containers
+            if is_running {
+                self.start_container_monitoring(&truncated_id, tx, active_containers);
             }
         }
+
+        // Send the full list in one event. An empty list is still sent so a
+        // re-synchronization after a reconnect clears out stale containers.
+        let _ = tx
+            .send(AppEvent::InitialContainerList(
+                self.host_id.clone(),
+                initial_containers,
+            ))
+            .await;
+
+        true
     }
 
     /// Monitors Docker events for container start/stop/die events
@@ -228,11 +255,42 @@ impl DockerHost {
                         }
                     }
                 }
-                Err(_) => {
-                    // If event stream fails, wait and continue
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                Err(e) => {
+                    // The stream is finished, whatever the error was: it is a
+                    // `FramedRead`, which routes both decode and transport errors
+                    // through `has_errored` and then returns `None` on the next
+                    // poll (tokio-rs/tokio#3976). Reading on would just see the
+                    // end of the stream, so hand back to the caller to reconnect
+                    // and re-synchronize — events can be missed while
+                    // re-subscribing, which a re-list repairs.
+                    tracing::warn!(
+                        "Docker event stream error for host '{}': {}",
+                        self.host_id,
+                        e
+                    );
+                    return;
                 }
             }
+        }
+    }
+
+    /// Blocks until the daemon answers a ping again, retrying with a capped backoff.
+    ///
+    /// Always sleeps before the first attempt so a daemon that drops the event
+    /// stream repeatedly cannot spin the reconnect loop.
+    async fn wait_until_reachable(&self) {
+        const PING_TIMEOUT: Duration = Duration::from_secs(10);
+
+        let mut delay = INITIAL_RECONNECT_DELAY;
+
+        loop {
+            tokio::time::sleep(delay).await;
+
+            if let Ok(Ok(_)) = tokio::time::timeout(PING_TIMEOUT, self.docker.ping()).await {
+                return;
+            }
+
+            delay = next_reconnect_delay(delay);
         }
     }
 
@@ -490,17 +548,57 @@ impl DockerHost {
     }
 }
 
-/// Manages container monitoring for a specific Docker host: fetches initial containers and listens for Docker events
+/// Manages container monitoring for a specific Docker host: fetches the container
+/// list, listens for Docker events, and reconnects when the daemon goes away.
+///
+/// The daemon restarting (e.g. during a `docker` package upgrade) drops the socket
+/// and ends the event stream. Rather than exiting — which left the UI frozen on a
+/// stale, usually empty list — this keeps pinging the host and re-synchronizes the
+/// container list once it answers again.
 pub async fn container_manager(host: DockerHost, tx: EventSender) {
     let mut active_containers: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
 
-    // Fetch and start monitoring initial containers
-    host.fetch_initial_containers(&tx, &mut active_containers)
-        .await;
+    loop {
+        // Fetch the container list and start monitoring; then follow the event
+        // stream until the connection to the daemon breaks.
+        if host
+            .fetch_initial_containers(&tx, &mut active_containers)
+            .await
+        {
+            host.monitor_docker_events(&tx, &mut active_containers)
+                .await;
+        }
 
-    // Subscribe to Docker events and handle container lifecycle
-    host.monitor_docker_events(&tx, &mut active_containers)
-        .await;
+        // The per-container stats streams die with the connection; drop them so
+        // the reconnect starts from a clean slate.
+        for (_, handle) in active_containers.drain() {
+            handle.abort();
+        }
+
+        // The UI is gone (app quitting) — nothing left to monitor.
+        if tx.is_closed() {
+            return;
+        }
+
+        tracing::warn!(
+            "Lost connection to Docker host '{}', attempting to reconnect",
+            host.host_id
+        );
+        let _ = tx
+            .send(AppEvent::HostDisconnected(host.host_id.clone()))
+            .await;
+
+        host.wait_until_reachable().await;
+
+        if tx.is_closed() {
+            return;
+        }
+
+        tracing::info!("Reconnected to Docker host '{}'", host.host_id);
+        let _ = tx
+            .send(AppEvent::HostReconnected(host.host_id.clone()))
+            .await;
+    }
 }
 
 /// Connects to Docker based on the host string
@@ -606,5 +704,36 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
             host
         )
         .into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_id_truncates_to_docker_short_form() {
+        assert_eq!(short_id("0123456789abcdef0123"), "0123456789ab");
+        assert_eq!(short_id("short"), "short");
+    }
+
+    #[test]
+    fn reconnect_delay_backs_off_and_caps() {
+        let mut delay = INITIAL_RECONNECT_DELAY;
+        assert_eq!(delay, Duration::from_secs(1));
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, Duration::from_secs(2));
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, Duration::from_secs(4));
+
+        // Caps rather than growing without bound, so a long outage is still
+        // noticed promptly once the daemon returns.
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, MAX_RECONNECT_DELAY);
+
+        delay = next_reconnect_delay(delay);
+        assert_eq!(delay, MAX_RECONNECT_DELAY);
     }
 }

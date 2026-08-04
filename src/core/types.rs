@@ -153,6 +153,11 @@ pub enum AppEvent {
     ConnectionError(HostId, String),
     /// A new Docker host has successfully connected
     HostConnected(crate::docker::connection::DockerHost),
+    /// Lost the connection to a Docker host that was previously connected
+    /// (e.g. the daemon was restarted). The host is being retried in the background.
+    HostDisconnected(HostId),
+    /// A previously disconnected Docker host became reachable again
+    HostReconnected(HostId),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

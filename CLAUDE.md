@@ -321,6 +321,12 @@ src/
    - Spawns individual stats stream tasks per container
    - Each container gets its own async task running `stream_container_stats`
    - All events include the `host_id` to identify their source
+   - **Reconnects automatically** when the daemon goes away (e.g. a `docker` package
+     upgrade restarts it and drops the socket). When the event stream breaks, the
+     per-container stats tasks are aborted, `HostDisconnected` is emitted so the UI
+     shows a "reconnecting" banner, and the host is pinged with a capped backoff
+     (1s → 5s) until it answers. On success `HostReconnected` is emitted and the
+     container list is re-fetched, which re-synchronizes state for that host.
 
 4. **Stats Streaming** (`docker/stats.rs::stream_container_stats`)
    - One async task per container that streams real-time stats
@@ -372,7 +378,7 @@ Keyboard          → keyboard_worker   → AppEvent::Quit → Main Loop → Exi
 
 Container-related events use structured types to identify containers across hosts:
 
-- `InitialContainerList(HostId, Vec<Container>)` - Batch of containers from a specific host on startup
+- `InitialContainerList(HostId, Vec<Container>)` - The authoritative container list for a host, sent on startup and again whenever the host reconnects (containers held for that host but missing from the list are dropped)
 - `ContainerCreated(Container)` - New container started (host_id is in the Container struct)
 - `ContainerDestroyed(ContainerKey)` - Container stopped/died (identified by host_id + container_id)
 - `ContainerStat(ContainerKey, ContainerStats)` - Stats update (identified by host_id + container_id)
@@ -399,6 +405,8 @@ Container-related events use structured types to identify containers across host
 - `ActionError(ContainerKey, ContainerAction, String)` - Container action failed
 - `EnterSearchMode` - User pressed '/' to enter search mode
 - `SearchKeyEvent(KeyEvent)` - Key event for search input (passed to tui-input)
+- `HostDisconnected(HostId)` - Lost the connection to a previously connected host; it is being retried in the background
+- `HostReconnected(HostId)` - A disconnected host is reachable again
 
 ### View States (`core/types.rs::ViewState`)
 
@@ -757,6 +765,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
   - This reduces sorting from ~2/sec to ~0.33/sec during normal operation (~83% reduction)
 - Exponential smoothing (alpha=0.3) reduces noise in stats without heavy computation
 - Failed host connections are logged but don't prevent other hosts from being monitored
+- A host that drops after connecting is retried in the background with a capped backoff (1s → 5s), so a Docker daemon restart doesn't require restarting dtop
 - Log streaming is only active when viewing a container's logs (stopped when exiting log view)
 - Log text is formatted once when received and cached in `AppState::formatted_log_text` to avoid re-parsing ANSI codes on every frame
 - ANSI parsing happens at log arrival time, not render time
