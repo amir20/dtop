@@ -122,8 +122,8 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
         render_help_popup(f, styles);
     }
 
-    // Render connection error notifications in top right corner
-    render_error_notifications(f, state, styles);
+    // Render disconnected-host and connection error notifications in top right corner
+    render_status_notifications(f, state, styles);
 
     // Render notification (save/reset confirmations) at the bottom
     render_notification(f, state);
@@ -169,16 +169,47 @@ fn render_search_bar(
     }
 }
 
-/// Renders connection error notifications in the top right corner
-fn render_error_notifications(f: &mut Frame, state: &AppState, styles: &UiStyles) {
-    if state.connection_errors.is_empty() {
+/// Renders reconnecting banners and connection error notifications in the top
+/// right corner, stacked vertically.
+fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyles) {
+    if state.connection_errors.is_empty() && state.disconnected_hosts.is_empty() {
         return;
     }
 
     let screen_area = f.area();
 
-    // Stack errors vertically from the top
+    // Stack notifications vertically from the top
     let mut y_offset = 0;
+
+    // Hosts whose connection dropped and that are being retried in the background.
+    // Shown persistently (unlike errors, which expire) until the host comes back.
+    for host_id in &state.disconnected_hosts {
+        let text = format!("⟳ {}: connection lost, reconnecting…", host_id);
+        let width = (text.chars().count() + 4).min(80) as u16;
+        let height = 3;
+
+        let area = Rect {
+            x: screen_area.width.saturating_sub(width),
+            y: y_offset,
+            width,
+            height,
+        };
+
+        let widget = Paragraph::new(Line::from(vec![Span::styled(
+            text,
+            styles.medium.add_modifier(Modifier::BOLD),
+        )]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(styles.medium),
+        )
+        .alignment(Alignment::Left);
+
+        f.render_widget(widget, area);
+
+        y_offset += height;
+    }
 
     for (host_id, (error_msg, _)) in &state.connection_errors {
         // Shorten the error message if it's too long and build error text directly

@@ -939,4 +939,121 @@ mod tests {
         )));
         assert_eq!(state.table_state.selected(), Some(0));
     }
+
+    /// A reconnect re-sends `InitialContainerList` as the authoritative list for
+    /// the host, so containers that disappeared while the daemon was down must be
+    /// dropped and other hosts must be left alone.
+    #[test]
+    fn test_initial_container_list_resyncs_host() {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                create_test_container("aaaaaaaaaaaa", "nginx", "local", 1.0, 1.0, 0.0, 0.0),
+                create_test_container("bbbbbbbbbbbb", "redis", "local", 1.0, 1.0, 0.0, 0.0),
+            ],
+        ));
+        state.handle_event(AppEvent::InitialContainerList(
+            "remote".to_string(),
+            vec![create_test_container(
+                "cccccccccccc",
+                "postgres",
+                "remote",
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+            )],
+        ));
+        assert_eq!(state.containers.len(), 3);
+
+        // "local" reconnects: redis is gone, a new container appeared.
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                create_test_container("aaaaaaaaaaaa", "nginx", "local", 1.0, 1.0, 0.0, 0.0),
+                create_test_container("dddddddddddd", "caddy", "local", 1.0, 1.0, 0.0, 0.0),
+            ],
+        ));
+
+        let mut names: Vec<&str> = state.containers.values().map(|c| c.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["caddy", "nginx", "postgres"]);
+
+        // No duplicated keys in the rendered list
+        assert_eq!(state.sorted_container_keys.len(), 3);
+    }
+
+    /// An empty list from a reconnected host clears its stale containers without
+    /// leaving a dangling selection.
+    #[test]
+    fn test_initial_container_list_empty_clears_host() {
+        let mut state = create_test_app_state();
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![create_test_container(
+                "aaaaaaaaaaaa",
+                "nginx",
+                "local",
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+            )],
+        ));
+        assert_eq!(state.table_state.selected(), Some(0));
+
+        state.handle_event(AppEvent::InitialContainerList("local".to_string(), vec![]));
+
+        assert!(state.containers.is_empty());
+        assert!(state.sorted_container_keys.is_empty());
+        assert_eq!(state.table_state.selected(), None);
+    }
+
+    #[test]
+    fn test_host_disconnect_and_reconnect_events() {
+        let mut state = create_test_app_state();
+
+        state.handle_event(AppEvent::HostDisconnected("local".to_string()));
+        assert!(state.disconnected_hosts.contains("local"));
+
+        state.handle_event(AppEvent::HostReconnected("local".to_string()));
+        assert!(state.disconnected_hosts.is_empty());
+    }
+
+    #[test]
+    fn test_reconnecting_banner() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key);
+
+        state.handle_event(AppEvent::HostDisconnected("user@server1".to_string()));
+
+        let backend = TestBackend::new(140, 25);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let output = buffer_to_string(&terminal.backend().buffer().clone());
+
+        assert!(output.contains("user@server1"), "Should show the lost host");
+        assert!(
+            output.contains("reconnecting"),
+            "Should say it is reconnecting"
+        );
+
+        assert_snapshot_with_redaction!(output);
+    }
 }

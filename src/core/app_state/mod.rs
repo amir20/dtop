@@ -1,5 +1,5 @@
 use ratatui::widgets::{ListState, TableState};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
@@ -71,6 +71,9 @@ pub struct AppState {
     pub sort_selector_state: ListState,
     /// Connection errors to display (host_id -> (error_message, timestamp))
     pub connection_errors: HashMap<HostId, (String, Instant)>,
+    /// Hosts whose connection dropped and that are being retried in the background.
+    /// A `BTreeSet` so the rendered banners keep a stable order.
+    pub disconnected_hosts: BTreeSet<HostId>,
     /// Last time containers were sorted (for throttling)
     pub last_sort_time: Instant,
     /// Notification message to display (message, expiry time)
@@ -120,6 +123,7 @@ impl AppState {
             config_path,
             sort_selector_state: ListState::default(),
             connection_errors: HashMap::new(),
+            disconnected_hosts: BTreeSet::new(),
             last_sort_time: Instant::now(),
             notification: None,
             reset_confirm_pending: false,
@@ -199,6 +203,8 @@ impl AppState {
                 self.handle_connection_error(host_id, error)
             }
             AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
+            AppEvent::HostDisconnected(host_id) => self.handle_host_disconnected(host_id),
+            AppEvent::HostReconnected(host_id) => self.handle_host_reconnected(host_id),
         }
     }
 
@@ -335,7 +341,24 @@ impl AppState {
 
         // Clear any connection error for this host
         self.connection_errors.remove(&host_id);
+        self.disconnected_hosts.remove(&host_id);
 
         RenderAction::None // No need to force redraw, container list will update via normal events
+    }
+
+    /// Marks a host as disconnected so the UI can show that it is being retried.
+    ///
+    /// The host's containers are left in place: they are stale, but wiping them
+    /// would blank the list, and the next successful poll re-synchronizes them.
+    fn handle_host_disconnected(&mut self, host_id: HostId) -> RenderAction {
+        self.disconnected_hosts.insert(host_id);
+        RenderAction::Render // Force draw - show the reconnecting banner
+    }
+
+    /// Clears the disconnected marker once a host is reachable again.
+    fn handle_host_reconnected(&mut self, host_id: HostId) -> RenderAction {
+        self.disconnected_hosts.remove(&host_id);
+        self.connection_errors.remove(&host_id);
+        RenderAction::Render // Force draw - remove the reconnecting banner
     }
 }
