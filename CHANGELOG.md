@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.12] - 2026-08-04
+
+### Features
+
+- Auto-reconnect to Docker daemon when connection drops (#334)
+
 ## [0.7.11] - 2026-07-27
 
 ### Features
