@@ -525,6 +525,32 @@ The `connect_docker()` function (`docker/connection.rs`) handles these connectio
 
 Multiple `--host` arguments can be provided to monitor multiple Docker hosts simultaneously.
 
+**SSH Transport (`docker/ssh.rs`):**
+dtop uses its own SSH connector rather than `Docker::connect_with_ssh`, because bollard
+drops the `ssh://` scheme before resolving the destination, which breaks custom ports.
+
+dtop holds one long-lived HTTP connection per container (the stats stream), plus the
+event stream and any open log stream. To avoid one TCP connection and auth handshake per
+container, connections are multiplexed over a **pool of shared SSH control masters**,
+each carrying up to 8 channels (`MAX_CHANNELS_PER_MASTER`). 30 containers use 4
+connections instead of 31.
+
+- The cap of 8 stays under sshd's default `MaxSessions` of 10, which limits channels
+  **per connection**. If a remote lowers `MaxSessions` below 8, channel opens there will
+  fail and the master gets evicted.
+- Master creation is serialized (the pool lock is held across the launch) so a startup
+  burst doesn't open many simultaneous handshakes — relevant to sshd's `MaxStartups`,
+  which throttles concurrent *unauthenticated* connections, and to fail2ban-style
+  tooling that reads a connection burst as an attack.
+- A channel slot is tied to the connection's lifetime via a semaphore permit held in
+  `SshStream`; the slot returns to the pool when the connection closes.
+- If opening a channel fails (dead master after a network drop or daemon restart), that
+  master is evicted and the attempt retries once on a fresh one. This is what lets the
+  reconnect loop in `connection.rs` heal an SSH host.
+- Masters are launched with `ServerAliveInterval=15s` so a dead master surfaces as an
+  error instead of hanging. Dropping the last reference runs `ssh -O exit`, so masters
+  are cleaned up on quit.
+
 **Docker Context Resolution (`docker/context.rs`):**
 For the `local` host, dtop mirrors the Docker CLI's endpoint resolution so it works
 out of the box with colima, Rancher Desktop, and similar tools. Resolution order:
