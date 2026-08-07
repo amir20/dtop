@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from "svelte";
   import { reveal } from "$lib/actions/reveal.js";
   import featuresMd from "$lib/content/features.md?raw";
 
@@ -9,67 +10,87 @@
     features.push({ title: match[1], description: match[2] });
   }
 
-  const featureMeta = [
-    { tag: "topology", meta: "ssh · tcp · tls · local" },
-    { tag: "telemetry", meta: "ema · α=0.3 · 500ms" },
-    { tag: "footprint", meta: "rust · minimal alloc" },
+  const endpoints = [
+    { scheme: "local", target: "/var/run/docker.sock" },
+    { scheme: "ssh", target: "deploy@edge-01:2222" },
+    { scheme: "tcp", target: "192.168.1.100:2375" },
+    { scheme: "tls", target: "ops@db-eu:2376" },
   ];
+
+  const stats = [
+    { value: "3.8 MB", label: "release binary" },
+    { value: "1.9 MB", label: "without self-update" },
+    { value: "0", label: "agents to deploy" },
+  ];
+
+  const GLYPHS = "▁▂▃▄▅▆▇█";
+  let spark = $state("▂▃▅▆▇█▇▆▄▃▂▁▂▄▆▇█▇▅▄▃▂▁▂▃▅▆▇▆▄▃▂▁");
+
+  onMount(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let phase = 0;
+    const timer = setInterval(() => {
+      phase += 0.42;
+      const value = (Math.sin(phase) + Math.sin(phase * 0.43) + 2) / 4;
+      const next = GLYPHS[Math.max(0, Math.min(7, Math.round(value * 7)))];
+      spark = spark.slice(1) + next;
+    }, 340);
+
+    return () => clearInterval(timer);
+  });
 </script>
 
-<section
-  use:reveal
-  class="relative z-1 mx-auto max-w-300 px-6 py-24"
->
-  <header
-    class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
-  >
-    <div class="col-span-12 md:col-span-2">
-      <span
-        class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
-      >
-        § 01 / Capabilities
-      </span>
-    </div>
-    <h2
-      class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
-    >
-      Three things,<br />
-      <span class="italic text-(--c-accent)">done well.</span>
+<section class="mx-auto max-w-270 px-4 py-14 md:px-6 md:py-24">
+  <header use:reveal class="mb-9 flex max-w-[56ch] flex-col gap-2.5">
+    <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+      Overview
+    </span>
+    <h2 class="text-[clamp(1.4rem,2.4vw,1.85rem)] font-semibold">
+      Nothing to deploy, nothing to configure
     </h2>
-    <p
-      class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
-    >
-      No dashboards to configure, no agents to install, no plans to choose. Open the terminal, see the containers, close the terminal.
+    <p class="text-(--c-text-muted)">
+      No agents on the machines you're watching, no collector, no account. Point
+      dtop at a socket and it starts drawing.
     </p>
   </header>
 
-  <div>
+  <div use:reveal={{ delay: 100 }} class="grid gap-4 md:grid-cols-3">
     {#each features as feature, i}
-      <article
-        class="grid grid-cols-12 items-start gap-x-4 border-b border-(--c-border) py-12 md:gap-x-6 md:py-16 last:border-b-0"
-      >
-        <div class="col-span-2 md:col-span-2">
-          <span
-            class="font-display text-[clamp(3rem,7vw,5.5rem)] font-extrabold leading-none text-(--c-accent)"
-          >
-            0{i + 1}
-          </span>
-        </div>
+      <article class="panel flex flex-col gap-2.5 p-6">
+        <h3 class="text-base font-semibold">{feature.title}</h3>
+        <p class="text-sm leading-relaxed text-(--c-text-muted)">{feature.description}</p>
 
-        <div class="col-span-10 md:col-span-7 md:pr-6">
-          <div
-            class="mb-3 font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-text-dim)"
-          >
-            {featureMeta[i].tag} / {featureMeta[i].meta}
-          </div>
-          <h3
-            class="mb-4 font-display text-[clamp(1.6rem,2.8vw,2.4rem)] font-bold leading-[0.95] tracking-tight text-(--c-text)"
-          >
-            {feature.title}.
-          </h3>
-          <p class="text-base leading-[1.65] text-(--c-text-muted)">
-            {feature.description}
-          </p>
+        <div class="mt-3 border-t border-(--c-line) pt-4 font-mono text-xs text-(--c-text-dim)">
+          {#if i === 0}
+            {#each endpoints as endpoint}
+              <div class="flex items-center gap-2.5 py-0.5 whitespace-nowrap">
+                <span class="min-w-11 text-(--c-accent)">{endpoint.scheme}</span>
+                <span>{endpoint.target}</span>
+              </div>
+            {/each}
+          {:else if i === 1}
+            <span class="block overflow-hidden text-[1.25em] tracking-[-0.03em] whitespace-nowrap text-(--c-accent)">
+              {spark}
+            </span>
+            <div class="mt-2.5 leading-[1.9]">
+              <div>ema &alpha; 0.3 &middot; tick 500 ms</div>
+              <div>
+                <span class="text-(--c-ok)">&#9632;</span> 0&ndash;50
+                <span class="ml-1.5 text-(--c-warn)">&#9632;</span> 50&ndash;80
+                <span class="ml-1.5 text-(--c-crit)">&#9632;</span> 80+
+              </div>
+            </div>
+          {:else}
+            {#each stats as stat}
+              <div class="flex items-baseline gap-1.5 py-0.5">
+                <span class="font-body text-2xl font-semibold tracking-[-0.03em] text-(--c-text)">
+                  {stat.value}
+                </span>
+                <span>{stat.label}</span>
+              </div>
+            {/each}
+          {/if}
         </div>
       </article>
     {/each}

@@ -9,11 +9,7 @@
 </svelte:head>
 
 <div id="main" class="min-h-screen overflow-x-hidden">
-  <div class="fixed inset-0 z-0 pointer-events-none dot-grid"></div>
-
   <NavBar />
-  <div class="pt-16">
-    <ChangelogSection />
-  </div>
+  <ChangelogSection />
   <FooterSection />
 </div>

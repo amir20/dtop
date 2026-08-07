@@ -69,104 +69,62 @@
 
   const entries = parseChangelog(changelogMd);
 
-  const sectionConfig = {
-    Features: { color: "var(--c-accent)", icon: "+" },
-    "Bug Fixes": { color: "var(--c-orange)", icon: "~" },
-    Documentation: { color: "var(--c-blue)", icon: "#" },
-    Miscellaneous: { color: "var(--c-purple)", icon: "*" },
-    Performance: { color: "var(--c-cyan)", icon: ">" },
-    Refactor: { color: "var(--c-purple)", icon: "%" },
+  const sectionColors = {
+    Features: "var(--c-accent)",
+    "Bug Fixes": "var(--c-orange)",
+    Documentation: "var(--c-blue)",
+    Miscellaneous: "var(--c-purple)",
+    Performance: "var(--c-cyan)",
+    Refactor: "var(--c-purple)",
   };
 
-  function configFor(title) {
-    return sectionConfig[title] ?? { color: "var(--c-text-dim)", icon: "-" };
-  }
+  const colorFor = (title) => sectionColors[title] ?? "var(--c-text-dim)";
 
   function linkIssues(text) {
     return text.replace(
       /\(#(\d+)\)/g,
-      '(<a href="https://github.com/amir20/dtop/issues/$1" class="text-(--c-blue) no-underline hover:underline">#$1</a>)',
+      '(<a href="https://github.com/amir20/dtop/issues/$1" class="text-(--c-text-muted) underline underline-offset-2 hover:text-(--c-text)">#$1</a>)',
     );
   }
 </script>
 
-<section id="changelog" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-  <div class="mb-12 text-center">
-    <h2
-      class="mb-3 font-display text-[clamp(1.8rem,3vw,2.5rem)] font-extrabold tracking-tight text-(--c-text)"
-    >
-      Changelog
-    </h2>
-    <p class="text-(--c-text-muted)">What's new in each release</p>
-  </div>
+<section id="changelog" class="mx-auto max-w-270 px-4 py-14 md:px-6 md:py-20">
+  <header class="mb-9 flex max-w-[56ch] flex-col gap-2.5">
+    <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+      Releases
+    </span>
+    <h2 class="text-[clamp(1.4rem,2.4vw,1.85rem)] font-semibold">Changelog</h2>
+    <p class="text-(--c-text-muted)">What changed in each release.</p>
+  </header>
 
-  <div class="mx-auto max-w-280 space-y-4">
+  <div class="flex flex-col gap-4">
     {#each entries as entry, i}
-      <div
-        class="group overflow-hidden border bg-(--c-bg-card) transition-colors hover:border-(--c-border-bright)"
-        class:border-[rgba(0,255,136,0.25)]={i === 0}
-        class:border-(--c-border)={i !== 0}
-      >
-        <!-- Version header bar -->
-        <div
-          class="flex items-center gap-4 border-b px-6 py-3"
-          class:border-[rgba(0,255,136,0.15)]={i === 0}
-          class:border-(--c-border)={i !== 0}
-          class:bg-[rgba(0,255,136,0.03)]={i === 0}
-        >
-          <span class="font-mono text-sm text-(--c-text-dim) select-none"
-            >{String(i + 1).padStart(2, "0")}</span
-          >
-          <span class="text-(--c-border-bright) select-none">&vert;</span>
-          <span
-            class="font-mono text-base font-bold"
-            class:text-(--c-accent)={i === 0}
-            class:text-(--c-text)={i !== 0}
-          >
-            v{entry.version}
-          </span>
-          <span class="font-mono text-xs text-(--c-text-dim)">{entry.date}</span
-          >
+      <article class="panel overflow-hidden">
+        <div class="flex flex-wrap items-center gap-3 border-b border-(--c-line) px-5 py-3">
+          <span class="font-mono text-sm font-medium text-(--c-text)">v{entry.version}</span>
+          <span class="font-mono text-xs text-(--c-text-dim)">{entry.date}</span>
           {#if i === 0}
             <span
-              class="ml-auto border border-[rgba(0,255,136,0.2)] bg-(--c-accent-dim) px-2.5 py-0.5 font-mono text-[0.6rem] uppercase tracking-widest text-(--c-accent)"
+              class="ml-auto rounded-full border border-(--c-accent-2) bg-(--c-accent-soft) px-2.5 py-0.5 font-mono text-[0.6875rem] text-(--c-accent)"
             >
               Latest
             </span>
           {/if}
         </div>
 
-        <!-- Content -->
-        <div
-          class="grid gap-0 divide-y divide-(--c-border)"
-          class:md:grid-cols-2={entry.sections.length > 1}
-          class:md:divide-x={entry.sections.length > 1}
-          class:md:divide-y-0={entry.sections.length > 1}
-        >
+        <div class="grid divide-y divide-(--c-line) md:grid-cols-2 md:divide-x md:divide-y-0">
           {#each entry.sections as section}
-            {@const cfg = configFor(section.title)}
-            <div class="px-6 py-4">
-              <div class="mb-2.5 flex items-center gap-2">
-                <span
-                  class="flex size-5 items-center justify-center font-mono text-xs font-bold"
-                  style="color: {cfg.color}; background: color-mix(in srgb, {cfg.color} 12%, transparent)"
-                  >{cfg.icon}</span
-                >
-                <span
-                  class="font-mono text-[0.7rem] font-semibold uppercase tracking-widest"
-                  style="color: {cfg.color}"
-                >
-                  {section.title}
-                </span>
-              </div>
-              <ul class="space-y-1">
+            <div class="px-5 py-4">
+              <span
+                class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] uppercase"
+                style="color: {colorFor(section.title)}"
+              >
+                {section.title}
+              </span>
+              <ul class="mt-2.5 flex flex-col gap-1">
                 {#each section.items as item}
-                  <li
-                    class="flex gap-2 text-sm leading-relaxed text-(--c-text-muted)"
-                  >
-                    <span class="mt-0.5 shrink-0 text-(--c-text-dim)"
-                      >&rarr;</span
-                    >
+                  <li class="flex gap-2 text-sm leading-relaxed text-(--c-text-muted)">
+                    <span class="mt-0.5 shrink-0 text-(--c-text-dim)">&middot;</span>
                     <span>{@html linkIssues(item)}</span>
                   </li>
                 {/each}
@@ -174,7 +132,7 @@
             </div>
           {/each}
         </div>
-      </div>
+      </article>
     {/each}
   </div>
 </section>

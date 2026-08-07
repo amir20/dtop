@@ -5,8 +5,6 @@
 
   let copiedId = $state(null);
 
-  const colors = ["var(--c-purple)", "var(--c-orange)", "var(--c-cyan)", "var(--c-blue)", "var(--c-accent)"];
-
   // Section markers: top-level comment lines that start a new config section
   const sectionMarkers = [
     { marker: "# == Hosts ==", label: "Hosts", description: "Docker hosts to monitor" },
@@ -61,7 +59,6 @@
         id,
         label: section.label,
         description: section.description,
-        color: colors[i % colors.length],
         code,
       };
     }).filter(Boolean);
@@ -135,118 +132,71 @@
   }
 </script>
 
-<section id="config" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-  <header
-    use:reveal
-    class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
-  >
-    <div class="col-span-12 md:col-span-2">
-      <span
-        class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
-      >
-        § 04 / Configure
-      </span>
-    </div>
-    <h2
-      class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
-    >
-      One YAML file,<br />
-      <span class="italic text-(--c-accent)">five sections.</span>
+<section id="config" class="mx-auto max-w-270 px-4 py-14 md:px-6 md:py-24">
+  <header use:reveal class="mb-9 flex max-w-[56ch] flex-col gap-2.5">
+    <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+      Config
+    </span>
+    <h2 class="text-[clamp(1.4rem,2.4vw,1.85rem)] font-semibold">
+      Write it down once, or let dtop do it
     </h2>
-    <p
-      class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
-    >
-      Hosts, icons, sort, columns, and the show-all toggle. CLI flags always win when they conflict.
+    <p class="text-(--c-text-muted)">
+      Every flag can live in a YAML file. Or press
+      <code class="font-mono text-(--c-text)">Ctrl-S</code> in the app and dtop saves
+      your columns, sort and filters for you — keys you set by hand are preserved.
     </p>
   </header>
 
-  {#if locations.length > 0}
-    <div use:reveal={{ delay: 100 }} class="mx-auto mb-10 max-w-180">
-      <div class="border border-(--c-border) bg-(--c-bg-card)">
-        <div class="border-b border-(--c-border) px-8 py-6 md:px-10">
-          <h3
-            class="font-display text-xl font-bold tracking-tight text-(--c-text)"
-          >
-            Config File Locations
-          </h3>
-          <p class="mt-1.5 text-sm text-(--c-text-dim)">
-            Searched in priority order. First found wins.
-          </p>
+  <div use:reveal={{ delay: 100 }} class="grid items-start gap-4 lg:grid-cols-2">
+    {#if locations.length > 0}
+      <div class="panel p-6">
+        <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+          Search order
+        </span>
+        <div class="mt-3.5 flex flex-col gap-2 font-mono text-[0.8125rem] text-(--c-text-muted)">
+          {#each locations as loc, i}
+            <div class="flex gap-3">
+              <span class="text-(--c-text-dim)">{i + 1}</span>
+              <span class="text-(--c-text)">{loc.path}</span>
+              {#if loc.note}
+                <span class="text-(--c-text-dim)">{loc.note}</span>
+              {/if}
+            </div>
+          {/each}
         </div>
-        {#each locations as loc, i}
-          <div
-            class="flex items-center gap-4 border-b border-(--c-border) px-8 py-4 transition-colors hover:bg-(--c-bg-elevated) md:px-10 last:border-b-0"
-          >
-            <span
-              class="flex size-6 shrink-0 items-center justify-center border border-(--c-border-bright) bg-(--c-surface) font-mono text-xs font-medium text-(--c-text-dim)"
-              >{i + 1}</span
-            >
-            <code class="font-mono text-sm text-(--c-text)">{loc.path}</code>
-            {#if loc.note}
-              <span class="text-sm text-(--c-text-dim)">{loc.note}</span>
-            {/if}
-          </div>
-        {/each}
+        <p class="mt-5 text-[0.8125rem] text-(--c-text-muted)">
+          First file found wins. Command-line flags override whatever the file says.
+        </p>
       </div>
-    </div>
-  {/if}
+    {/if}
 
-  <div use:reveal={{ delay: 200 }} class="mx-auto grid max-w-180 gap-4">
     {#each examples as example}
-      <div
-        class="overflow-hidden border border-(--c-border) bg-(--c-bg-card) transition-colors hover:border-(--c-border-bright)"
-      >
-        <div
-          class="flex items-center justify-between border-b border-(--c-border) px-5 py-3"
-        >
-          <div class="flex items-center gap-2.5">
-            <div
-              class="size-2 rounded-full"
-              style="background: {example.color}"
-            ></div>
-            <span
-              class="font-mono text-[0.7rem] font-semibold uppercase tracking-widest text-(--c-text-dim)"
-            >
-              {example.label}
-            </span>
-          </div>
-          <span class="hidden text-xs text-(--c-text-dim) sm:inline"
-            >{example.description}</span
-          >
+      <div class="panel overflow-hidden">
+        <div class="flex items-center justify-between gap-3 border-b border-(--c-line) px-4 py-2.5">
+          <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+            {example.label}
+          </span>
+          <span class="hidden text-xs text-(--c-text-dim) sm:inline">{example.description}</span>
         </div>
-        <div class="relative px-5 py-4">
-          <pre
-            class="yaml-highlight overflow-x-auto font-mono text-sm leading-relaxed text-(--c-text)">{@html highlightYaml(example.code)}</pre>
+        <div class="relative">
+          <pre class="yaml-highlight overflow-x-auto px-4 py-3.5 font-mono text-[0.8125rem] leading-[1.8] text-(--c-text-muted)">{@html highlightYaml(example.code)}</pre>
           <button
-            class="absolute right-3 top-3 flex shrink-0 items-center justify-center border border-(--c-border) p-1.5 text-(--c-text-dim) transition-all hover:border-(--c-text-muted) hover:text-(--c-text)"
+            class="absolute top-2.5 right-2.5 flex items-center justify-center rounded-md border border-(--c-line-2) bg-(--c-surface-2) p-1.5 transition-colors"
+            class:text-(--c-text-dim)={copiedId !== example.id}
+            class:hover:text-(--c-text)={copiedId !== example.id}
+            class:text-(--c-accent)={copiedId === example.id}
             aria-label="Copy to clipboard"
             onclick={() => copyCode(example.code, example.id)}
           >
             {#if copiedId === example.id}
-              <svg
-                class="size-4 text-(--c-accent)"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                />
+              <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             {:else}
-              <svg
-                class="size-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  stroke-width="2"
                   d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
@@ -256,29 +206,22 @@
       </div>
     {/each}
   </div>
-
-  <div class="mt-10 text-center">
-    <p class="font-mono text-xs text-(--c-text-dim)">
-      <span class="text-(--c-accent)">tip:</span> CLI arguments always take precedence over config file values.
-    </p>
-  </div>
 </section>
 
 <style>
+  /* config.example.yaml is mostly comments, so they carry real information
+     here and need to stay readable rather than sit at label contrast. */
   :global(.yaml-highlight .hl-comment) {
-    color: var(--c-text-dim);
-    font-style: italic;
+    color: var(--c-text-muted);
   }
   :global(.yaml-highlight .hl-key) {
-    color: var(--c-cyan);
-  }
-  :global(.yaml-highlight .hl-string) {
     color: var(--c-accent);
   }
-  :global(.yaml-highlight .hl-bool) {
-    color: var(--c-orange);
+  :global(.yaml-highlight .hl-string) {
+    color: var(--c-text);
   }
+  :global(.yaml-highlight .hl-bool),
   :global(.yaml-highlight .hl-number) {
-    color: var(--c-orange);
+    color: var(--c-warn);
   }
 </style>

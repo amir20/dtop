@@ -2,14 +2,6 @@
   import { reveal } from "$lib/actions/reveal.js";
   import readmeMd from "../../../../README.md?raw";
 
-  const colors = [
-    "var(--c-accent)",
-    "var(--c-cyan)",
-    "var(--c-orange)",
-    "var(--c-purple)",
-    "var(--c-blue)",
-  ];
-
   function parseCliFlags(md) {
     // Extract the help code block from README
     const helpMatch = md.match(
@@ -54,7 +46,7 @@
     );
 
     // Parse description and examples from each flag block
-    return filtered.map((flag, i) => {
+    return filtered.map((flag) => {
       const rawDesc = flag.descLines
         .map((l) => l.replace(/^\s{10}/, ""))
         .join("\n")
@@ -94,7 +86,6 @@
         short: flag.short,
         long: flag.long,
         arg: flag.arg,
-        color: colors[i % colors.length],
         description: firstPara,
         examples,
       };
@@ -104,65 +95,35 @@
   const flags = parseCliFlags(readmeMd);
 </script>
 
-<section id="cli" class="relative z-1 mx-auto max-w-300 px-6 pb-24">
-  <header
-    use:reveal
-    class="mb-12 grid grid-cols-12 items-end gap-x-4 border-b border-(--c-border-bright) pb-6 md:mb-16 md:gap-x-6"
-  >
-    <div class="col-span-12 md:col-span-2">
-      <span
-        class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-(--c-accent)"
-      >
-        § 03 / Reference
-      </span>
-    </div>
-    <h2
-      class="col-span-12 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.9] tracking-tight text-(--c-text) md:col-span-7"
-    >
-      Every flag,<br />
-      <span class="italic text-(--c-accent)">documented.</span>
-    </h2>
-    <p
-      class="col-span-12 text-sm leading-relaxed text-(--c-text-muted) md:col-span-3"
-    >
-      Sourced from <code class="font-mono text-(--c-text)">--help</code>, so it stays correct as the binary changes.
+<section id="cli" class="mx-auto max-w-270 px-4 py-14 md:px-6 md:py-24">
+  <header use:reveal class="mb-9 flex max-w-[56ch] flex-col gap-2.5">
+    <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+      Reference
+    </span>
+    <h2 class="text-[clamp(1.4rem,2.4vw,1.85rem)] font-semibold">Flags</h2>
+    <p class="text-(--c-text-muted)">
+      Generated from <code class="font-mono text-(--c-text)">dtop --help</code>, so
+      it stays correct as the binary changes.
     </p>
   </header>
 
-  <div use:reveal={{ delay: 100 }} class="mx-auto grid max-w-180 gap-4">
+  <div use:reveal={{ delay: 100 }} class="panel divide-y divide-(--c-line) overflow-hidden">
     {#each flags as flag}
-      <div
-        class="overflow-hidden border border-(--c-border) bg-(--c-bg-card) transition-colors hover:border-(--c-border-bright)"
-      >
-        <!-- Flag header -->
-        <div
-          class="flex items-center justify-between border-b border-(--c-border) px-5 py-3"
-        >
-          <div class="flex items-center gap-2.5">
-            <div
-              class="size-2 rounded-full"
-              style="background: {flag.color}"
-            ></div>
-            <code class="font-mono text-sm font-semibold text-(--c-text)">
-              {flag.short}, {flag.long}{#if flag.arg}{" "}<span class="text-(--c-text-dim)">&lt;{flag.arg}&gt;</span>{/if}
-            </code>
-          </div>
-        </div>
+      <div class="grid gap-x-6 gap-y-2 px-5 py-4 md:grid-cols-[14rem_minmax(0,1fr)]">
+        <code class="font-mono text-[0.8125rem] font-medium text-(--c-accent)">
+          {flag.short}, {flag.long}{#if flag.arg}{" "}<span class="text-(--c-text-dim)">&lt;{flag.arg}&gt;</span>{/if}
+        </code>
 
-        <!-- Description and examples -->
-        <div class="px-5 py-4">
-          <p class="mb-3 text-sm text-(--c-text-muted)">{flag.description}</p>
+        <div class="flex flex-col gap-2">
+          <p class="text-sm leading-relaxed text-(--c-text-muted)">{flag.description}</p>
           {#if flag.examples.length > 0}
-            <div class="space-y-1.5">
+            <div class="flex flex-col gap-1">
               {#each flag.examples as example}
-                <div class="flex items-center gap-3">
-                  <code
-                    class="shrink-0 font-mono text-xs text-(--c-accent)"
-                    >{example.code}</code
-                  >
-                  <span class="text-xs text-(--c-text-dim)"
-                    >{example.note}</span
-                  >
+                <div class="flex flex-wrap items-baseline gap-x-3">
+                  <code class="font-mono text-xs text-(--c-text)">{example.code}</code>
+                  {#if example.note}
+                    <span class="text-xs text-(--c-text-dim)">{example.note}</span>
+                  {/if}
                 </div>
               {/each}
             </div>
@@ -172,13 +133,9 @@
     {/each}
   </div>
 
-  <div class="mt-10 text-center">
-    <p class="font-mono text-xs text-(--c-text-dim)">
-      <span class="text-(--c-accent)">tip:</span> combine multiple hosts and filters.
-      <code
-        class="border border-(--c-border-bright) bg-(--c-surface) px-1.5 py-0.5 text-(--c-text)"
-        >dtop --host local --host ssh://user@server -f status=running</code
-      >
-    </p>
-  </div>
+  <p class="mt-5 text-[0.8125rem] text-(--c-text-dim)">
+    Hosts and filters combine — <code class="font-mono text-(--c-text-muted)"
+      >dtop --host local --host ssh://user@server -f status=running</code
+    >
+  </p>
 </section>

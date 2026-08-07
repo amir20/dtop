@@ -5,6 +5,12 @@
 export function reveal(node, opts = {}) {
   const { delay = 0, threshold = 0.15 } = opts;
 
+  // Nothing to reveal if the viewer has asked for reduced motion — leave the
+  // node in its final state rather than animating it in.
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return { destroy() {} };
+  }
+
   node.classList.add("scroll-hidden");
 
   const observer = new IntersectionObserver(
