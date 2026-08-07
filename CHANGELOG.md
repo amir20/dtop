@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-08-07
+
+### Bug Fixes
+
+- *(ssh)* Support custom ports in ssh:// host URLs (#336)
+
+### Performance
+
+- *(ssh)* Multiplex Docker connections over pooled SSH masters (#338)
+
 ## [0.7.12] - 2026-08-04
 
 ### Features
