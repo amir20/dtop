@@ -1,61 +1,35 @@
 <script>
   import cargoToml from "../../../../Cargo.toml?raw";
+  import InstallPicker from "./InstallPicker.svelte";
+  import TuiDemo from "./TuiDemo.svelte";
 
   const version = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? "";
 </script>
 
-<section
-  class="relative z-1 mx-auto max-w-300 px-6 pt-20 pb-10 text-center md:pt-32 md:pb-16"
->
-  <div class="animate-fade-up [animation-delay:0.1s] flex items-center justify-center gap-3">
+<section class="mx-auto max-w-270 px-4 pt-14 pb-8 md:px-6 md:pt-24 md:pb-12">
+  <div class="mx-auto flex max-w-165 flex-col items-center gap-5 text-center">
     <span
-      class="mb-8 inline-flex items-center gap-2 border border-(--c-accent)/20 bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs uppercase tracking-[0.22em] text-(--c-accent) before:size-1.5 before:rounded-full before:bg-(--c-accent) before:animate-glow before:content-['']"
+      class="inline-flex items-center gap-2 rounded-full border border-(--c-line) bg-(--c-surface) px-3 py-1 font-mono text-xs text-(--c-text-muted)"
     >
-      Built with Rust
+      <span class="size-1.5 rounded-full bg-(--c-accent)"></span>
+      {#if version}v{version} &middot; {/if}built with Rust
     </span>
-    {#if version}
-      <span
-        class="mb-8 inline-flex items-center border border-(--c-accent)/20 bg-(--c-accent-dim) px-4 py-1.5 font-mono text-xs tracking-[0.22em] text-(--c-accent)"
-      >
-        v{version}
-      </span>
-    {/if}
-  </div>
 
-  <h1
-    class="animate-fade-up [animation-delay:0.2s] font-display text-[clamp(2.5rem,6vw,5rem)] font-extrabold leading-none tracking-tight text-(--c-text)"
-  >
-    Docker Monitoring<br />
-    <span class="font-display font-black italic text-(--c-accent)">
-      In Your Terminal
-    </span>
-  </h1>
+    <h1 class="text-[clamp(2rem,4.6vw,3rem)] font-semibold">
+      Monitor containers across every host
+    </h1>
 
-  <p
-    class="animate-fade-up [animation-delay:0.35s] mx-auto mb-4 mt-6 max-w-140 text-lg leading-relaxed text-(--c-text-muted)"
-  >
-    A real-time TUI for monitoring Docker containers across multiple hosts. Track CPU, memory, and
-    network metrics, all from your terminal.
-  </p>
+    <p class="max-w-[52ch] text-[1.0625rem] leading-relaxed text-(--c-text-muted)">
+      dtop streams live CPU, memory, network and disk metrics from local, SSH, TCP
+      and TLS Docker daemons into a single table in your terminal.
+    </p>
 
-  <p class="animate-fade-up [animation-delay:0.35s] font-mono text-sm text-(--c-text-dim)">
-    <strong class="font-medium text-(--c-accent)">Blazing fast.</strong> Minimal resource usage.
-  </p>
-
-  <div
-    class="animate-fade-up [animation-delay:0.5s] relative z-1 mx-auto mt-12 max-w-240 overflow-hidden rounded-xl border border-(--c-border-bright) shadow-[0_0_0_1px_rgba(0,0,0,0.3),0_24px_80px_-12px_rgba(0,0,0,0.6),0_0_120px_-40px_var(--c-accent-dim)]"
-  >
-    <div
-      class="flex items-center gap-2 border-b border-(--c-border) bg-(--c-surface) px-4 py-3"
-    >
-      <div class="size-3 rounded-full bg-[#ff5f57]"></div>
-      <div class="size-3 rounded-full bg-[#febc2e]"></div>
-      <div class="size-3 rounded-full bg-[#28c840]"></div>
-      <span class="flex-1 text-center font-mono text-xs text-(--c-text-dim)">dtop</span>
-    </div>
-    <div class="bg-(--c-terminal-bg)">
-      <!-- svelte-ignore a11y_media_has_caption -->
-      <video class="block w-full" src="/demo.mp4" autoplay loop muted playsinline></video>
+    <div class="mt-1 w-full">
+      <InstallPicker />
     </div>
   </div>
 </section>
+
+<div class="mx-auto max-w-270 px-4 pb-4 md:px-6">
+  <TuiDemo />
+</div>
