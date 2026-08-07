@@ -657,12 +657,13 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
             API_DEFAULT_VERSION
         );
 
-        // Connect via SSH with 120 second timeout
-        Docker::connect_with_ssh(
+        // Connect via SSH with 120 second timeout. Uses our own connector instead
+        // of `Docker::connect_with_ssh` because bollard drops the `ssh://` scheme
+        // before resolving the destination, which breaks custom ports (#335).
+        crate::docker::ssh::connect_with_ssh(
             host,
             120, // timeout in seconds
             API_DEFAULT_VERSION,
-            None, // no custom socket path
         )
         .map_err(|e| {
             error!("SSH Docker connection failed for '{}': {:?}", host, e);

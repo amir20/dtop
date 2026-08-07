@@ -6,4 +6,5 @@ pub mod logs;
 #[cfg(test)]
 mod reconnect_tests;
 pub mod shell;
+pub mod ssh;
 pub mod stats;
