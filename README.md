@@ -120,7 +120,7 @@ This command will:
 By default, `dtop` will connect to the local Docker daemon using `/var/run/docker.sock`. `DOCKER_HOST` is also supported to connect to other hosts.
 
 ```
-> dtop --help
+❯ dtop --help
 A terminal-based Docker container monitoring tool with real-time CPU and memory metrics
 
 Usage: dtop [OPTIONS] [COMMAND]
@@ -132,7 +132,7 @@ Commands:
 Options:
   -H, --host <HOST>
           Docker host(s) to connect to. Can be specified multiple times.
-          
+
           Examples:
             --host local                    (Connect to local Docker daemon / active Docker context)
             --host unix:///path/docker.sock (Connect to a specific Unix socket)
@@ -141,55 +141,54 @@ Options:
             --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
             --host tls://host:2376          (Connect via TLS)
             --host local --host ssh://user@server1 --host tls://server2:2376  (Multiple hosts)
-          
+
           For TLS connections, set DOCKER_CERT_PATH to a directory containing:
             key.pem, cert.pem, and ca.pem
-          
+
           "local" follows the Docker CLI's endpoint resolution: it honors DOCKER_HOST,
-          DOCKER_CONTEXT, and the active `docker context` from ~/.docker/config.json,
-          so it works out of the box with colima, Rancher Desktop, etc.
-          
+          DOCKER_CONTEXT, and the active `docker context` from ~/.docker/config.json.
+
           If not specified, will use config file or default to "local"
 
   -i, --icons <ICONS>
           Icon style to use for the UI
-          
+
           Options:
             unicode  - Standard Unicode icons (default, works everywhere)
             nerd     - Nerd Font icons (requires Nerd Font installed)
 
   -f, --filter <FILTER>
           Filter containers (can be specified multiple times)
-          
+
           Examples:
             --filter status=running
             --filter name=nginx
             --filter label=com.example.version=1.0
             --filter ancestor=ubuntu:24.04
-          
+
           Multiple filters of the same type use OR logic:
             --filter status=running --filter status=paused
-          
+
           Different filter types use AND logic:
             --filter status=running --filter name=nginx
-          
+
           Available filters:
             id, name, label, status, ancestor, before, since,
             volume, network, publish, expose, health, exited
-          
+
           Note: Some filters only work with container listing, not events.
           Warnings will be shown if a filter is incompatible with events.
 
   -a, --all
           Show all containers (default shows only running containers)
-          
+
           By default, dtop only shows running containers.
           Use this flag to show all containers including stopped, exited, and paused containers.
-          
+
           Note: This flag can only enable showing all containers, not disable it.
           If your config file has 'all: true', you'll need to edit the config file
           or press 'a' in the UI to toggle back to showing only running containers.
-          
+
           This is equivalent to pressing 'a' in the UI to toggle show all.
 
   -s, --sort <SORT>
