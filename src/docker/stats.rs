@@ -166,13 +166,11 @@ fn ema(prev: Option<f64>, sample: f64, alpha: f64) -> f64 {
 
 /// Calculates CPU usage percentage from container stats
 pub fn calculate_cpu_percentage(stats: &ContainerStatsResponse) -> f64 {
-    let cpu_stats = match &stats.cpu_stats {
-        Some(cs) => cs,
-        None => return 0.0,
+    let Some(cpu_stats) = &stats.cpu_stats else {
+        return 0.0;
     };
-    let precpu_stats = match &stats.precpu_stats {
-        Some(pcs) => pcs,
-        None => return 0.0,
+    let Some(precpu_stats) = &stats.precpu_stats else {
+        return 0.0;
     };
 
     let cpu_usage = cpu_stats
@@ -204,9 +202,8 @@ pub fn calculate_cpu_percentage(stats: &ContainerStatsResponse) -> f64 {
 /// - cgroups v2: subtract `inactive_file`
 /// - cgroups v1: subtract `cache`
 pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
-    let memory_stats = match &stats.memory_stats {
-        Some(ms) => ms,
-        None => return 0.0,
+    let Some(memory_stats) = &stats.memory_stats else {
+        return 0.0;
     };
 
     let memory_usage = calculate_used_memory(memory_stats);
@@ -222,9 +219,8 @@ pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
 /// Extracts memory bytes (used, limit) from container stats
 /// Subtracts cache to match `docker stats` behavior
 fn extract_memory_bytes(stats: &ContainerStatsResponse) -> (u64, u64) {
-    let memory_stats = match &stats.memory_stats {
-        Some(ms) => ms,
-        None => return (0, 0),
+    let Some(memory_stats) = &stats.memory_stats else {
+        return (0, 0);
     };
 
     let memory_used = calculate_used_memory(memory_stats) as u64;
@@ -266,9 +262,8 @@ fn extract_pids(stats: &ContainerStatsResponse) -> (u64, u64) {
 
 /// Extracts total network bytes (tx, rx) from container stats
 fn extract_network_bytes(stats: &ContainerStatsResponse) -> (Option<u64>, Option<u64>) {
-    let networks = match &stats.networks {
-        Some(nets) => nets,
-        None => return (None, None),
+    let Some(networks) = &stats.networks else {
+        return (None, None);
     };
 
     let mut total_tx = 0u64;
@@ -292,14 +287,12 @@ fn calculate_network_rates(
     let (current_tx, current_rx) = extract_network_bytes(stats);
 
     // If we don't have previous values, return 0
-    let (prev_tx, prev_rx, prev_time) = match (prev_tx, prev_rx, prev_time) {
-        (Some(tx), Some(rx), Some(time)) => (tx, rx, time),
-        _ => return (0.0, 0.0),
+    let (Some(prev_tx), Some(prev_rx), Some(prev_time)) = (prev_tx, prev_rx, prev_time) else {
+        return (0.0, 0.0);
     };
 
-    let (current_tx, current_rx) = match (current_tx, current_rx) {
-        (Some(tx), Some(rx)) => (tx, rx),
-        _ => return (0.0, 0.0),
+    let (Some(current_tx), Some(current_rx)) = (current_tx, current_rx) else {
+        return (0.0, 0.0);
     };
 
     let elapsed = prev_time.elapsed().as_secs_f64();
@@ -321,16 +314,14 @@ fn calculate_network_rates(
 /// Uses blkio_stats.io_service_bytes_recursive which contains cumulative bytes
 /// for each operation type ("Read", "Write", etc.) across all devices.
 fn extract_disk_bytes(stats: &ContainerStatsResponse) -> (Option<u64>, Option<u64>) {
-    let blkio_stats = match &stats.blkio_stats {
-        Some(bs) => bs,
-        None => return (None, None),
+    let Some(blkio_stats) = &stats.blkio_stats else {
+        return (None, None);
     };
 
     // Only io_service_bytes_recursive reports bytes. io_serviced_recursive counts
     // operations (IOPS), not bytes, so it must not be used as a fallback here.
-    let entries = match blkio_stats.io_service_bytes_recursive.as_ref() {
-        Some(e) => e,
-        None => return (None, None),
+    let Some(entries) = blkio_stats.io_service_bytes_recursive.as_ref() else {
+        return (None, None);
     };
 
     let mut total_read = 0u64;
@@ -437,14 +428,13 @@ fn calculate_disk_rates(
     prev_time: Option<Instant>,
 ) -> (f64, f64) {
     // If we don't have previous values, return 0
-    let (prev_read, prev_write, prev_time) = match (prev_read, prev_write, prev_time) {
-        (Some(r), Some(w), Some(t)) => (r, w, t),
-        _ => return (0.0, 0.0),
+    let (Some(prev_read), Some(prev_write), Some(prev_time)) = (prev_read, prev_write, prev_time)
+    else {
+        return (0.0, 0.0);
     };
 
-    let (current_read, current_write) = match (current_read, current_write) {
-        (Some(r), Some(w)) => (r, w),
-        _ => return (0.0, 0.0),
+    let (Some(current_read), Some(current_write)) = (current_read, current_write) else {
+        return (0.0, 0.0);
     };
 
     let elapsed = prev_time.elapsed().as_secs_f64();

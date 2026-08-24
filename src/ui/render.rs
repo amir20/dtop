@@ -251,9 +251,8 @@ fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyle
 fn render_notification(f: &mut Frame, state: &AppState) {
     use std::time::Instant;
 
-    let (message, expiry) = match &state.notification {
-        Some((msg, exp)) => (msg, exp),
-        None => return,
+    let Some((message, expiry)) = &state.notification else {
+        return;
     };
 
     // Don't render if expired
