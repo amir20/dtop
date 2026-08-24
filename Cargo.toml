@@ -17,19 +17,19 @@ ratatui = "0.30"
 crossterm = "0.29"
 tokio = { version = "1", features = ["full"] }
 futures-util = "0.3"
-bollard = {version= "0.21.0", features = ["ssh", "ssl"]}
+bollard = {version= "0.21.1", features = ["ssh", "ssl"]}
 # Used to implement a custom SSH transport for bollard that honors ssh:// ports
 hyper = "1"
 hyper-util = { version = "0.1", features = ["http1", "client-legacy", "tokio"] }
 openssh = "0.11"
 tower-service = "0.3"
-clap = { version = "4.5", features = ["derive", "color"] }
+clap = { version = "4.6", features = ["derive", "color"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 dirs = "6.0"
 chrono = "0.4"
-open = "5.3"
+open = "5.4"
 ansi-to-tui = "8.0"
 timeago = "0.6"
 url = "2.5"
@@ -41,7 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
-insta = { version = "1.46", features = ["filters"] }
+insta = { version = "1.48", features = ["filters"] }
 mockall = "0.15"
 
 [profile.release]
