@@ -37,6 +37,18 @@ all: false
 # Possible values: uptime, name, cpu, memory
 sort: uptime
 
+# == Hyperlinks ==
+# Render container names as clickable OSC 8 hyperlinks to Dozzle.
+# Only applies to hosts that have a `dozzle` URL configured above.
+# Unlike the 'o' key, this works over SSH: the link is opened by your local
+# terminal, not the remote machine.
+# Possible values:
+#   auto   - enable on terminals known to support OSC 8 (default)
+#   always - always render links. Inside tmux you also need:
+#              set -ga terminal-features "*:hyperlinks"
+#   never  - never render links
+hyperlinks: auto
+
 # == Columns ==
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.

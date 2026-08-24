@@ -126,6 +126,9 @@ hosts:
 # Icon style: "unicode" (default) or "nerd" (requires Nerd Font)
 icons: unicode
 
+# OSC 8 hyperlinks on container names: "auto" (default), "always", or "never"
+hyperlinks: auto
+
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
@@ -146,6 +149,7 @@ Global config options:
 - `sort`: Default sort field for container list ("uptime", "name", "cpu", "memory")
 - `sort_direction`: Sort direction ("asc" or "desc") - if omitted, uses field's default
 - `columns`: List of column IDs to show, in order (e.g., ["status", "name", "cpu", "memory"])
+- `hyperlinks`: OSC 8 hyperlink mode for Dozzle links ("auto", "always", "never")
 
 See `config.example.yaml` for a complete example.
 
@@ -462,6 +466,59 @@ Host IDs are derived from the host specification:
 - Press 'o' in container list view to open Dozzle for the selected container
 - Opens in browser at `{dozzle_url}/container/{container_id}` format
 - Only works when not in an SSH session (detected via SSH_CLIENT/SSH_TTY/SSH_CONNECTION env vars)
+- Container names are also rendered as clickable [OSC 8] hyperlinks to the same
+  URL (see **OSC 8 Hyperlinks** below). Unlike the 'o' key, these *do* work over
+  SSH, because the link is resolved by the user's local terminal emulator.
+
+### OSC 8 Hyperlinks
+
+The `hyperlinks` config key / `--hyperlinks` flag controls whether container
+names in the Name column render as clickable hyperlinks pointing at Dozzle.
+Rows whose host has no `dozzle` URL are left as plain text.
+
+- `auto` (default) — enable only on terminals detected as supporting OSC 8
+  (`src/ui/hyperlinks.rs::detect_osc8_support`). Detection sniffs `TERM_PROGRAM`,
+  `TERM`, `WT_SESSION`, `ALACRITTY_WINDOW_ID`, `KONSOLE_VERSION`, and
+  `VTE_VERSION`. Multiplexers (`TMUX`, `TERM=screen*`/`tmux*`) are **off** under
+  auto: tmux >= 3.4 needs `set -ga terminal-features "*:hyperlinks"` and that
+  can't be probed without shelling out.
+- `always` — render regardless of terminal. The escape hatch for tmux users who
+  have configured passthrough.
+- `never` — never render.
+
+**Implementation note:** `Table` builds its cells from `Text`, which has nowhere
+to carry an escape sequence, so the links can't be nested inside the table.
+`render_dozzle_links` (`src/ui/container_list.rs`) draws `Hyperlink` widgets
+(`src/ui/hyperlinks.rs`) *on top of* the already-rendered table. To find the Name
+column's rect it replays the same `Block::inner` and `Layout::horizontal` calls
+the table used, rather than hardcoding offsets, so the overlay can't drift from
+the table's own layout. The row offset is read from `TableState::offset()`
+**after** the table renders, since `Table::render_rows` is what writes the first
+visible index back into the state. Labels are pre-clipped with `clip_to_width` so
+a linked name truncates the same way an unlinked one does.
+
+**`CellDiffOption::ForcedWidth` is load-bearing.** `Buffer::diff` decides how many
+terminal columns a cell occupies from its symbol's *display width*, and an OSC 8
+escape sequence measures dozens of columns wide while printing nothing. A cell
+holding an escape sequence must therefore declare
+`CellDiffOption::ForcedWidth(<real width>)`, or the diff advances past that bogus
+width and silently drops every following cell on the row — in practice the CPU
+and Memory columns simply stop rendering.
+
+For that reason `Hyperlink` writes the label as ordinary per-cell text and puts
+escape sequences only on the **first** and **last** cells (opener prepended to the
+first grapheme, terminator appended to the last), each tagged `ForcedWidth`. This
+also keeps the row diffing, snapshotting, and copy-pasting as its plain text, and
+keeps the backend's cursor-position tracking in sync (each cell still advances the
+real cursor by exactly its declared width).
+
+This is why the third-party `hyperrat` crate is **not** used: as of 0.1.3 it packs
+the entire sequence plus the label into a single cell with `CellDiffOption::None`,
+which triggers exactly the row-swallowing bug above.
+`test_hyperlink_does_not_swallow_following_columns` and
+`test_hyperlink_reaches_the_real_backend_without_eating_the_row` (`ui/ui_tests.rs`)
+guard against regressing this; note that the second is the only test that exercises
+the diff → real-backend byte path, where this class of bug is actually visible.
 
 ### Configuration Loading
 
@@ -771,6 +828,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - **Ansi-to-tui**: ANSI escape code parsing for colored log output
 - **Timeago**: Human-readable time formatting for container uptime
 - **Tui-input**: Text input widget for search functionality
+- **Unicode-width**: Display-width calculation for placing/clipping hyperlink labels
 
 ### Dev Dependencies
 - **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)

@@ -27,6 +27,12 @@ pub struct UiStyles {
     pub selected: Style,
     pub search_bar: Style,
     pub icons: Icons,
+    /// Style applied to OSC 8 hyperlinks. Deliberately only an underline: the
+    /// name column sits next to color-coded status/metric columns, so a link
+    /// color would compete with them.
+    pub link: Style,
+    /// Whether to render OSC 8 hyperlinks (resolved from `HyperlinkMode`).
+    pub hyperlinks: bool,
 }
 
 impl Default for UiStyles {
@@ -46,6 +52,8 @@ impl Default for UiStyles {
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
             icons: Icons::default(),
+            link: Style::default().add_modifier(Modifier::UNDERLINED),
+            hyperlinks: false,
         }
     }
 }
@@ -57,6 +65,12 @@ impl UiStyles {
             icons: Icons::new(icon_style),
             ..Default::default()
         }
+    }
+
+    /// Enable or disable OSC 8 hyperlink rendering
+    pub fn with_hyperlinks(mut self, enabled: bool) -> Self {
+        self.hyperlinks = enabled;
+        self
     }
 }
 

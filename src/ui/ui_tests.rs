@@ -112,6 +112,290 @@ mod tests {
         }
     }
 
+    /// Finds the top-left cell of `text` in the buffer, scanning row by row.
+    fn find_text_position(buffer: &Buffer, text: &str) -> Option<(u16, u16)> {
+        let area = buffer.area();
+        for y in 0..area.height {
+            let mut row = String::new();
+            for x in 0..area.width {
+                row.push_str(buffer[(x, y)].symbol());
+            }
+            if let Some(byte_index) = row.find(text) {
+                let column = row[..byte_index].chars().count() as u16;
+                return Some((column, y));
+            }
+        }
+        None
+    }
+
+    /// Renders the container list and returns the buffer.
+    fn render_list(state: &mut AppState, styles: &UiStyles, width: u16, height: u16) -> Buffer {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|f| {
+                render_ui(f, state, styles);
+            })
+            .unwrap();
+        terminal.backend().buffer().clone()
+    }
+
+    fn dozzle_container(id: &str, name: &str, dozzle: &str) -> Container {
+        let mut container = create_test_container(id, name, "local", 10.0, 20.0, 0.0, 0.0);
+        container.dozzle_url = Some(dozzle.to_string());
+        container
+    }
+
+    /// The OSC 8 hyperlink must land on exactly the cell where the Name column
+    /// starts. Rather than hardcoding an x-offset (which would silently rot if
+    /// the column set or widths change), this locates the name in a plain render
+    /// and asserts the linked render puts the escape at the same position.
+    #[test]
+    fn test_dozzle_hyperlink_lands_on_name_column() {
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+            "abc123456789",
+            "nginx",
+            "https://l.dozzle.dev/",
+        )));
+
+        let plain = render_list(&mut state, &UiStyles::default(), 100, 20);
+        let (x, y) = find_text_position(&plain, "nginx").expect("name should render");
+
+        let linked = render_list(
+            &mut state,
+            &UiStyles::default().with_hyperlinks(true),
+            100,
+            20,
+        );
+        // The opening sequence rides on the first grapheme...
+        assert_eq!(
+            linked[(x, y)].symbol(),
+            "\u{1b}]8;;https://l.dozzle.dev/container/abc123456789\u{1b}\\n",
+            "expected the OSC 8 opener at ({x}, {y})"
+        );
+        // ...the terminator on the last...
+        assert_eq!(linked[(x + 4, y)].symbol(), "x\u{1b}]8;;\u{1b}\\");
+        // ...and the middle of the label stays ordinary text, so the row still
+        // snapshots and copy-pastes as "nginx".
+        assert_eq!(linked[(x + 1, y)].symbol(), "g");
+        assert_eq!(linked[(x + 2, y)].symbol(), "i");
+        assert_eq!(linked[(x + 3, y)].symbol(), "n");
+    }
+
+    #[test]
+    fn test_no_hyperlink_when_disabled_or_dozzle_unset() {
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+            "abc123456789",
+            "nginx",
+            "https://l.dozzle.dev/",
+        )));
+
+        // Disabled by config/terminal detection.
+        let disabled = render_list(&mut state, &UiStyles::default(), 100, 20);
+        assert!(!buffer_to_string(&disabled).contains("\u{1b}]8;;"));
+
+        // Enabled, but the host has no Dozzle URL configured.
+        let mut plain_state = create_test_app_state();
+        plain_state.handle_event(AppEvent::ContainerCreated(create_test_container(
+            "abc123456789",
+            "nginx",
+            "local",
+            10.0,
+            20.0,
+            0.0,
+            0.0,
+        )));
+        let no_url = render_list(
+            &mut plain_state,
+            &UiStyles::default().with_hyperlinks(true),
+            100,
+            20,
+        );
+        assert!(!buffer_to_string(&no_url).contains("\u{1b}]8;;"));
+    }
+
+    /// Rows scroll under the header, so the overlay has to offset by
+    /// `TableState::offset()` or links drift onto the wrong containers.
+    #[test]
+    fn test_hyperlink_follows_scroll_offset() {
+        let mut state = create_test_app_state();
+        for i in 0..40 {
+            let container = dozzle_container(
+                &format!("container{i:04}0000"),
+                &format!("svc-{i:02}"),
+                "https://dozzle.example.com",
+            );
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+        // Select a row well past the first screenful so the table scrolls.
+        state.table_state.select(Some(35));
+
+        let styles = UiStyles::default().with_hyperlinks(true);
+        let height = 20;
+        // Render twice: the first pass is what updates TableState::offset.
+        let _ = render_list(&mut state, &styles, 100, height);
+        let buffer = render_list(&mut state, &styles, 100, height);
+
+        let selected = state.table_state.selected().expect("a row is selected");
+        let key = state.sorted_container_keys[selected].clone();
+        let name = state.containers[&key].name.clone();
+
+        let plain = render_list(&mut state, &UiStyles::default(), 100, height);
+        let (x, y) = find_text_position(&plain, &name).expect("selected name is on screen");
+
+        let symbol = buffer[(x, y)].symbol();
+        let first_char = name.chars().next().unwrap();
+        assert_eq!(
+            symbol,
+            format!(
+                "\u{1b}]8;;https://dozzle.example.com/container/{}\u{1b}\\{first_char}",
+                key.container_id
+            ),
+            "link for {name} should sit at ({x}, {y})"
+        );
+    }
+
+    /// Regression test for the whole reason this needs care.
+    ///
+    /// `Buffer::diff` sizes a cell by its symbol's *display width*, and an OSC 8
+    /// escape sequence measures dozens of columns wide while printing nothing.
+    /// If the link cell doesn't declare `CellDiffOption::ForcedWidth`, the diff
+    /// advances past that bogus width and silently drops every following cell on
+    /// the row — the CPU and Memory columns just stop rendering.
+    ///
+    /// Runs at width 162 because progress bars only switch on at >= 128, which
+    /// is what makes the swallowed columns obvious.
+    #[test]
+    fn test_hyperlink_does_not_swallow_following_columns() {
+        let mut state = create_test_app_state();
+        for (id, name) in [
+            ("3616a6720244", "peaceful_jepsen"),
+            ("312244cff86c", "wizardly_solomon"),
+            ("e855f52b69e3", "compassionate_fermi"),
+        ] {
+            state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+                id,
+                name,
+                "http://localhost:8080",
+            )));
+        }
+
+        let width = 162;
+        let plain = render_list(&mut state, &UiStyles::default(), width, 20);
+        let linked = render_list(
+            &mut state,
+            &UiStyles::default().with_hyperlinks(true),
+            width,
+            20,
+        );
+
+        for row in 4..7u16 {
+            let differing: Vec<u16> = (0..width)
+                .filter(|&cx| plain[(cx, row)].symbol() != linked[(cx, row)].symbol())
+                .collect();
+
+            // Only the first and last cell of the name carry escape sequences;
+            // every other cell on the row, including the CPU and Memory bars,
+            // must be byte-identical to the un-linked render.
+            assert_eq!(
+                differing.len(),
+                2,
+                "row {row}: expected only the link's first/last cells to differ, got {differing:?}"
+            );
+            for cx in differing {
+                assert!(
+                    linked[(cx, row)].symbol().contains('\u{1b}'),
+                    "row {row}: cell {cx} differs but carries no escape sequence"
+                );
+            }
+
+            // Spot-check that the bars actually survived rather than both
+            // renders being blank.
+            let rendered: String = (0..width)
+                .map(|cx| plain[(cx, row)].symbol().to_string())
+                .collect();
+            assert!(
+                rendered.contains("██░░"),
+                "row {row}: progress bars missing from the baseline render"
+            );
+        }
+    }
+
+    /// End-to-end through the real backend, not just the buffer.
+    ///
+    /// `TestBackend` and the `CrosstermBackend` both consume `Buffer::diff`, but
+    /// only the real one turns it into bytes. This asserts the escape sequence
+    /// actually reaches the terminal *and* that the columns after it still do —
+    /// the failure this feature originally shipped with was visible only here
+    /// and in a real terminal, never in the pre-diff buffer.
+    #[test]
+    fn test_hyperlink_reaches_the_real_backend_without_eating_the_row() {
+        use ratatui::backend::CrosstermBackend;
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Tap(Arc<Mutex<Vec<u8>>>);
+        impl Write for Tap {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+            "e855f52b69e3",
+            "compassionate_fermi",
+            "http://localhost:8080",
+        )));
+
+        let sink = Arc::new(Mutex::new(Vec::new()));
+        let backend = CrosstermBackend::new(Tap(sink.clone()));
+        let mut terminal = Terminal::with_options(
+            backend,
+            ratatui::TerminalOptions {
+                viewport: ratatui::Viewport::Fixed(ratatui::layout::Rect::new(0, 0, 162, 20)),
+            },
+        )
+        .unwrap();
+
+        let styles = UiStyles::default().with_hyperlinks(true);
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let emitted = String::from_utf8_lossy(&sink.lock().unwrap()).to_string();
+
+        assert!(
+            emitted.contains("\u{1b}]8;;http://localhost:8080/container/e855f52b69e3\u{1b}\\"),
+            "the OSC 8 sequence never reached the terminal"
+        );
+        assert!(
+            emitted.contains("compassionate_fermi"),
+            "the label should still be emitted as ordinary text"
+        );
+        // The CPU/Memory progress bars live to the right of the link. If the
+        // diff swallowed the row, these never get written.
+        assert!(
+            emitted.contains("██░░"),
+            "progress bars after the link were swallowed by the diff"
+        );
+        assert!(
+            emitted.contains("10.0%"),
+            "the CPU percentage after the link was swallowed by the diff"
+        );
+    }
+
     #[test]
     fn test_empty_container_list() {
         let mut state = create_test_app_state();
