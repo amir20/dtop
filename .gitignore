@@ -2,3 +2,9 @@
 target
 .claude/settings.local.json
 .claude/worktrees/
+
+# Local test configs (dtop reads these from the working directory)
+.dtop.yaml
+.dtop.yml
+config.yaml
+config.yml

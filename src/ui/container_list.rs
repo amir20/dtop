@@ -1,13 +1,26 @@
 use crate::core::app_state::AppState;
-use crate::core::types::{Column, Container, ContainerState, HealthStatus, SortState};
+use crate::core::types::{
+    Column, Container, ContainerKey, ContainerState, HealthStatus, SortState,
+};
 use crate::ui::formatters::{format_bytes_per_sec, format_time_elapsed, write_bytes};
+use crate::ui::hyperlinks::Hyperlink;
 use crate::ui::render::UiStyles;
 use ratatui::{
     Frame,
-    layout::Constraint,
+    layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Cell, Row, Table},
 };
+use std::collections::HashMap;
+use unicode_width::UnicodeWidthChar;
+
+/// `Table`'s default `column_spacing`. Mirrored here so hyperlink overlays land
+/// on the same x-offsets the table computed.
+const COLUMN_SPACING: u16 = 1;
+
+/// Rows the table's vertical layout consumes before the first data row: the
+/// header row plus its `bottom_margin(1)`.
+const HEADER_ROWS: u16 = 2;
 
 #[cfg(not(test))]
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -60,17 +73,157 @@ pub fn render_container_list(
         show_host_column,
         app_state.sort_state,
     );
-    let table = create_table(
-        rows,
-        header,
-        app_state.sorted_container_keys.len(),
-        styles,
-        visible_columns,
-        show_host_column,
-        show_progress_bars,
-    );
+    let constraints = column_constraints(visible_columns, show_host_column, show_progress_bars);
+    let block = list_block(app_state.sorted_container_keys.len(), styles);
+    // Capture the table's rect before the block is moved into the table; the
+    // hyperlink overlay is positioned relative to it.
+    let table_area = block.inner(area);
+    let table = create_table(rows, header, constraints.clone(), block, styles);
 
     f.render_stateful_widget(table, area, &mut app_state.table_state);
+
+    if styles.hyperlinks {
+        // `render_rows` writes the first visible index back into the state, so
+        // this must read `offset()` *after* the table has rendered.
+        render_dozzle_links(
+            f,
+            &LinkOverlay {
+                table_area,
+                constraints: &constraints,
+                visible_columns,
+                show_host_column,
+                containers: &app_state.containers,
+                sorted_keys: &app_state.sorted_container_keys,
+                offset: app_state.table_state.offset(),
+                styles,
+            },
+        );
+    }
+}
+
+/// Read-only context for the hyperlink overlay.
+///
+/// Bundled rather than passed as loose arguments: every field is borrowed from
+/// `AppState` or the table's own layout, and grouping them keeps the call site
+/// readable.
+#[derive(Clone, Copy)]
+struct LinkOverlay<'a> {
+    /// The rect the table rendered into (i.e. `block.inner(area)`).
+    table_area: Rect,
+    /// The exact constraints handed to the table, replayed to locate columns.
+    constraints: &'a [Constraint],
+    visible_columns: &'a [Column],
+    show_host_column: bool,
+    containers: &'a HashMap<ContainerKey, Container>,
+    sorted_keys: &'a [ContainerKey],
+    /// Index of the first visible row, read from `TableState` after rendering.
+    offset: usize,
+    styles: &'a UiStyles,
+}
+
+/// Overlays OSC 8 hyperlinks on the Name column for containers whose host has a
+/// Dozzle URL configured.
+///
+/// `Table` renders cells from `Text`, which has nowhere to carry an escape
+/// sequence, so the link has to be drawn on top of the finished table. That
+/// means recomputing where the Name column landed — done by replaying the same
+/// `Layout` the table used rather than hand-rolling the arithmetic, so the two
+/// can't drift apart.
+///
+/// Unlike the `o` key (which shells out to `open`), this works over SSH: the
+/// escape sequence is interpreted by the user's local terminal emulator.
+fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
+    let LinkOverlay {
+        table_area,
+        constraints,
+        visible_columns,
+        show_host_column,
+        containers,
+        sorted_keys,
+        offset,
+        styles,
+    } = *ctx;
+
+    if table_area.height <= HEADER_ROWS || table_area.width == 0 {
+        return;
+    }
+
+    // Position of Name among the columns actually handed to the table.
+    let Some(name_index) = visible_columns
+        .iter()
+        .filter(|col| **col != Column::Host || show_host_column)
+        .position(|col| *col == Column::Name)
+    else {
+        return;
+    };
+
+    // Mirrors `Table::get_column_widths`, including `Flex::Start` and a
+    // `column_spacing` of 1 — both are `Table`'s defaults and this table
+    // overrides neither. The selection column is zero-width because no
+    // `highlight_symbol` is set, so columns start at the table area's left edge.
+    let column_rects = Layout::horizontal(constraints)
+        .flex(Flex::Start)
+        .spacing(COLUMN_SPACING)
+        .split(Rect::new(0, 0, table_area.width, 1));
+
+    let Some(name_rect) = column_rects.get(name_index) else {
+        return;
+    };
+    if name_rect.width == 0 {
+        return;
+    }
+
+    let first_row_y = table_area.y + HEADER_ROWS;
+    let bottom = table_area.bottom();
+
+    for (row_index, key) in sorted_keys.iter().enumerate().skip(offset) {
+        let y = first_row_y + (row_index - offset) as u16;
+        if y >= bottom {
+            break;
+        }
+
+        let Some(container) = containers.get(key) else {
+            continue;
+        };
+        let Some(dozzle_url) = container.dozzle_url.as_deref() else {
+            continue;
+        };
+
+        // Clip exactly like `Cell` does, so a linked name truncates the same
+        // way an unlinked one does.
+        let (label, label_width) = clip_to_width(&container.name, name_rect.width);
+        if label_width == 0 {
+            continue;
+        }
+
+        let url = format!(
+            "{}/container/{}",
+            dozzle_url.trim_end_matches('/'),
+            key.container_id
+        );
+
+        f.render_widget(
+            Hyperlink::new(label, url).style(styles.link),
+            Rect::new(table_area.x + name_rect.x, y, label_width, 1),
+        );
+    }
+}
+
+/// Truncates `text` to at most `max_width` display columns, returning the
+/// clipped text and its width.
+fn clip_to_width(text: &str, max_width: u16) -> (&str, u16) {
+    let max_width = max_width as usize;
+    let mut width = 0usize;
+
+    for (index, ch) in text.char_indices() {
+        let char_width = ch.width().unwrap_or(0);
+        if width + char_width > max_width {
+            return (&text[..index], width as u16);
+        }
+        width += char_width;
+    }
+
+    (text, width as u16)
 }
 
 /// Creates a table row for a single container
@@ -328,16 +481,29 @@ fn create_header_row(
 fn create_table<'a>(
     rows: Vec<Row<'a>>,
     header: Row<'static>,
-    container_count: usize,
+    constraints: Vec<Constraint>,
+    block: Block<'static>,
     styles: &UiStyles,
+) -> Table<'a> {
+    Table::new(rows, constraints)
+        .header(header)
+        .block(block)
+        .row_highlight_style(styles.selected)
+}
+
+/// Builds the column constraints for the table.
+///
+/// Shared with the hyperlink overlay, which re-runs the same layout to find
+/// where the table put each column.
+fn column_constraints(
     visible_columns: &[Column],
     show_host_column: bool,
     show_progress_bars: bool,
-) -> Table<'a> {
+) -> Vec<Constraint> {
     let cpu_width = if show_progress_bars { 28 } else { 7 };
     let mem_width = if show_progress_bars { 33 } else { 7 };
 
-    let constraints: Vec<Constraint> = visible_columns
+    visible_columns
         .iter()
         .filter(|col| **col != Column::Host || show_host_column)
         .map(|col| match col {
@@ -356,25 +522,71 @@ fn create_table<'a>(
             Column::Uptime => Constraint::Length(15),
             Column::Restarts => Constraint::Length(10),
         })
-        .collect();
+        .collect()
+}
 
-    Table::new(rows, constraints)
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::NONE)
-                .padding(ratatui::widgets::Padding::proportional(1))
-                .title(format!(
-                    "dtop v{VERSION} - {container_count} containers ('?' for help, 'q' to quit)"
-                ))
-                .style(styles.border),
-        )
-        .row_highlight_style(styles.selected)
+/// Builds the block that wraps the table.
+///
+/// Returned rather than inlined so the caller can ask it for `inner()` — the
+/// hyperlink overlay needs the exact rect the table rendered into, and the
+/// title row plus proportional padding make that non-obvious to compute by hand.
+fn list_block(container_count: usize, styles: &UiStyles) -> Block<'static> {
+    Block::default()
+        .borders(Borders::NONE)
+        .padding(ratatui::widgets::Padding::proportional(1))
+        .title(format!(
+            "dtop v{VERSION} - {container_count} containers ('?' for help, 'q' to quit)"
+        ))
+        .style(styles.border)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_clip_to_width_ascii() {
+        assert_eq!(clip_to_width("nginx", 10), ("nginx", 5));
+        assert_eq!(clip_to_width("nginx", 5), ("nginx", 5));
+        assert_eq!(clip_to_width("nginx", 3), ("ngi", 3));
+        assert_eq!(clip_to_width("nginx", 0), ("", 0));
+        assert_eq!(clip_to_width("", 8), ("", 0));
+    }
+
+    #[test]
+    fn test_clip_to_width_wide_chars() {
+        // A double-width char must not be split across the column boundary.
+        assert_eq!(clip_to_width("日本語", 6), ("日本語", 6));
+        assert_eq!(clip_to_width("日本語", 5), ("日本", 4));
+        assert_eq!(clip_to_width("日本語", 1), ("", 0));
+    }
+
+    /// The hyperlink overlay recomputes the Name column's x-offset by replaying
+    /// `Table`'s layout. If ratatui ever changes `column_spacing`'s default or
+    /// the flex behaviour, this pins the assumption.
+    #[test]
+    fn test_column_layout_matches_table_defaults() {
+        // Render a bare table and check where it actually put column 1.
+        let mut rendered = ratatui::buffer::Buffer::empty(Rect::new(0, 0, 20, 3));
+        let table = Table::new(
+            vec![Row::new(vec!["ab", "cd"])],
+            [Constraint::Length(4), Constraint::Length(4)],
+        );
+        ratatui::widgets::Widget::render(table, Rect::new(0, 0, 20, 3), &mut rendered);
+
+        // Column 0 occupies x=0..4, then one spacing column, so column 1 starts
+        // at x=5.
+        assert_eq!(rendered[(0, 0)].symbol(), "a");
+        assert_eq!(rendered[(5, 0)].symbol(), "c");
+
+        // The overlay's replayed layout must agree with that.
+        let rects = Layout::horizontal([Constraint::Length(4), Constraint::Length(4)])
+            .flex(Flex::Start)
+            .spacing(COLUMN_SPACING)
+            .split(Rect::new(0, 0, 20, 1));
+        assert_eq!(rects[0].x, 0);
+        assert_eq!(rects[1].x, 5);
+    }
 
     #[test]
     fn test_create_memory_progress_bar_format() {

@@ -28,6 +28,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing::warn;
 use tracing_subscriber::EnvFilter;
 
 use cli::config::Config;
@@ -35,6 +36,7 @@ use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
 use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
 use docker::connection::{DockerHost, container_manager};
+use ui::hyperlinks::HyperlinkMode;
 use ui::icons::IconStyle;
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
@@ -42,6 +44,7 @@ use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 /// Configuration for the event loop
 struct EventLoopConfig {
     icon_style: IconStyle,
+    hyperlinks: bool,
     show_all: bool,
     sort_field: Column,
     sort_direction: Option<SortDirection>,
@@ -102,6 +105,19 @@ struct Args {
     ///   nerd     - Nerd Font icons (requires Nerd Font installed)
     #[arg(short = 'i', long, verbatim_doc_comment)]
     icons: Option<String>,
+
+    /// Render container names as clickable OSC 8 hyperlinks to Dozzle
+    ///
+    /// Only applies to hosts with a `dozzle` URL configured. Unlike the 'o' key,
+    /// this works over SSH because the link is resolved by your local terminal.
+    ///
+    /// Options:
+    ///   auto    - Enable on terminals known to support OSC 8 (default)
+    ///   always  - Always render links (use inside tmux with
+    ///             `set -ga terminal-features "*:hyperlinks"`)
+    ///   never   - Never render links
+    #[arg(long, verbatim_doc_comment, value_name = "MODE")]
+    hyperlinks: Option<String>,
 
     /// Filter containers (can be specified multiple times)
     ///
@@ -241,6 +257,20 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         IconStyle::Unicode
     };
 
+    // Determine hyperlink mode (CLI takes precedence over config)
+    let hyperlink_mode = args
+        .hyperlinks
+        .as_deref()
+        .or(merged_config.hyperlinks.as_deref())
+        .map(|value| {
+            value.parse::<HyperlinkMode>().unwrap_or_else(|err| {
+                warn!("{err}; falling back to auto");
+                HyperlinkMode::default()
+            })
+        })
+        .unwrap_or_default();
+    let hyperlinks = hyperlink_mode.enabled();
+
     // Determine show_all setting (CLI or config, defaults to false)
     let show_all = merged_config.all.unwrap_or(false);
 
@@ -307,6 +337,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         keyboard_paused,
         EventLoopConfig {
             icon_style,
+            hyperlinks,
             show_all,
             sort_field,
             sort_direction,
@@ -377,7 +408,7 @@ async fn run_event_loop(
     let mut last_draw = std::time::Instant::now();
 
     // Pre-allocate styles to avoid recreation every frame
-    let styles = UiStyles::with_icon_style(config.icon_style);
+    let styles = UiStyles::with_icon_style(config.icon_style).with_hyperlinks(config.hyperlinks);
 
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting

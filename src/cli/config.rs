@@ -45,6 +45,10 @@ pub struct Config {
     /// Visible columns in order
     #[serde(skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<String>>,
+
+    /// OSC 8 hyperlink mode for Dozzle links ("auto", "always", or "never")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hyperlinks: Option<String>,
 }
 
 impl Config {
@@ -166,6 +170,7 @@ mod tests {
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -192,6 +197,7 @@ mod tests {
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -214,6 +220,7 @@ mod tests {
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -293,6 +300,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let cli_filters = vec!["name=nginx".to_string()];
@@ -318,6 +326,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -342,6 +351,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -362,6 +372,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -382,6 +393,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -402,6 +414,7 @@ hosts:
             sort: Some("name".to_string()), // Config says name
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -427,6 +440,7 @@ hosts:
             sort: Some("memory".to_string()), // Config says memory
             sort_direction: None,
             columns: None,
+            hyperlinks: None,
         };
 
         let merged =
@@ -486,6 +500,7 @@ hosts:
             sort: None,
             sort_direction: None,
             columns: Some(vec!["name".to_string(), "cpu".to_string()]),
+            hyperlinks: None,
         };
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("columns:"));
@@ -519,6 +534,7 @@ sort_direction: asc
             sort: Some("memory".to_string()),
             sort_direction: Some("desc".to_string()),
             columns: None,
+            hyperlinks: None,
         };
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("sort: memory"));
