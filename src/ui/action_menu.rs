@@ -115,6 +115,6 @@ fn truncate_string(s: &str, max_len: usize) -> String {
         s.to_string()
     } else {
         let truncated: String = s.chars().take(max_len.saturating_sub(1)).collect();
-        format!("{}…", truncated)
+        format!("{truncated}…")
     }
 }

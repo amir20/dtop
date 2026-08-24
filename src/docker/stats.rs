@@ -397,7 +397,7 @@ fn extract_cgroup_v2_disk_bytes(
 
     // 2. Try direct cgroupfs path
     let cgroupfs_path =
-        std::path::PathBuf::from(format!("/sys/fs/cgroup/docker/{}/io.stat", container_id));
+        std::path::PathBuf::from(format!("/sys/fs/cgroup/docker/{container_id}/io.stat"));
     if let Ok(content) = std::fs::read_to_string(&cgroupfs_path) {
         *cached_path = Some(cgroupfs_path);
         return parse_io_stat_content(&content);

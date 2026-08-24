@@ -32,16 +32,16 @@ fn write_byte_value(
         // When precision is 0, show one decimal for fractional values so
         // 1.5G doesn't render as 2G. Whole numbers stay clean (e.g. "4G").
         if gb_prec == 0 && (gb - gb.round()).abs() >= 0.05 {
-            let _ = write!(buf, "{:.1}G{}{}", gb, b, suffix);
+            let _ = write!(buf, "{gb:.1}G{b}{suffix}");
         } else {
-            let _ = write!(buf, "{:.prec$}G{}{}", gb, b, suffix, prec = gb_prec);
+            let _ = write!(buf, "{gb:.gb_prec$}G{b}{suffix}");
         }
     } else if value >= MB {
         let _ = write!(buf, "{:.prec$}M{}{}", value / MB, b, suffix, prec = mb_prec);
     } else if value >= KB {
         let _ = write!(buf, "{:.prec$}K{}{}", value / KB, b, suffix, prec = kb_prec);
     } else {
-        let _ = write!(buf, "{:.prec$}B{}", value, suffix, prec = b_prec);
+        let _ = write!(buf, "{value:.b_prec$}B{suffix}");
     }
 }
 

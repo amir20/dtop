@@ -216,7 +216,7 @@ fn create_progress_bar(percentage: f64, width: usize) -> String {
     // Pre-allocate: each bar char is 3 bytes (UTF-8), plus " 100.0%" suffix
     let mut result = String::with_capacity(width * 3 + 8);
     write_bar(&mut result, filled_width, empty_width);
-    let _ = write!(result, " {:5.1}%", percentage);
+    let _ = write!(result, " {percentage:5.1}%");
     result
 }
 
@@ -314,7 +314,7 @@ fn create_header_row(
                 Column::Restarts => "Restarts",
             };
             if *col == sort_field && !base_label.is_empty() {
-                Cow::Owned(format!("{} {}", base_label, sort_symbol))
+                Cow::Owned(format!("{base_label} {sort_symbol}"))
             } else {
                 Cow::Borrowed(base_label)
             }
@@ -365,8 +365,7 @@ fn create_table<'a>(
                 .borders(Borders::NONE)
                 .padding(ratatui::widgets::Padding::proportional(1))
                 .title(format!(
-                    "dtop v{} - {} containers ('?' for help, 'q' to quit)",
-                    VERSION, container_count
+                    "dtop v{VERSION} - {container_count} containers ('?' for help, 'q' to quit)"
                 ))
                 .style(styles.border),
         )

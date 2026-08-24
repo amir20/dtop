@@ -106,7 +106,7 @@ pub fn render_log_view(
         "[LIVE]".to_string()
     } else if let Some(progress) = log_state.calculate_progress(first_entry_idx) {
         if log_state.has_more_history || progress > 0.0 {
-            format!("[{:.0}%]", progress)
+            format!("[{progress:.0}%]")
         } else {
             "[0%]".to_string()
         }

@@ -63,11 +63,11 @@ impl AppState {
         // complete before showing result. The write is fast (<1ms typically).
         match write_preferences(&config_path, columns, sort, sort_direction, all) {
             Ok(()) => {
-                self.show_notification(&format!("Saved to {}", display_path));
+                self.show_notification(&format!("Saved to {display_path}"));
             }
             Err(e) => {
                 tracing::error!("Failed to save preferences: {}", e);
-                self.show_notification(&format!("Save failed: {}", e));
+                self.show_notification(&format!("Save failed: {e}"));
             }
         }
 
@@ -142,10 +142,7 @@ fn write_preferences(
         let contents = fs::read_to_string(path)?;
         // Don't silently discard invalid YAML - return error so user knows
         serde_yaml::from_str(&contents).map_err(|e| {
-            format!(
-                "Config file contains invalid YAML: {}. Please fix or delete the file.",
-                e
-            )
+            format!("Config file contains invalid YAML: {e}. Please fix or delete the file.")
         })?
     } else {
         Value::Mapping(Default::default())
