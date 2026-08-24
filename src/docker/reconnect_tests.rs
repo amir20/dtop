@@ -132,8 +132,9 @@ async fn handle_connection(mut stream: UnixStream, containers_json: &'static str
         } else if path.contains("/containers/json") {
             containers_json.to_string()
         } else if path.contains("/containers/") && path.ends_with("/json") {
-            // Container inspect — only `RestartCount` is read from it.
-            "{\"RestartCount\":0}".to_string()
+            // Container inspect — only `RestartCount` is read from it. Non-zero so
+            // a backfilled count is distinguishable from the default.
+            "{\"RestartCount\":3}".to_string()
         } else {
             // Anything else (e.g. the stats stream) is not part of these tests.
             let _ = stream
@@ -265,6 +266,60 @@ async fn container_manager_reconnects_after_daemon_restart() {
         vec!["db"],
         "reconnect should re-sync from the daemon, not replay pre-outage state"
     );
+
+    manager.abort();
+}
+
+/// Restart counts need an inspect per container, which the list API cannot
+/// provide. Doing that before sending the list made first paint cost
+/// `container_count * round_trip`, so the list now goes out first and the counts
+/// are backfilled behind it.
+#[tokio::test]
+async fn restart_counts_are_backfilled_after_the_container_list() {
+    const CONTAINERS: &str = r#"[
+        {"Id":"aaaaaaaaaaaa1111","Names":["/web"],"State":"exited","Created":1700000000},
+        {"Id":"bbbbbbbbbbbb2222","Names":["/db"],"State":"exited","Created":1700000000}
+    ]"#;
+
+    let path = socket_path("restart-backfill");
+    let _daemon = FakeDocker::start(&path, CONTAINERS);
+
+    let (tx, mut rx) = mpsc::channel::<AppEvent>(100);
+    let manager = tokio::spawn(container_manager(docker_host(&path), tx));
+
+    // The list must be the *first* container event: nothing may be inspected
+    // ahead of it, or first paint is back to waiting on a round trip per row.
+    let ids = wait_for(&mut rx, "the initial container list", |event| match event {
+        AppEvent::ContainerRestartCount(key, _) => {
+            panic!("restart count for {key:?} arrived before the container list")
+        }
+        AppEvent::InitialContainerList(_, list) => {
+            assert!(
+                list.iter().all(|c| c.restart_count.is_none()),
+                "the list should not carry restart counts it had to block on"
+            );
+            Some(list.iter().map(|c| c.id.clone()).collect::<Vec<_>>())
+        }
+        _ => None,
+    })
+    .await;
+    assert_eq!(ids, vec!["aaaaaaaaaaaa", "bbbbbbbbbbbb"]);
+
+    // ...and the counts land behind it, for every container.
+    let mut backfilled = Vec::new();
+    while backfilled.len() < ids.len() {
+        let id = wait_for(&mut rx, "a backfilled restart count", |event| match event {
+            AppEvent::ContainerRestartCount(key, count) => {
+                assert_eq!(*count, 3, "the count should come from the inspect response");
+                Some(key.container_id.clone())
+            }
+            _ => None,
+        })
+        .await;
+        backfilled.push(id);
+    }
+    backfilled.sort();
+    assert_eq!(backfilled, ids);
 
     manager.abort();
 }

@@ -20,6 +20,11 @@ fn short_id(id: &str) -> &str {
     id.get(..SHORT_ID_LEN).unwrap_or(id)
 }
 
+/// How many restart-count inspects may be in flight at once while backfilling.
+/// Kept well under the SSH pool's 8 channels per control master so a large
+/// container list does not force extra SSH connections.
+const RESTART_BACKFILL_CONCURRENCY: usize = 4;
+
 /// Delay before the first reconnect attempt after losing a host.
 const INITIAL_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 /// Upper bound on the reconnect backoff, so a long outage still gets retried
@@ -65,6 +70,7 @@ impl DockerHost {
         &self,
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
+        restart_backfill: &mut Option<tokio::task::JoinHandle<()>>,
     ) -> bool {
         let mut list_options = ListContainersOptions {
             all: true, // Fetch all containers (including stopped ones)
@@ -91,6 +97,7 @@ impl DockerHost {
         };
 
         let mut initial_containers = Vec::new();
+        let mut pending_restart_counts = Vec::new();
 
         for container in container_list {
             let full_id = container.id.clone().unwrap_or_default();
@@ -124,14 +131,6 @@ impl DockerHost {
             // Check if container is running before moving state
             let is_running = state == ContainerState::Running;
 
-            // Fetch restart count via inspect (not available in list API)
-            let restart_count = self
-                .docker
-                .inspect_container(&full_id, None::<InspectContainerOptions>)
-                .await
-                .ok()
-                .and_then(|inspect| inspect.restart_count);
-
             let compose_project = container
                 .labels
                 .as_ref()
@@ -146,11 +145,13 @@ impl DockerHost {
                 stats: ContainerStats::default(),
                 host_id: self.host_id.clone(),
                 dozzle_url: self.dozzle_url.clone(),
-                restart_count,
+                // Backfilled below; the list API does not carry it.
+                restart_count: None,
                 compose_project,
             };
 
             initial_containers.push(container_info);
+            pending_restart_counts.push((full_id, truncated_id.clone()));
 
             // Only start monitoring for running containers
             if is_running {
@@ -167,7 +168,59 @@ impl DockerHost {
             ))
             .await;
 
+        // Replacing a backfill that is somehow still running would leak its task,
+        // so stop the old one rather than dropping the handle.
+        if let Some(previous) =
+            restart_backfill.replace(self.spawn_restart_count_backfill(pending_restart_counts, tx))
+        {
+            previous.abort();
+        }
+
         true
+    }
+
+    /// Fetches restart counts in the background and streams them to the UI.
+    ///
+    /// The list API does not report restart counts, so each container needs an
+    /// inspect call. Doing that before sending the container list made first
+    /// paint cost `container_count * round_trip` — seconds on a remote host with
+    /// a large `docker ps -a`. The rows render without it instead, and the counts
+    /// fill in as they arrive.
+    ///
+    /// The concurrency is deliberately small: over SSH every in-flight request
+    /// takes a channel from the shared control masters, and an unbounded fan-out
+    /// would spawn the connections the pool exists to avoid.
+    fn spawn_restart_count_backfill(
+        &self,
+        containers: Vec<(String, String)>,
+        tx: &EventSender,
+    ) -> tokio::task::JoinHandle<()> {
+        let host = self.clone();
+        let tx = tx.clone();
+
+        tokio::spawn(async move {
+            futures_util::stream::iter(containers)
+                .for_each_concurrent(RESTART_BACKFILL_CONCURRENCY, |(full_id, truncated_id)| {
+                    let host = &host;
+                    let tx = &tx;
+                    async move {
+                        let restart_count = host
+                            .docker
+                            .inspect_container(&full_id, None::<InspectContainerOptions>)
+                            .await
+                            .ok()
+                            .and_then(|inspect| inspect.restart_count);
+
+                        if let Some(restart_count) = restart_count {
+                            let key = ContainerKey::new(host.host_id.clone(), truncated_id);
+                            let _ = tx
+                                .send(AppEvent::ContainerRestartCount(key, restart_count))
+                                .await;
+                        }
+                    }
+                })
+                .await;
+        })
     }
 
     /// Monitors Docker events for container start/stop/die events
@@ -557,12 +610,13 @@ impl DockerHost {
 /// container list once it answers again.
 pub async fn container_manager(host: DockerHost, tx: EventSender) {
     let mut active_containers: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
+    let mut restart_backfill: Option<tokio::task::JoinHandle<()>> = None;
 
     loop {
         // Fetch the container list and start monitoring; then follow the event
         // stream until the connection to the daemon breaks.
         if host
-            .fetch_initial_containers(&tx, &mut active_containers)
+            .fetch_initial_containers(&tx, &mut active_containers, &mut restart_backfill)
             .await
         {
             host.monitor_docker_events(&tx, &mut active_containers)
@@ -572,6 +626,11 @@ pub async fn container_manager(host: DockerHost, tx: EventSender) {
         // The per-container stats streams die with the connection; drop them so
         // the reconnect starts from a clean slate.
         for (_, handle) in active_containers.drain() {
+            handle.abort();
+        }
+        // Likewise the restart-count backfill: its results describe the container
+        // list from before the outage.
+        if let Some(handle) = restart_backfill.take() {
             handle.abort();
         }
 
