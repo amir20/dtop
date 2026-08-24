@@ -512,6 +512,14 @@ also keeps the row diffing, snapshotting, and copy-pasting as its plain text, an
 keeps the backend's cursor-position tracking in sync (each cell still advances the
 real cursor by exactly its declared width).
 
+**URL safety:** the Dozzle URL is written verbatim inside the escape sequence, so
+`Hyperlink` refuses to render a link whose URL contains control characters
+(`is_safe_url`) — otherwise a `dozzle:` value from a shared or synced config file
+could close the sequence early and inject arbitrary escapes into the terminal. It
+fails closed (plain text, no link) rather than stripping, since rewriting a URL
+could point the link somewhere the user never configured. Labels are safe by
+construction: control characters are zero-width and get dropped during placement.
+
 This is why the third-party `hyperrat` crate is **not** used: as of 0.1.3 it packs
 the entire sequence plus the label into a single cell with `CellDiffOption::None`,
 which triggers exactly the row-swallowing bug above.

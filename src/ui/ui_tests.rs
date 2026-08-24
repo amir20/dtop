@@ -183,6 +183,61 @@ mod tests {
         assert_eq!(linked[(x + 3, y)].symbol(), "n");
     }
 
+    /// Pins the overlay's replayed column layout against the width `Table`
+    /// actually used for the `Constraint::Min(8)` Name column.
+    ///
+    /// The other tests can't catch a mismatch here: `test_dozzle_hyperlink_lands_on_name_column`
+    /// uses a 5-char name that fits under the `Min` floor either way, and the
+    /// swallowing test only counts differing cells, which stays true even if the
+    /// closing escape lands mid-name. So this one uses a long name on a wide
+    /// terminal and asserts the terminator sits on its *last* character — which
+    /// only holds if `name_rect.width` matches the table's real column width.
+    #[test]
+    fn test_link_spans_full_name_at_wide_terminal() {
+        let name = "compassionate_fermi"; // 19 chars, well over Min(8)
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+            "e855f52b69e3",
+            name,
+            "http://localhost:8080",
+        )));
+
+        let width = 162;
+        let plain = render_list(&mut state, &UiStyles::default(), width, 20);
+        let (x, y) = find_text_position(&plain, name).expect("name should render in full");
+        // The table itself must be rendering the whole name, or the assertion
+        // below would be vacuous.
+        assert_eq!(plain[(x + 18, y)].symbol(), "i");
+
+        let linked = render_list(
+            &mut state,
+            &UiStyles::default().with_hyperlinks(true),
+            width,
+            20,
+        );
+
+        assert_eq!(
+            linked[(x, y)].symbol(),
+            "\u{1b}]8;;http://localhost:8080/container/e855f52b69e3\u{1b}\\c",
+            "opener should sit on the first character of the name"
+        );
+        assert_eq!(
+            linked[(x + 18, y)].symbol(),
+            "i\u{1b}]8;;\u{1b}\\",
+            "terminator should sit on the LAST character of the name, meaning the \
+             overlay's replayed Name column width matches the table's"
+        );
+        // Everything between stays plain text, so the link covers the whole name.
+        for offset in 1..18u16 {
+            let symbol = linked[(x + offset, y)].symbol();
+            assert!(
+                !symbol.contains('\u{1b}'),
+                "cell {offset} inside the name should be plain, got {symbol:?}"
+            );
+            assert_eq!(symbol, plain[(x + offset, y)].symbol());
+        }
+    }
+
     #[test]
     fn test_no_hyperlink_when_disabled_or_dozzle_unset() {
         let mut state = create_test_app_state();

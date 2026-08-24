@@ -101,9 +101,24 @@ impl<'a> Hyperlink<'a> {
     }
 }
 
+/// Rejects URLs that could break out of the OSC 8 sequence.
+///
+/// The URL is written verbatim between `ESC ] 8 ; ;` and the terminator, so a
+/// control character in it would be forwarded straight to the terminal and could
+/// close the sequence early and inject arbitrary escapes. `dozzle_url` is
+/// free-form YAML from a config file that may have come from a shared or synced
+/// location, so it is not inherently trustworthy.
+///
+/// Failing closed (no link) rather than stripping: a URL containing control
+/// characters is malformed anyway, and silently rewriting it could point the
+/// link somewhere the user did not configure.
+fn is_safe_url(url: &str) -> bool {
+    !url.is_empty() && !url.chars().any(char::is_control)
+}
+
 impl Widget for Hyperlink<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width == 0 || area.height == 0 || self.url.is_empty() {
+        if area.width == 0 || area.height == 0 || !is_safe_url(&self.url) {
             return;
         }
 
@@ -370,6 +385,45 @@ mod widget_tests {
         );
         // 本 was dropped rather than straddling the boundary.
         assert_eq!(buf[(4, 0)].symbol(), " ");
+    }
+
+    /// The URL is emitted verbatim inside the escape sequence, so a control
+    /// character in it could terminate the sequence early and inject arbitrary
+    /// escapes into the terminal. Fail closed instead.
+    #[test]
+    fn test_url_with_control_characters_renders_no_link() {
+        for hostile in [
+            "https://example.com\u{1b}]0;pwned\u{7}",
+            "https://example.com\u{7}",
+            "https://exa\nmple.com",
+            "https://example.com\u{1b}\\",
+        ] {
+            let mut buf = Buffer::empty(Rect::new(0, 0, 20, 1));
+            Hyperlink::new("nginx", hostile.to_string()).render(Rect::new(2, 0, 10, 1), &mut buf);
+            for x in 0..20 {
+                assert!(
+                    !buf[(x, 0)].symbol().contains('\u{1b}'),
+                    "no escape should be emitted for {hostile:?}"
+                );
+            }
+            // Nothing is drawn at all, leaving whatever was already rendered
+            // there (in practice the table's own plain-text name).
+            assert_eq!(buf[(2, 0)].symbol(), " ");
+        }
+    }
+
+    /// Control characters in a label are zero-width and get dropped during
+    /// placement, so a label cannot inject escapes either.
+    #[test]
+    fn test_control_characters_in_label_are_dropped() {
+        let mut buf = Buffer::empty(Rect::new(0, 0, 20, 1));
+        Hyperlink::new("a\u{1b}[31mb", "https://example.com".to_string())
+            .render(Rect::new(2, 0, 10, 1), &mut buf);
+        let rendered: String = (2..12).map(|x| buf[(x, 0)].symbol().to_string()).collect();
+        assert!(
+            !rendered.contains("\u{1b}["),
+            "label escapes must not survive placement, got {rendered:?}"
+        );
     }
 
     #[test]

@@ -87,16 +87,38 @@ pub fn render_container_list(
         // this must read `offset()` *after* the table has rendered.
         render_dozzle_links(
             f,
-            table_area,
-            &constraints,
-            visible_columns,
-            show_host_column,
-            &app_state.containers,
-            &app_state.sorted_container_keys,
-            app_state.table_state.offset(),
-            styles,
+            &LinkOverlay {
+                table_area,
+                constraints: &constraints,
+                visible_columns,
+                show_host_column,
+                containers: &app_state.containers,
+                sorted_keys: &app_state.sorted_container_keys,
+                offset: app_state.table_state.offset(),
+                styles,
+            },
         );
     }
+}
+
+/// Read-only context for the hyperlink overlay.
+///
+/// Bundled rather than passed as loose arguments: every field is borrowed from
+/// `AppState` or the table's own layout, and grouping them keeps the call site
+/// readable.
+#[derive(Clone, Copy)]
+struct LinkOverlay<'a> {
+    /// The rect the table rendered into (i.e. `block.inner(area)`).
+    table_area: Rect,
+    /// The exact constraints handed to the table, replayed to locate columns.
+    constraints: &'a [Constraint],
+    visible_columns: &'a [Column],
+    show_host_column: bool,
+    containers: &'a HashMap<ContainerKey, Container>,
+    sorted_keys: &'a [ContainerKey],
+    /// Index of the first visible row, read from `TableState` after rendering.
+    offset: usize,
+    styles: &'a UiStyles,
 }
 
 /// Overlays OSC 8 hyperlinks on the Name column for containers whose host has a
@@ -110,18 +132,18 @@ pub fn render_container_list(
 ///
 /// Unlike the `o` key (which shells out to `open`), this works over SSH: the
 /// escape sequence is interpreted by the user's local terminal emulator.
-#[allow(clippy::too_many_arguments)]
-fn render_dozzle_links(
-    f: &mut Frame,
-    table_area: Rect,
-    constraints: &[Constraint],
-    visible_columns: &[Column],
-    show_host_column: bool,
-    containers: &HashMap<ContainerKey, Container>,
-    sorted_keys: &[ContainerKey],
-    offset: usize,
-    styles: &UiStyles,
-) {
+fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
+    let LinkOverlay {
+        table_area,
+        constraints,
+        visible_columns,
+        show_host_column,
+        containers,
+        sorted_keys,
+        offset,
+        styles,
+    } = *ctx;
+
     if table_area.height <= HEADER_ROWS || table_area.width == 0 {
         return;
     }
@@ -135,9 +157,10 @@ fn render_dozzle_links(
         return;
     };
 
-    // Mirrors `Table::get_column_widths`. The selection column is zero-width
-    // here because the table sets no `highlight_symbol`, so the columns start
-    // at the left edge of the table area.
+    // Mirrors `Table::get_column_widths`, including `Flex::Start` and a
+    // `column_spacing` of 1 — both are `Table`'s defaults and this table
+    // overrides neither. The selection column is zero-width because no
+    // `highlight_symbol` is set, so columns start at the table area's left edge.
     let column_rects = Layout::horizontal(constraints)
         .flex(Flex::Start)
         .spacing(COLUMN_SPACING)
