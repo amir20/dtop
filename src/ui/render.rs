@@ -184,7 +184,7 @@ fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyle
     // Hosts whose connection dropped and that are being retried in the background.
     // Shown persistently (unlike errors, which expire) until the host comes back.
     for host_id in &state.disconnected_hosts {
-        let text = format!("⟳ {}: connection lost, reconnecting…", host_id);
+        let text = format!("⟳ {host_id}: connection lost, reconnecting…");
         let width = (text.chars().count() + 4).min(80) as u16;
         let height = 3;
 
@@ -216,7 +216,7 @@ fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyle
         let error_text = if error_msg.len() > 80 {
             format!("✗ {}: {}...", host_id, &error_msg[..77])
         } else {
-            format!("✗ {}: {}", host_id, error_msg)
+            format!("✗ {host_id}: {error_msg}")
         };
         let error_width = (error_text.len() + 4).min(80) as u16; // +4 for borders and padding
         let error_height = 3; // Border + text + border
@@ -251,9 +251,8 @@ fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyle
 fn render_notification(f: &mut Frame, state: &AppState) {
     use std::time::Instant;
 
-    let (message, expiry) = match &state.notification {
-        Some((msg, exp)) => (msg, exp),
-        None => return,
+    let Some((message, expiry)) = &state.notification else {
+        return;
     };
 
     // Don't render if expired

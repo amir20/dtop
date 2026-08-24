@@ -1,0 +1,4 @@
+# Treat warnings from this package as errors, matching CI.
+# Stabilized in Rust 1.97; replaces passing `-D warnings` at each call site.
+[build]
+warnings = "deny"

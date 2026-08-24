@@ -107,7 +107,7 @@ impl DockerHost {
             let state = container
                 .state
                 .as_ref()
-                .and_then(|s| format!("{:?}", s).parse().ok())
+                .and_then(|s| format!("{s:?}").parse().ok())
                 .unwrap_or(ContainerState::Unknown);
 
             // Parse created timestamp from Unix timestamp
@@ -345,7 +345,7 @@ impl DockerHost {
                 .as_ref()
                 .and_then(|s| s.health.as_ref())
                 .and_then(|h| h.status.as_ref())
-                .and_then(|status| format!("{:?}", status).parse().ok());
+                .and_then(|status| format!("{status:?}").parse().ok());
 
             // Parse created timestamp from RFC3339 string
             let created = inspect.created.as_ref().and_then(|created_str| {
@@ -464,7 +464,7 @@ impl DockerHost {
                         .as_ref()
                         .and_then(|s| s.health.as_ref())
                         .and_then(|h| h.status.as_ref())
-                        .and_then(|status| format!("{:?}", status).parse().ok())
+                        .and_then(|status| format!("{status:?}").parse().ok())
                 } else {
                     None
                 }
@@ -489,7 +489,7 @@ impl DockerHost {
         self.docker
             .start_container(container_id, Some(options))
             .await
-            .map_err(|e| format!("Failed to start container: {}", e))
+            .map_err(|e| format!("Failed to start container: {e}"))
     }
 
     /// Stops a container with a 10-second timeout
@@ -504,7 +504,7 @@ impl DockerHost {
         self.docker
             .stop_container(container_id, Some(options))
             .await
-            .map_err(|e| format!("Failed to stop container: {}", e))
+            .map_err(|e| format!("Failed to stop container: {e}"))
     }
 
     /// Restarts a container with a 10-second timeout
@@ -519,7 +519,7 @@ impl DockerHost {
         self.docker
             .restart_container(container_id, Some(options))
             .await
-            .map_err(|e| format!("Failed to restart container: {}", e))
+            .map_err(|e| format!("Failed to restart container: {e}"))
     }
 
     /// Removes a container (with force option if needed)
@@ -535,7 +535,7 @@ impl DockerHost {
         self.docker
             .remove_container(container_id, Some(options))
             .await
-            .map_err(|e| format!("Failed to remove container: {}", e))
+            .map_err(|e| format!("Failed to remove container: {e}"))
     }
 
     /// Runs an interactive shell session inside a container
@@ -701,8 +701,7 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
         )?)
     } else {
         Err(format!(
-            "Invalid host format: '{}'. Use 'local', 'unix:///path/to/docker.sock', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'",
-            host
+            "Invalid host format: '{host}'. Use 'local', 'unix:///path/to/docker.sock', 'ssh://user@host[:port]', 'tcp://host:port', or 'tls://host:port'"
         )
         .into())
     }

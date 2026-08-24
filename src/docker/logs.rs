@@ -212,11 +212,11 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
 
     // Phase 1: Fetch initial batch (most recent 1000 logs)
     let historical_options = Some(LogsOptions {
-        follow: false,                           // Don't follow, just get existing logs
-        stdout: true,                            // Include stdout
-        stderr: true,                            // Include stderr
-        timestamps: true,                        // Include timestamps
-        tail: format!("{}", INITIAL_BATCH_SIZE), // Get most recent N logs
+        follow: false,                         // Don't follow, just get existing logs
+        stdout: true,                          // Include stdout
+        stderr: true,                          // Include stderr
+        timestamps: true,                      // Include timestamps
+        tail: format!("{INITIAL_BATCH_SIZE}"), // Get most recent N logs
         ..Default::default()
     });
 
@@ -391,19 +391,16 @@ mod tests {
         // The formatted JSON should be flattened: key=value  another=test
         assert!(
             text_str.contains("another=test"),
-            "JSON should be flattened with key=value format. Got: '{}'",
-            text_str
+            "JSON should be flattened with key=value format. Got: '{text_str}'"
         );
         assert!(
             text_str.contains("key=value"),
-            "JSON should be flattened with key=value format. Got: '{}'",
-            text_str
+            "JSON should be flattened with key=value format. Got: '{text_str}'"
         );
         // Check that fields are separated (should contain both keys)
         assert!(
             text_str.contains("another") && text_str.contains("key"),
-            "JSON should contain all fields. Got: '{}'",
-            text_str
+            "JSON should contain all fields. Got: '{text_str}'"
         );
     }
 
@@ -429,23 +426,19 @@ mod tests {
         // Check for flattened nested keys using dot notation
         assert!(
             text_str.contains("name=Alice"),
-            "Should contain flattened name field. Got: '{}'",
-            text_str
+            "Should contain flattened name field. Got: '{text_str}'"
         );
         assert!(
             text_str.contains("age=30"),
-            "Should contain flattened age field. Got: '{}'",
-            text_str
+            "Should contain flattened age field. Got: '{text_str}'"
         );
         assert!(
             text_str.contains("address.city=Portland"),
-            "Should contain flattened nested city field with dot notation. Got: '{}'",
-            text_str
+            "Should contain flattened nested city field with dot notation. Got: '{text_str}'"
         );
         assert!(
             text_str.contains("address.zip=97201"),
-            "Should contain flattened nested zip field with dot notation. Got: '{}'",
-            text_str
+            "Should contain flattened nested zip field with dot notation. Got: '{text_str}'"
         );
     }
 

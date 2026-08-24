@@ -20,8 +20,7 @@ impl std::str::FromStr for IconStyle {
             "unicode" => Ok(IconStyle::Unicode),
             "nerd" => Ok(IconStyle::Nerd),
             _ => Err(format!(
-                "Invalid icon style: '{}'. Use 'unicode' or 'nerd'",
-                s
+                "Invalid icon style: '{s}'. Use 'unicode' or 'nerd'"
             )),
         }
     }

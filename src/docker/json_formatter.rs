@@ -84,14 +84,14 @@ fn flatten_json(prefix: &str, value: &serde_json::Value) -> Vec<(String, JsonVal
                 let new_prefix = if prefix.is_empty() {
                     key.to_string()
                 } else {
-                    format!("{}.{}", prefix, key)
+                    format!("{prefix}.{key}")
                 };
                 result.extend(flatten_json(&new_prefix, val));
             }
         }
         serde_json::Value::Array(arr) => {
             for (idx, val) in arr.iter().enumerate() {
-                let new_prefix = format!("{}[{}]", prefix, idx);
+                let new_prefix = format!("{prefix}[{idx}]");
                 result.extend(flatten_json(&new_prefix, val));
             }
         }

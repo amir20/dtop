@@ -29,7 +29,7 @@ pub async fn run_shell_session(
 
     // Print a message so user knows shell is starting
     println!();
-    println!("Connecting to shell in container {}...", container_id);
+    println!("Connecting to shell in container {container_id}...");
     println!("Press Ctrl+D to exit");
     println!();
 
@@ -55,7 +55,7 @@ pub async fn run_shell_session(
         .docker
         .create_exec(container_id, exec_config)
         .await
-        .map_err(|e| format!("Failed to create exec: {}", e))?;
+        .map_err(|e| format!("Failed to create exec: {e}"))?;
 
     let exec_id = exec_instance.id;
     debug!("Created exec instance: {}", exec_id);
@@ -72,7 +72,7 @@ pub async fn run_shell_session(
         .docker
         .start_exec(&exec_id, Some(start_config))
         .await
-        .map_err(|e| format!("Failed to start exec: {}", e))?;
+        .map_err(|e| format!("Failed to start exec: {e}"))?;
 
     debug!("Exec started, handling attached session");
 

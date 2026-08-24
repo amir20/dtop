@@ -21,10 +21,10 @@ pub fn run_update() -> Result<(), Box<dyn Error>> {
 
     match status {
         self_update::Status::UpToDate(version) => {
-            println!("Already up to date (v{})", version);
+            println!("Already up to date (v{version})");
         }
         self_update::Status::Updated(version) => {
-            println!("Successfully updated to v{}", version);
+            println!("Successfully updated to v{version}");
             println!("Please restart dtop to use the new version.");
         }
     }

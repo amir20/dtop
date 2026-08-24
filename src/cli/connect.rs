@@ -55,7 +55,7 @@ pub async fn establish_connections(
                             .await;
 
                         if total_hosts == 1 {
-                            eprintln!("Failed to connect to Docker host: {:?}", e);
+                            eprintln!("Failed to connect to Docker host: {e:?}");
                         }
                     }
                 }
@@ -146,19 +146,15 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     debug!("Attempting to connect to host: {}", host_spec);
 
     // Attempt to connect
-    let docker = connect_docker(host_spec).map_err(|e| {
-        format!(
-            "Failed to create Docker client for host '{}': {}",
-            host_spec, e
-        )
-    })?;
+    let docker = connect_docker(host_spec)
+        .map_err(|e| format!("Failed to create Docker client for host '{host_spec}': {e}"))?;
 
     debug!("Successfully created Docker client for host: {}", host_spec);
 
     // Parse filters if provided
     let filters = if let Some(ref filter_list) = host_config.filter {
         parse_filters(filter_list)
-            .map_err(|e| format!("Failed to parse filters for host '{}': {}", host_spec, e))?
+            .map_err(|e| format!("Failed to parse filters for host '{host_spec}': {e}"))?
     } else {
         HashMap::new()
     };
@@ -187,13 +183,11 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
                 debug!("  Level {}: {}", level + 1, err);
             }
             Err(format!(
-                "Docker daemon ping failed for host '{}': {}",
-                host_spec, e
+                "Docker daemon ping failed for host '{host_spec}': {e}"
             ))
         }
         Err(_) => Err(format!(
-            "Docker daemon ping timeout for host '{}' (>10s)",
-            host_spec
+            "Docker daemon ping timeout for host '{host_spec}' (>10s)"
         )),
     }
 }
@@ -207,7 +201,7 @@ pub fn create_host_id(host_spec: &str) -> String {
         let host = url.host_str().unwrap_or(host_spec);
         let username = url.username();
         if !username.is_empty() {
-            format!("{}@{}", username, host)
+            format!("{username}@{host}")
         } else {
             host.to_string()
         }
