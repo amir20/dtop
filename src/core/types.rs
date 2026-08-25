@@ -132,6 +132,9 @@ pub enum AppEvent {
     ContainerStat(ContainerKey, ContainerStats),
     /// Health status changed for a container
     ContainerHealthChanged(ContainerKey, HealthStatus),
+    /// Restart count for a container, backfilled after the initial list is sent.
+    /// The list API does not carry it, so it is inspected off the critical path.
+    ContainerRestartCount(ContainerKey, i64),
     /// User requested to quit
     Quit,
     /// Terminal was resized

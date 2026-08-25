@@ -123,4 +123,20 @@ impl AppState {
         }
         RenderAction::Render // Force draw - health status changed (visible in UI)
     }
+
+    /// Applies a backfilled restart count.
+    ///
+    /// These arrive one per container right after startup, so this deliberately
+    /// does not force a draw: the periodic render picks the values up, and the
+    /// sort throttle settles the ordering when sorting by `Restarts`.
+    pub(super) fn handle_container_restart_count(
+        &mut self,
+        key: ContainerKey,
+        count: i64,
+    ) -> RenderAction {
+        if let Some(container) = self.containers.get_mut(&key) {
+            container.restart_count = Some(count);
+        }
+        RenderAction::None
+    }
 }

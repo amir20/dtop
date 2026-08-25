@@ -410,6 +410,13 @@ async fn run_event_loop(
     // Pre-allocate styles to avoid recreation every frame
     let styles = UiStyles::with_icon_style(config.icon_style).with_hyperlinks(config.hyperlinks);
 
+    // Paint once up front. `process_events` blocks for up to `draw_interval`
+    // waiting for the first event, so without this the terminal stays empty for
+    // half a second even when the container list arrives immediately.
+    terminal.draw(|f| {
+        render_ui(f, &mut state, &styles);
+    })?;
+
     while !state.should_quit {
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
