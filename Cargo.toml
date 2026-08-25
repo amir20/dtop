@@ -1,6 +1,6 @@
 [package]
 name = "dtop"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.88"
 description = "A terminal-based Docker container monitoring tool with real-time CPU and memory metrics"

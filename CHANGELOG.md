@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-08-25
+
+### Features
+
+- *(docs)* Redesign site with a quieter, product-first layout (#341)
+- *(ui)* Render container names as OSC 8 links to Dozzle (#349)
+
+### Performance
+
+- *(startup)* Render the container list without waiting on restart counts (#350)
+
 ## [0.8.0] - 2026-08-07
 
 ### Bug Fixes
