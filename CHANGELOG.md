@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2026-08-30
+
+### Features
+
+- *(dist)* Build armv7 (32-bit ARM) release artifacts (#355)
+
+### Bug Fixes
+
+- *(deps)* Update rust crate self_update to v1 (#352)
+
 ## [0.9.0] - 2026-08-25
 
 ### Features
