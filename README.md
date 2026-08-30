@@ -31,9 +31,10 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - [x] Support container health status
 - [x] Search or filter for containers
 - [x] Support simple JSON parsing and formatting
-- [ ] Add support for disk IO.
+- [x] Configurable columns and saving preferences
+- [x] Add support for disk IO.
 - [ ] Add support for Kubernetes clusters
-- [ ] Configurable columns and saving preferences
+
 
 ## Installation
 `dtop` can be installed through multiple package managers or by downloading the binary directly.
