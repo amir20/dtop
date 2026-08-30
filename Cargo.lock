@@ -2679,9 +2679,9 @@ dependencies = [
 
 [[package]]
 name = "self_update"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b2dfb351ce5ee53b8874dd13c8497951f60f41c69eac1e20e71b41454bbb35f"
+checksum = "93cd09e191f38e790e4ac967e7e6725c3331524689e5e5f14196a2b99bea8ad1"
 dependencies = [
  "flate2",
  "http",
@@ -3071,7 +3071,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
