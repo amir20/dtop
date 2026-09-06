@@ -20,6 +20,29 @@ fn short_id(id: &str) -> &str {
     id.get(..SHORT_ID_LEN).unwrap_or(id)
 }
 
+/// Resolve display metadata consistently for list and inspect responses.
+fn display_metadata(
+    docker_name: &str,
+    labels: Option<&HashMap<String, String>>,
+) -> (String, Option<String>) {
+    let first_label = |keys: &[&str]| {
+        keys.iter().find_map(|key| {
+            labels
+                .and_then(|labels| labels.get(*key))
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        })
+    };
+    let name = first_label(&["dev.dozzle.name", "coolify.serviceName"])
+        .unwrap_or_else(|| docker_name.trim_start_matches('/').to_string());
+    let project = first_label(&[
+        "dev.dozzle.group",
+        "coolify.projectName",
+        "com.docker.compose.project",
+    ]);
+    (name, project)
+}
+
 /// How many restart-count inspects may be in flight at once while backfilling.
 /// Kept well under the SSH pool's 8 channels per control master so a large
 /// container list does not force extra SSH connections.
@@ -106,11 +129,12 @@ impl DockerHost {
                 continue;
             }
             let truncated_id = short_id(&full_id).to_string();
-            let name = container
+            let docker_name = container
                 .names
                 .as_ref()
-                .and_then(|n| n.first().map(|s| s.trim_start_matches('/').to_string()))
+                .and_then(|names| names.first().map(String::as_str))
                 .unwrap_or_default();
+            let (name, compose_project) = display_metadata(docker_name, container.labels.as_ref());
             let state = container
                 .state
                 .as_ref()
@@ -130,11 +154,6 @@ impl DockerHost {
 
             // Check if container is running before moving state
             let is_running = state == ContainerState::Running;
-
-            let compose_project = container
-                .labels
-                .as_ref()
-                .and_then(|labels| labels.get("com.docker.compose.project").cloned());
 
             let container_info = Container {
                 id: truncated_id.clone(),
@@ -381,11 +400,12 @@ impl DockerHost {
             .inspect_container(container_id, None::<InspectContainerOptions>)
             .await
         {
-            let name = inspect
-                .name
+            let labels = inspect
+                .config
                 .as_ref()
-                .map(|n| n.trim_start_matches('/').to_string())
-                .unwrap_or_default();
+                .and_then(|config| config.labels.as_ref());
+            let (name, compose_project) =
+                display_metadata(inspect.name.as_deref().unwrap_or_default(), labels);
 
             // We received a "start" event, so the container is running.
             // Don't trust inspect state here — there's a race where inspect
@@ -408,12 +428,6 @@ impl DockerHost {
             });
 
             let restart_count = inspect.restart_count;
-
-            let compose_project = inspect
-                .config
-                .as_ref()
-                .and_then(|config| config.labels.as_ref())
-                .and_then(|labels| labels.get("com.docker.compose.project").cloned());
 
             if !active_containers.contains_key(&truncated_id) {
                 // New container or restarted container — create/update and start monitoring
@@ -769,6 +783,46 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_metadata_resolves_label_precedence_and_empty_fallbacks() {
+        let mut labels = HashMap::from([
+            ("dev.dozzle.name".into(), "Custom name".into()),
+            ("coolify.serviceName".into(), "Coolify service".into()),
+            ("dev.dozzle.group".into(), "Custom group".into()),
+            ("coolify.projectName".into(), "Coolify project".into()),
+            (
+                "com.docker.compose.project".into(),
+                "compose-project".into(),
+            ),
+        ]);
+        assert_eq!(
+            display_metadata("/docker-name", Some(&labels)),
+            ("Custom name".into(), Some("Custom group".into()))
+        );
+
+        labels.remove("dev.dozzle.name");
+        labels.insert("dev.dozzle.group".into(), "  ".into());
+        assert_eq!(
+            display_metadata("/docker-name", Some(&labels)),
+            ("Coolify service".into(), Some("Coolify project".into()))
+        );
+
+        labels.insert("coolify.serviceName".into(), "".into());
+        labels.remove("coolify.projectName");
+        assert_eq!(
+            display_metadata("/docker-name", Some(&labels)),
+            ("docker-name".into(), Some("compose-project".into()))
+        );
+        assert_eq!(
+            display_metadata("/docker-name", None),
+            ("docker-name".into(), None)
+        );
+        assert_eq!(
+            display_metadata("", Some(&HashMap::new())),
+            (String::new(), None)
+        );
+    }
 
     #[test]
     fn short_id_truncates_to_docker_short_form() {

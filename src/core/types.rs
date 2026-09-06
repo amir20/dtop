@@ -76,7 +76,7 @@ pub struct Container {
     pub host_id: HostId,
     pub dozzle_url: Option<String>,
     pub restart_count: Option<i64>,
-    pub compose_project: Option<String>, // Docker Compose project name from labels
+    pub compose_project: Option<String>, // Dozzle group, Coolify project, or Compose project
 }
 
 /// Container runtime statistics (updated frequently)

@@ -339,6 +339,15 @@ dtop --host local --host tcp://host2:2375 --host ssh://user@host
 > [!Note]
 > Currently, Dozzle url can only be configured in the configuration file. There is no way to provide it directly in the command line flags.
 
+### Coolify and Dozzle labels
+
+dtop reads display names and groups directly from Docker labels, with no additional configuration:
+
+- Container name: `dev.dozzle.name` → `coolify.serviceName` → Docker container name.
+- Compose column: `dev.dozzle.group` → `coolify.projectName` → `com.docker.compose.project`.
+
+Empty or whitespace-only labels are skipped. This works even without a Dozzle URL configured, including after container restarts and host reconnections.
+
 ## Related Projects & Inspirations
 
 I am a big fan of [ctop](https://github.com/bcicen/ctop). `ctop` inspired me to create Dozzle but in the browser. However, it seems like `ctop` is no longer maintained. I considered forking `ctop` but deploying with same name would be challenging. I created `dtop` for my personal use case. I often want to see all my containers at a glance across multiple hosts. `dtop` achieves that by supporting remote hosts via `ssh` or `tcp`. Additionally, since I use Dozzle, I integrated Dozzle into `dtop` to provide a seamless experience for monitoring container logs.
