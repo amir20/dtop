@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.2] - 2026-09-06
+
+### Features
+
+- Support Coolify and Dozzle display labels (#360)
+
+### Bug Fixes
+
+- *(deps)* Update rust crate dirs to v7 (#359)
+
 ## [0.9.1] - 2026-08-30
 
 ### Features
