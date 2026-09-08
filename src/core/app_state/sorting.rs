@@ -90,8 +90,10 @@ impl AppState {
         // Force immediate re-sort/filter when user toggles visibility
         self.force_sort_containers();
 
-        // Adjust selection if needed after filtering
-        self.clamp_selection();
+        // Adjust selection if needed after filtering. Toggling back can refill a
+        // list that emptied out (and so cleared the selection), so this has to
+        // restore the cursor rather than only clamp it.
+        self.ensure_selection();
 
         RenderAction::Render // Force redraw - visibility changed
     }

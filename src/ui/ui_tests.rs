@@ -1525,4 +1525,41 @@ mod tests {
             "the recreated container should be selected again"
         );
     }
+
+    /// Companion to the #362 repro: toggling `a` off and back on can empty and
+    /// refill the list the same way, and must likewise restore the cursor.
+    #[test]
+    fn test_toggle_show_all_restores_selection() {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+
+        let mut stopped = create_test_container("aaa111111111", "foo", "local", 0.0, 0.0, 0.0, 0.0);
+        stopped.state = ContainerState::Exited;
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![stopped],
+        ));
+        assert_eq!(state.table_state.selected(), Some(0));
+
+        // 'a' hides the stopped container — the list empties and the cursor goes.
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+        )));
+        assert!(state.sorted_container_keys.is_empty());
+        assert_eq!(state.table_state.selected(), None);
+
+        // 'a' again brings it back, and the cursor with it.
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(state.sorted_container_keys.len(), 1);
+        assert_eq!(
+            state.table_state.selected(),
+            Some(0),
+            "the restored row should be selected again"
+        );
+    }
 }
