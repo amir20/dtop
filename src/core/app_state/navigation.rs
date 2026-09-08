@@ -111,6 +111,19 @@ impl AppState {
         RenderAction::Render // Force redraw to show/hide popup
     }
 
+    /// Restores a usable cursor after the visible rows changed.
+    ///
+    /// Clamps an out-of-range selection, and re-selects the first row when
+    /// nothing is selected but rows exist — the list can empty out (which
+    /// clears the selection) and refill again while a filter is active, and
+    /// without this the cursor would stay gone until the filter is edited.
+    pub fn ensure_selection(&mut self) {
+        self.clamp_selection();
+        if self.table_state.selected().is_none() && !self.sorted_container_keys.is_empty() {
+            self.table_state.select(Some(0));
+        }
+    }
+
     /// Clamps the current table selection to be within the valid range of sorted container keys.
     /// Call this after filtering or removing containers to ensure the selection remains valid.
     pub fn clamp_selection(&mut self) {

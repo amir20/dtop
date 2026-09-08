@@ -33,10 +33,7 @@ impl AppState {
         self.force_sort_containers();
 
         // Adjust selection after clearing filter
-        self.clamp_selection();
-        if self.table_state.selected().is_none() && !self.sorted_container_keys.is_empty() {
-            self.table_state.select(Some(0));
-        }
+        self.ensure_selection();
 
         RenderAction::Render // Force redraw to hide search bar
     }
@@ -59,10 +56,7 @@ impl AppState {
         self.force_sort_containers();
 
         // Adjust selection after filtering
-        self.clamp_selection();
-        if self.table_state.selected().is_none() && !self.sorted_container_keys.is_empty() {
-            self.table_state.select(Some(0));
-        }
+        self.ensure_selection();
 
         RenderAction::Render // Force redraw to show updated search text and filtered results
     }

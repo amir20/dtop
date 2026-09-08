@@ -39,15 +39,7 @@ impl AppState {
             Some(index) => self.table_state.select(Some(index)),
             // It went away (or nothing was selected): fall back to the first row,
             // keeping any existing selection in range.
-            None => {
-                if self.table_state.selected().is_none() {
-                    if !self.sorted_container_keys.is_empty() {
-                        self.table_state.select(Some(0));
-                    }
-                } else {
-                    self.clamp_selection();
-                }
-            }
+            None => self.ensure_selection(),
         }
 
         RenderAction::Render // Force draw - table structure changed
@@ -72,10 +64,9 @@ impl AppState {
         // Force immediate sort when new container is added
         self.force_sort_containers();
 
-        // Select first row if this is the first container
-        if self.containers.len() == 1 {
-            self.table_state.select(Some(0));
-        }
+        // The container may be filling an empty (possibly filtered) list, in
+        // which case the selection was cleared when the list emptied out.
+        self.ensure_selection();
 
         RenderAction::Render // Force draw - table structure changed
     }
@@ -85,7 +76,7 @@ impl AppState {
         self.sorted_container_keys.retain(|k| k != &key);
 
         // Adjust selection if needed
-        self.clamp_selection();
+        self.ensure_selection();
 
         RenderAction::Render // Force draw - table structure changed
     }
