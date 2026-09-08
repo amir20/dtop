@@ -8,3 +8,5 @@ mod reconnect_tests;
 pub mod shell;
 pub mod ssh;
 pub mod stats;
+#[cfg(test)]
+mod stats_retry_tests;

@@ -381,7 +381,28 @@ impl DockerHost {
             stream_container_stats(host_clone, truncated_id_clone, tx_clone).await;
         });
 
-        active_containers.insert(truncated_id.to_string(), handle);
+        // Replacing an entry without aborting it would leave the old task
+        // streaming stats for the same container forever, with no handle left to
+        // stop it. Re-listing after a reconnect goes through here for every
+        // running container, so this is not a rare path.
+        if let Some(previous) = active_containers.insert(truncated_id.to_string(), handle) {
+            previous.abort();
+        }
+    }
+
+    /// Whether a stats task for this container is still alive.
+    ///
+    /// A finished task leaves its handle behind — the map is only pruned by
+    /// stop/die/destroy events — so `contains_key` alone would report a container
+    /// as monitored long after its stats stream gave up, and nothing would ever
+    /// re-arm it.
+    fn is_monitored(
+        truncated_id: &str,
+        active_containers: &HashMap<String, tokio::task::JoinHandle<()>>,
+    ) -> bool {
+        active_containers
+            .get(truncated_id)
+            .is_some_and(|handle| !handle.is_finished())
     }
 
     /// Handles a container start event
@@ -429,7 +450,7 @@ impl DockerHost {
 
             let restart_count = inspect.restart_count;
 
-            if !active_containers.contains_key(&truncated_id) {
+            if !Self::is_monitored(&truncated_id, active_containers) {
                 // New container or restarted container — create/update and start monitoring
                 let container = Container {
                     id: truncated_id.clone(),
@@ -848,5 +869,31 @@ mod tests {
 
         delay = next_reconnect_delay(delay);
         assert_eq!(delay, MAX_RECONNECT_DELAY);
+    }
+
+    /// A stats task that ended on its own leaves its handle in the map — only
+    /// stop/die/destroy events prune it — so "is this container monitored?" has
+    /// to ask whether the task is still alive. Answering from `contains_key`
+    /// alone left a container whose stats stream had given up stuck at zero,
+    /// with even a restart unable to re-arm it.
+    #[tokio::test]
+    async fn is_monitored_reports_a_finished_stats_task_as_not_monitored() {
+        let mut active: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
+
+        // A handle whose task has run to completion, as a stats stream that gave
+        // up leaves behind.
+        let finished = tokio::spawn(async {});
+        while !finished.is_finished() {
+            tokio::task::yield_now().await;
+        }
+        active.insert("dead".to_string(), finished);
+        active.insert(
+            "alive".to_string(),
+            tokio::spawn(std::future::pending::<()>()),
+        );
+
+        assert!(DockerHost::is_monitored("alive", &active));
+        assert!(!DockerHost::is_monitored("dead", &active));
+        assert!(!DockerHost::is_monitored("unknown", &active));
     }
 }
