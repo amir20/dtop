@@ -1472,4 +1472,94 @@ mod tests {
 
         assert_snapshot_with_redaction!(output);
     }
+
+    /// Repro for https://github.com/amir20/dtop/issues/362
+    ///
+    /// While a search filter is active, the last matching container going away
+    /// clears the selection. When it comes back the cursor is never restored,
+    /// so arrows/Enter do nothing until the filter text is edited.
+    #[test]
+    fn test_issue_362_selection_lost_when_filtered_container_reappears() {
+        let mut state = create_test_app_state();
+
+        let foo = create_test_container("aaa111111111", "foo", "local", 1.0, 1.0, 0.0, 0.0);
+        let bar = create_test_container("bbb222222222", "bar", "local", 1.0, 1.0, 0.0, 0.0);
+        let foo_key = ContainerKey::new(foo.host_id.clone(), foo.id.clone());
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![foo.clone(), bar],
+        ));
+
+        // Type "/foo"
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('/'),
+            KeyModifiers::NONE,
+        )));
+        for c in "foo".chars() {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+                KeyCode::Char(c),
+                KeyModifiers::NONE,
+            )));
+        }
+        assert_eq!(state.view_state, ViewState::SearchMode);
+        assert_eq!(state.sorted_container_keys.len(), 1);
+        assert_eq!(state.table_state.selected(), Some(0));
+
+        // `docker compose down` — the only match disappears.
+        state.handle_event(AppEvent::ContainerDestroyed(foo_key.clone()));
+        assert!(state.sorted_container_keys.is_empty());
+        assert_eq!(state.table_state.selected(), None);
+
+        // `docker compose up` — it comes back and matches the filter again.
+        state.handle_event(AppEvent::ContainerCreated(foo));
+        assert_eq!(
+            state.sorted_container_keys.len(),
+            1,
+            "the filter should match the recreated container"
+        );
+
+        assert_eq!(
+            state.table_state.selected(),
+            Some(0),
+            "the recreated container should be selected again"
+        );
+    }
+
+    /// Companion to the #362 repro: toggling `a` off and back on can empty and
+    /// refill the list the same way, and must likewise restore the cursor.
+    #[test]
+    fn test_toggle_show_all_restores_selection() {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+
+        let mut stopped = create_test_container("aaa111111111", "foo", "local", 0.0, 0.0, 0.0, 0.0);
+        stopped.state = ContainerState::Exited;
+
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![stopped],
+        ));
+        assert_eq!(state.table_state.selected(), Some(0));
+
+        // 'a' hides the stopped container — the list empties and the cursor goes.
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+        )));
+        assert!(state.sorted_container_keys.is_empty());
+        assert_eq!(state.table_state.selected(), None);
+
+        // 'a' again brings it back, and the cursor with it.
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(state.sorted_container_keys.len(), 1);
+        assert_eq!(
+            state.table_state.selected(),
+            Some(0),
+            "the restored row should be selected again"
+        );
+    }
 }
