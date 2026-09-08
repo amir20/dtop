@@ -340,6 +340,13 @@ src/
    - CPU calculation: Delta between current and previous usage, normalized by system CPU delta and CPU count
    - Memory calculation: Current usage divided by limit, expressed as percentage
    - **Note**: Disk I/O stats may return zeros on some systems with certain cgroup configurations (see [moby/moby#35352](https://github.com/moby/moby/issues/35352))
+   - **Re-opens a broken stream** with a capped backoff (1s → 5s) as long as the container
+     is still running, which is checked with an inspect before each retry so a stopped or
+     removed container does not spin against a 404. Stream errors are logged; swallowing
+     them left a container's row at zero for every metric for the rest of the session,
+     because nothing re-armed monitoring except a fresh `start` event. For the same reason
+     `container_manager` treats a *finished* stats task as unmonitored — its handle stays
+     in `active_containers` until a stop/die/destroy event prunes it.
 
 5. **Log Streaming** (`docker/logs.rs::stream_container_logs`)
    - Streams logs from a container in real-time

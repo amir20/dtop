@@ -1,38 +1,118 @@
 use bollard::models::ContainerStatsResponse;
 use bollard::query_parameters::StatsOptions;
 use futures_util::stream::StreamExt;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::core::types::{AppEvent, ContainerKey, ContainerStats, EventSender};
 use crate::docker::connection::DockerHost;
+
+/// Smoothing factor for the exponential moving average applied to stats.
+/// Higher alpha = more responsive, lower alpha = smoother. 0.3 balances the two.
+const ALPHA: f64 = 0.3;
+
+/// Delay before the first attempt to re-open a container's stats stream.
+const INITIAL_STATS_RETRY_DELAY: Duration = Duration::from_secs(1);
+/// Upper bound on the stats retry backoff.
+const MAX_STATS_RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// Exponentially smoothed values carried across samples.
+///
+/// These survive a reconnect: the container kept running, so its previous
+/// smoothed values are still the best estimate to blend the next sample into.
+#[derive(Default)]
+struct SmoothedStats {
+    cpu: Option<f64>,
+    memory: Option<f64>,
+    net_tx: Option<f64>,
+    net_rx: Option<f64>,
+    disk_read: Option<f64>,
+    disk_write: Option<f64>,
+}
+
+/// Why a single pass over the stats stream stopped.
+enum StreamOutcome {
+    /// The daemon closed the stream, or it errored. The container may well still
+    /// be running, so this is worth retrying.
+    Interrupted,
+    /// The UI is gone; nothing left to send stats to.
+    ChannelClosed,
+}
 
 /// Streams stats for a single container and sends updates via the event channel
 ///
 /// Uses exponential decay smoothing to reduce noise in stats:
 /// smoothed = alpha * new_value + (1 - alpha) * previous_smoothed
 ///
+/// The stream is re-opened with a capped backoff whenever it breaks while the
+/// container is still running. Without that, a single hiccup left the container
+/// stuck at zero for every metric for the rest of the session: nothing re-armed
+/// monitoring except a fresh `start` event, which a container that never stopped
+/// does not emit.
+///
 /// # Arguments
 /// * `host` - Docker host instance with identifier
 /// * `truncated_id` - Truncated container ID (12 chars) - Docker API accepts partial IDs
 /// * `tx` - Event sender channel
 pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: EventSender) {
+    let mut smoothed = SmoothedStats::default();
+    let mut cached_cgroup_path: Option<std::path::PathBuf> = None;
+    let mut delay = INITIAL_STATS_RETRY_DELAY;
+
+    loop {
+        let outcome = stream_stats_once(
+            &host,
+            &truncated_id,
+            &tx,
+            &mut smoothed,
+            &mut cached_cgroup_path,
+        )
+        .await;
+
+        if matches!(outcome, StreamOutcome::ChannelClosed) || tx.is_closed() {
+            return;
+        }
+
+        // Retrying a container that has stopped or been removed would spin
+        // against a 404 forever; the lifecycle events own that transition.
+        if !is_container_running(&host, &truncated_id).await {
+            tracing::debug!(
+                "Stats stream ended for container {} on host {} (no longer running)",
+                truncated_id,
+                host.host_id
+            );
+            return;
+        }
+
+        tracing::warn!(
+            "Stats stream for container {} on host {} ended while it is still running; retrying in {:?}",
+            truncated_id,
+            host.host_id,
+            delay
+        );
+
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(MAX_STATS_RETRY_DELAY);
+    }
+}
+
+/// Opens the stats stream once and pumps it until it ends.
+///
+/// Rate calculations need two consecutive samples, so the previous counters live
+/// here rather than across reconnects: the gap over an outage is not a rate we
+/// can report honestly.
+async fn stream_stats_once(
+    host: &DockerHost,
+    truncated_id: &str,
+    tx: &EventSender,
+    smoothed: &mut SmoothedStats,
+    cached_cgroup_path: &mut Option<std::path::PathBuf>,
+) -> StreamOutcome {
     let stats_options = StatsOptions {
         stream: true,
         one_shot: false,
     };
 
-    let mut stats_stream = host.docker.stats(&truncated_id, Some(stats_options));
-
-    // Smoothing factor: higher alpha = more responsive, lower alpha = smoother
-    // 0.3 provides good balance between responsiveness and smoothness
-    const ALPHA: f64 = 0.3;
-
-    let mut smoothed_cpu: Option<f64> = None;
-    let mut smoothed_memory: Option<f64> = None;
-    let mut smoothed_net_tx: Option<f64> = None;
-    let mut smoothed_net_rx: Option<f64> = None;
-    let mut smoothed_disk_read: Option<f64> = None;
-    let mut smoothed_disk_write: Option<f64> = None;
+    let mut stats_stream = host.docker.stats(truncated_id, Some(stats_options));
 
     // Track previous network stats for rate calculation
     let mut prev_net_tx: Option<u64> = None;
@@ -45,7 +125,6 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
 
     // Check if host is local before permitting local cgroups v2 filesystem fallbacks
     let is_local_host = host.host_id == "local" || host.host_id.starts_with("unix://");
-    let mut cached_cgroup_path: Option<std::path::PathBuf> = None;
 
     while let Some(result) = stats_stream.next().await {
         match result {
@@ -63,7 +142,7 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                     if read.is_some() || write.is_some() {
                         (read, write)
                     } else if is_local_host {
-                        let id = truncated_id.clone();
+                        let id = truncated_id.to_string();
                         let path = cached_cgroup_path.take();
                         match tokio::task::spawn_blocking(move || {
                             let mut path = path;
@@ -73,7 +152,7 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                         .await
                         {
                             Ok((res, path)) => {
-                                cached_cgroup_path = path;
+                                *cached_cgroup_path = path;
                                 res
                             }
                             Err(_) => (None, None),
@@ -103,20 +182,20 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                 prev_timestamp = Some(Instant::now());
 
                 // Apply exponential moving average (first value passes through unsmoothed)
-                let cpu = ema(smoothed_cpu, cpu_percent, ALPHA);
-                let memory = ema(smoothed_memory, memory_percent, ALPHA);
-                let network_tx_bytes_per_sec = ema(smoothed_net_tx, net_tx_rate, ALPHA);
-                let network_rx_bytes_per_sec = ema(smoothed_net_rx, net_rx_rate, ALPHA);
-                let disk_read_bytes_per_sec = ema(smoothed_disk_read, disk_read_rate, ALPHA);
-                let disk_write_bytes_per_sec = ema(smoothed_disk_write, disk_write_rate, ALPHA);
+                let cpu = ema(smoothed.cpu, cpu_percent, ALPHA);
+                let memory = ema(smoothed.memory, memory_percent, ALPHA);
+                let network_tx_bytes_per_sec = ema(smoothed.net_tx, net_tx_rate, ALPHA);
+                let network_rx_bytes_per_sec = ema(smoothed.net_rx, net_rx_rate, ALPHA);
+                let disk_read_bytes_per_sec = ema(smoothed.disk_read, disk_read_rate, ALPHA);
+                let disk_write_bytes_per_sec = ema(smoothed.disk_write, disk_write_rate, ALPHA);
 
                 // Update smoothed values for next iteration
-                smoothed_cpu = Some(cpu);
-                smoothed_memory = Some(memory);
-                smoothed_net_tx = Some(network_tx_bytes_per_sec);
-                smoothed_net_rx = Some(network_rx_bytes_per_sec);
-                smoothed_disk_read = Some(disk_read_bytes_per_sec);
-                smoothed_disk_write = Some(disk_write_bytes_per_sec);
+                smoothed.cpu = Some(cpu);
+                smoothed.memory = Some(memory);
+                smoothed.net_tx = Some(network_tx_bytes_per_sec);
+                smoothed.net_rx = Some(network_rx_bytes_per_sec);
+                smoothed.disk_read = Some(disk_read_bytes_per_sec);
+                smoothed.disk_write = Some(disk_write_bytes_per_sec);
 
                 // Extract raw memory bytes for display
                 let (memory_used_bytes, memory_limit_bytes) = extract_memory_bytes(&stats);
@@ -137,23 +216,45 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
                     pids_limit,
                 };
 
-                let key = ContainerKey::new(host.host_id.clone(), truncated_id.clone());
+                let key = ContainerKey::new(host.host_id.clone(), truncated_id.to_string());
                 if tx.send(AppEvent::ContainerStat(key, stats)).await.is_err() {
-                    break;
+                    return StreamOutcome::ChannelClosed;
                 }
             }
-            Err(_) => break,
+            Err(e) => {
+                // Swallowing this used to make the container's row sit at zero
+                // with nothing to point at; the retry above needs it named.
+                tracing::warn!(
+                    "Stats stream error for container {} on host {}: {}",
+                    truncated_id,
+                    host.host_id,
+                    e
+                );
+                return StreamOutcome::Interrupted;
+            }
         }
     }
 
-    // Stats stream ended (container stopped or network hiccup).
-    // Don't send ContainerDestroyed — the container may still be running.
-    // Docker events (die/stop/destroy) handle container lifecycle correctly.
-    tracing::debug!(
-        "Stats stream ended for container {} on host {}",
-        truncated_id,
-        host.host_id
-    );
+    StreamOutcome::Interrupted
+}
+
+/// Reports whether the container is still running, so a broken stats stream is
+/// only retried while there is something left to measure.
+///
+/// A container that is gone (404) or stopped answers `false`; so does a daemon
+/// we cannot reach, since the host-level reconnect in
+/// [`crate::docker::connection::container_manager`] re-lists and re-arms
+/// monitoring for the whole host once it comes back.
+async fn is_container_running(host: &DockerHost, truncated_id: &str) -> bool {
+    host.docker
+        .inspect_container(
+            truncated_id,
+            None::<bollard::query_parameters::InspectContainerOptions>,
+        )
+        .await
+        .ok()
+        .and_then(|inspect| inspect.state.and_then(|state| state.running))
+        .unwrap_or(false)
 }
 
 /// Applies one step of an exponential moving average.
