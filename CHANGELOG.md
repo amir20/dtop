@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] - 2026-09-10
+
+### Bug Fixes
+
+- *(ui)* Restore cursor when a filtered container reappears (#363)
+- *(stats)* Retry a broken stats stream instead of leaving a container at zero (#364)
+
 ## [0.9.2] - 2026-09-06
 
 ### Features
