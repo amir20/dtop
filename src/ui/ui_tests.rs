@@ -109,6 +109,7 @@ mod tests {
             dozzle_url: None,
             restart_count: None,
             compose_project: None,
+            image: Some(format!("{name}:latest")),
         }
     }
 
@@ -822,6 +823,7 @@ mod tests {
                 dozzle_url: None,
                 restart_count: None,
                 compose_project: None,
+                image: None,
             },
             Container {
                 id: "dead12345678".to_string(),
@@ -834,6 +836,7 @@ mod tests {
                 dozzle_url: None,
                 restart_count: None,
                 compose_project: None,
+                image: None,
             },
         ];
 
@@ -1180,6 +1183,54 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_container_list_with_image_column() {
+        let mut state = create_test_app_state();
+
+        let image_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Image)
+            .unwrap();
+        state.column_config.toggle(image_idx);
+
+        let mut registry_image =
+            create_test_container("def987654321", "api", "local", 10.0, 20.0, 512.0, 1024.0);
+        registry_image.image = Some("ghcr.io/acme/api:1.4.2".to_string());
+        let mut no_image =
+            create_test_container("ghi111222333", "orphan", "local", 5.0, 10.0, 0.0, 0.0);
+        no_image.image = None;
+
+        for container in [
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0),
+            registry_image,
+            no_image,
+        ] {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+        state.table_state.select(Some(0));
+
+        let styles = UiStyles::default();
+        let backend = TestBackend::new(120, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("Image"));
+        assert!(output.contains("nginx:latest"));
+        assert!(output.contains("ghcr.io/acme/api:1.4.2"));
         assert_snapshot_with_redaction!(output);
     }
 

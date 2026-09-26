@@ -167,6 +167,7 @@ impl DockerHost {
                 // Backfilled below; the list API does not carry it.
                 restart_count: None,
                 compose_project,
+                image: container.image.clone(),
             };
 
             initial_containers.push(container_info);
@@ -450,6 +451,11 @@ impl DockerHost {
 
             let restart_count = inspect.restart_count;
 
+            let image = inspect
+                .config
+                .as_ref()
+                .and_then(|config| config.image.clone());
+
             if !Self::is_monitored(&truncated_id, active_containers) {
                 // New container or restarted container — create/update and start monitoring
                 let container = Container {
@@ -463,6 +469,7 @@ impl DockerHost {
                     dozzle_url: self.dozzle_url.clone(),
                     restart_count,
                     compose_project,
+                    image,
                 };
 
                 let _ = tx.send(AppEvent::ContainerCreated(container)).await;

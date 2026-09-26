@@ -1,0 +1,11 @@
+---
+source: src/ui/ui_tests.rs
+expression: output
+---
+dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)                                                                  
+                                                                                                                        
+  ID             Name         Image                          CPU %   Memory  Net TX       Net RX       Created ▼        
+                                                                                                                        
+  abc123def456 ▶ nginx        nginx:latest                    25.0%   50.0%  1.0KB/s      2.0KB/s      2 hours ago      
+  def987654321 ▶ api          ghcr.io/acme/api:1.4.2          10.0%   20.0%  512B/s       1.0KB/s      2 hours ago      
+  ghi111222333 ▶ orphan                                        5.0%   10.0%  0B/s         0B/s         2 hours ago

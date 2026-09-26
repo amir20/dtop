@@ -77,6 +77,7 @@ pub struct Container {
     pub dozzle_url: Option<String>,
     pub restart_count: Option<i64>,
     pub compose_project: Option<String>, // Dozzle group, Coolify project, or Compose project
+    pub image: Option<String>,           // Image the container was created from, as referenced
 }
 
 /// Container runtime statistics (updated frequently)
@@ -400,6 +401,7 @@ pub enum Column {
     Id,
     Host,
     Compose,
+    Image,
     Cpu,
     Memory,
     Pids,
@@ -419,6 +421,7 @@ impl Column {
             Column::Id => "ID",
             Column::Host => "Host",
             Column::Compose => "Compose",
+            Column::Image => "Image",
             Column::Cpu => "CPU %",
             Column::Memory => "Memory %",
             Column::Pids => "PIDs",
@@ -438,6 +441,7 @@ impl Column {
             Column::Id => "id",
             Column::Host => "host",
             Column::Compose => "compose",
+            Column::Image => "image",
             Column::Cpu => "cpu",
             Column::Memory => "memory",
             Column::Pids => "pids",
@@ -457,6 +461,7 @@ impl Column {
             "id" => Some(Column::Id),
             "host" => Some(Column::Host),
             "compose" => Some(Column::Compose),
+            "image" => Some(Column::Image),
             "cpu" => Some(Column::Cpu),
             "memory" => Some(Column::Memory),
             "pids" => Some(Column::Pids),
@@ -477,6 +482,7 @@ impl Column {
             Column::Name,
             Column::Host,
             Column::Compose,
+            Column::Image,
             Column::Cpu,
             Column::Memory,
             Column::Pids,
@@ -495,6 +501,7 @@ impl Column {
             self,
             Column::Restarts
                 | Column::Compose
+                | Column::Image
                 | Column::DiskRead
                 | Column::DiskWrite
                 | Column::Pids
@@ -504,9 +511,12 @@ impl Column {
     /// Returns the default sort direction when sorting by this column
     pub fn default_sort_direction(self) -> SortDirection {
         match self {
-            Column::Name | Column::Id | Column::Host | Column::Compose | Column::Status => {
-                SortDirection::Ascending
-            }
+            Column::Name
+            | Column::Id
+            | Column::Host
+            | Column::Compose
+            | Column::Image
+            | Column::Status => SortDirection::Ascending,
             Column::Uptime
             | Column::Cpu
             | Column::Memory
@@ -538,6 +548,7 @@ impl Column {
             Column::Id => "ID",
             Column::Host => "Host",
             Column::Compose => "Compose",
+            Column::Image => "Image",
             Column::Cpu => "CPU",
             Column::Memory => "Memory",
             Column::Pids => "PIDs",
@@ -707,13 +718,14 @@ mod tests {
         assert_eq!(Column::DiskWrite.label(), "Disk W");
         assert_eq!(Column::Uptime.label(), "Uptime");
         assert_eq!(Column::Restarts.label(), "Restarts");
+        assert_eq!(Column::Image.label(), "Image");
     }
 
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 14);
-        // All columns except Restarts, Compose, DiskRead, DiskWrite, Pids should be visible by default
+        assert_eq!(config.columns.len(), 15);
+        // All columns except Restarts, Compose, Image, DiskRead, DiskWrite, Pids should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -730,7 +742,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
-        // Default has 9 visible (Restarts, Compose, DiskRead, DiskWrite, Pids hidden), minus Id = 8
+        // Default has 9 visible (Restarts, Compose, Image, DiskRead, DiskWrite, Pids hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -815,7 +827,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 14);
+        assert_eq!(config.columns.len(), 15);
     }
 
     #[test]
@@ -847,6 +859,7 @@ mod tests {
         assert_eq!(Column::DiskWrite.id(), "disk_write");
         assert_eq!(Column::Uptime.id(), "uptime");
         assert_eq!(Column::Restarts.id(), "restarts");
+        assert_eq!(Column::Image.id(), "image");
     }
 
     #[test]
@@ -864,6 +877,7 @@ mod tests {
         assert_eq!(Column::from_id("disk_write"), Some(Column::DiskWrite));
         assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
         assert_eq!(Column::from_id("restarts"), Some(Column::Restarts));
+        assert_eq!(Column::from_id("image"), Some(Column::Image));
         assert_eq!(Column::from_id("invalid"), None);
     }
 }
