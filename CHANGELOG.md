@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] - 2026-09-26
+
+### Features
+
+- *(ui)* Add Image column showing the container's source image (#367)
+
+### Ci
+
+- *(docker)* Build without pushing on fork PRs (#368)
+
 ## [0.9.3] - 2026-09-10
 
 ### Bug Fixes
