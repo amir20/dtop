@@ -1,7 +1,7 @@
 <script>
-  import NavBar from "$lib/components/NavBar.svelte";
-  import ChangelogSection from "$lib/components/ChangelogSection.svelte";
-  import FooterSection from "$lib/components/FooterSection.svelte";
+  import NavBar from "#lib/components/NavBar.svelte";
+  import ChangelogSection from "#lib/components/ChangelogSection.svelte";
+  import FooterSection from "#lib/components/FooterSection.svelte";
 </script>
 
 <svelte:head>

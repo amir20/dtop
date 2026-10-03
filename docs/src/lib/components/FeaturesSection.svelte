@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
-  import { reveal } from "$lib/actions/reveal.js";
-  import featuresMd from "$lib/content/features.md?raw";
+  import { reveal } from "#lib/actions/reveal.js";
+  import featuresMd from "#lib/content/features.md?raw";
 
   const regex = /- \*\*(.+?)\*\* - (.+)/g;
   const features = [];

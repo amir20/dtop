@@ -1,12 +1,12 @@
 <script>
-  import NavBar from "$lib/components/NavBar.svelte";
-  import HeroSection from "$lib/components/HeroSection.svelte";
-  import FeaturesSection from "$lib/components/FeaturesSection.svelte";
-  import ConfigSection from "$lib/components/ConfigSection.svelte";
-  import CliSection from "$lib/components/CliSection.svelte";
-  import UsageSection from "$lib/components/UsageSection.svelte";
-  import InstallSection from "$lib/components/InstallSection.svelte";
-  import FooterSection from "$lib/components/FooterSection.svelte";
+  import NavBar from "#lib/components/NavBar.svelte";
+  import HeroSection from "#lib/components/HeroSection.svelte";
+  import FeaturesSection from "#lib/components/FeaturesSection.svelte";
+  import ConfigSection from "#lib/components/ConfigSection.svelte";
+  import CliSection from "#lib/components/CliSection.svelte";
+  import UsageSection from "#lib/components/UsageSection.svelte";
+  import InstallSection from "#lib/components/InstallSection.svelte";
+  import FooterSection from "#lib/components/FooterSection.svelte";
 </script>
 
 <svelte:head>

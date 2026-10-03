@@ -1,5 +1,5 @@
 <script>
-  import { reveal } from "$lib/actions/reveal.js";
+  import { reveal } from "#lib/actions/reveal.js";
 
   const shortcuts = [
     { key: "↑↓", action: "Move between containers" },
