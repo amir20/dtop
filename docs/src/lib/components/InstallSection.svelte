@@ -1,5 +1,5 @@
 <script>
-  import { reveal } from "$lib/actions/reveal.js";
+  import { reveal } from "#lib/actions/reveal.js";
   import InstallPicker from "./InstallPicker.svelte";
 </script>
 

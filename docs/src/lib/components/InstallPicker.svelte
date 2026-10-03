@@ -1,6 +1,6 @@
 <script>
   import { browser } from "$app/environment";
-  import { installMethods, shortLabel } from "$lib/install.js";
+  import { installMethods, shortLabel } from "#lib/install.js";
 
   let { compact = false } = $props();
 

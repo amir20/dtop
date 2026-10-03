@@ -1,6 +1,6 @@
 <script>
   import { browser } from "$app/environment";
-  import { reveal } from "$lib/actions/reveal.js";
+  import { reveal } from "#lib/actions/reveal.js";
   import configExample from "../../../../config.example.yaml?raw";
 
   let copiedId = $state(null);

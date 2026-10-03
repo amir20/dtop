@@ -1,5 +1,5 @@
 <script>
-  import { reveal } from "$lib/actions/reveal.js";
+  import { reveal } from "#lib/actions/reveal.js";
   import readmeMd from "../../../../README.md?raw";
 
   function parseCliFlags(md) {
