@@ -561,7 +561,12 @@ fn list_block(container_count: usize, extra_top: u16, styles: &UiStyles) -> Bloc
         .borders(Borders::NONE)
         .padding(padding)
         .title(format!(
-            "dtop v{VERSION} - {container_count} containers ('?' for help, 'q' to quit)"
+            "dtop v{VERSION} - {container_count} {} ('?' for help, 'q' to quit)",
+            if container_count == 1 {
+                "container"
+            } else {
+                "containers"
+            }
         ))
         .style(styles.border)
 }
