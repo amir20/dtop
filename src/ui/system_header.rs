@@ -6,12 +6,13 @@
 //! lines are built from what the API exposes: the host's capacity from
 //! `docker info`, and usage summed over its running containers.
 
-use std::collections::BTreeSet;
 use std::fmt::Write;
+use std::ops::Range;
 
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Style,
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -20,8 +21,8 @@ use unicode_width::UnicodeWidthStr;
 use crate::core::app_state::AppState;
 use crate::core::app_state::system::DockerTotals;
 use crate::core::types::{HostInfo, SystemStats};
-use crate::ui::container_list::{clip_to_width, get_percentage_style, write_bar};
-use crate::ui::formatters::{format_bytes_per_sec, write_bytes};
+use crate::ui::container_list::{clip_to_width, get_percentage_style};
+use crate::ui::formatters::{write_bytes, write_bytes_per_sec};
 use crate::ui::render::UiStyles;
 
 /// Bars narrower than this are dropped: a few cells of bar says nothing the
@@ -86,53 +87,300 @@ pub fn header_height(state: &AppState, area_height: u16) -> u16 {
     }
 }
 
-/// One header line's data, gathered once per frame.
-enum Entry<'a> {
-    System(&'a SystemStats),
-    Docker {
-        host_id: &'a str,
-        info: &'a HostInfo,
-        totals: DockerTotals,
-    },
+/// Cells of bar glyphs kept ready to slice from; wider bars are capped.
+const BAR_CAPACITY: usize = 512;
+
+/// Filled and empty bar glyphs, built once so bars are borrowed slices rather
+/// than a fresh `String` per bar per frame. Both glyphs are 3 bytes in UTF-8.
+static BAR_FILLED: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| "█".repeat(BAR_CAPACITY));
+static BAR_EMPTY: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| "░".repeat(BAR_CAPACITY));
+
+/// One header line, formatted once per frame into a single buffer.
+///
+/// The spans drawn for it borrow from `buf`, and widths for the fitting search
+/// are computed from the field ranges, so trying every detail level and drawing
+/// the result costs one allocation per line rather than one per field per try.
+struct HeaderText {
+    kind: &'static str,
+    buf: String,
+    label: Range<usize>,
+    cpu: Range<usize>,
+    cpu_pct: f64,
+    cores: Range<usize>,
+    mem: Range<usize>,
+    mem_pct: f64,
+    tx: Range<usize>,
+    rx: Range<usize>,
+    swap: Range<usize>,
+    load: Range<usize>,
+    uptime: Range<usize>,
+    running: Range<usize>,
 }
 
-impl Entry<'_> {
-    fn label(&self) -> &str {
-        match self {
-            Entry::System(stats) => &stats.hostname,
-            Entry::Docker { host_id, .. } => host_id,
-        }
-    }
+/// Appends whatever `write` produces to `buf` and returns where it landed.
+fn field(buf: &mut String, write: impl FnOnce(&mut String)) -> Range<usize> {
+    let start = buf.len();
+    write(buf);
+    start..buf.len()
 }
 
-/// The local machine and `local` host first, then each other host's machine and
-/// containers together.
-fn entries(state: &AppState) -> Vec<Entry<'_>> {
-    let mut entries = Vec::new();
-    if let Some(stats) = &state.system_stats {
-        entries.push(Entry::System(stats));
+/// Pads `buf` with spaces so the text since `start` is `width` columns (ASCII).
+fn pad_to(buf: &mut String, start: usize, width: usize) {
+    let padding = width.saturating_sub(buf.len() - start);
+    buf.extend(std::iter::repeat_n(' ', padding));
+}
+
+impl HeaderText {
+    fn new(kind: &'static str, label: &str, label_width: usize) -> Self {
+        let mut buf = String::with_capacity(160);
+        let label = field(&mut buf, |buf| {
+            let (label, width) = clip_to_width(label, label_width as u16);
+            buf.push_str("  ");
+            buf.push_str(label);
+            buf.extend(std::iter::repeat_n(
+                ' ',
+                label_width - usize::from(width) + 2,
+            ));
+        });
+        Self {
+            kind,
+            buf,
+            label,
+            cpu: 0..0,
+            cpu_pct: 0.0,
+            cores: 0..0,
+            mem: 0..0,
+            mem_pct: 0.0,
+            tx: 0..0,
+            rx: 0..0,
+            swap: 0..0,
+            load: 0..0,
+            uptime: 0..0,
+            running: 0..0,
+        }
     }
 
-    // `local` first so its Docker line sits under the local machine's line
-    let hosts: BTreeSet<(bool, &String)> = state
-        .remote_system_stats
-        .keys()
-        .chain(state.host_info.keys())
-        .map(|host_id| (host_id != "local", host_id))
-        .collect();
-    for (_, host_id) in hosts {
-        if let Some(stats) = state.remote_system_stats.get(host_id) {
-            entries.push(Entry::System(stats));
-        }
-        if let Some(info) = state.host_info.get(host_id) {
-            entries.push(Entry::Docker {
-                host_id,
-                info,
-                totals: state.docker_totals(host_id),
+    /// CPU as a share of the whole machine, with the core count it is measured
+    /// against so the percentage isn't mistaken for a single core's.
+    fn cpu(&mut self, cpu: f64, cores: usize) {
+        self.cpu_pct = cpu;
+        self.cpu = field(&mut self.buf, |buf| {
+            let _ = write!(buf, "{cpu:5.1}%");
+        });
+        self.cores = field(&mut self.buf, |buf| {
+            // Singular padded to the plural's width so lines stay aligned
+            let unit = if cores == 1 { "core " } else { "cores" };
+            let _ = write!(buf, " of {cores:>2} {unit}");
+        });
+    }
+
+    fn memory(&mut self, used: u64, total: u64) {
+        self.mem_pct = if total > 0 {
+            used as f64 / total as f64 * 100.0
+        } else {
+            0.0
+        };
+        self.mem = field(&mut self.buf, |buf| {
+            let start = buf.len();
+            write_bytes(buf, used);
+            buf.push('/');
+            write_bytes(buf, total);
+            // Fixed width so the columns after it line up across lines
+            pad_to(buf, start, MEMORY_TEXT_WIDTH);
+        });
+    }
+
+    /// Container rates summed (Docker lines) or interface rates (System lines).
+    fn network(&mut self, tx: f64, rx: f64) {
+        for (range, rate) in [(&mut self.tx, tx), (&mut self.rx, rx)] {
+            *range = field(&mut self.buf, |buf| {
+                let start = buf.len();
+                write_bytes_per_sec(buf, rate);
+                pad_to(buf, start, RATE_WIDTH);
             });
         }
     }
-    entries
+
+    fn system(stats: &SystemStats, label_width: usize) -> Self {
+        let mut text = Self::new("System", &stats.hostname, label_width);
+        text.cpu(stats.cpu, stats.cpus);
+        text.memory(stats.memory_used_bytes, stats.memory_total_bytes);
+        text.network(stats.net_tx_bytes_per_sec, stats.net_rx_bytes_per_sec);
+        if stats.swap_total_bytes > 0 {
+            text.swap = field(&mut text.buf, |buf| {
+                buf.push_str("  Swap ");
+                write_bytes(buf, stats.swap_used_bytes);
+                buf.push('/');
+                write_bytes(buf, stats.swap_total_bytes);
+            });
+        }
+        let [one, five, fifteen] = stats.load_average;
+        if one > 0.0 || five > 0.0 || fifteen > 0.0 {
+            text.load = field(&mut text.buf, |buf| {
+                let _ = write!(buf, "  Load {one:.2} {five:.2} {fifteen:.2}");
+            });
+        }
+        text.uptime = field(&mut text.buf, |buf| {
+            buf.push_str("  Up ");
+            write_uptime(buf, stats.uptime_secs);
+        });
+        text
+    }
+
+    fn docker(host_id: &str, info: &HostInfo, totals: &DockerTotals, label_width: usize) -> Self {
+        let mut text = Self::new("Docker", host_id, label_width);
+        text.cpu(totals.cpu_percent(info), info.cpus as usize);
+        text.memory(totals.memory_used_bytes, info.memory_total_bytes);
+        text.network(totals.net_tx_bytes_per_sec, totals.net_rx_bytes_per_sec);
+        text.running = field(&mut text.buf, |buf| {
+            let _ = write!(buf, "  {}/{} running", totals.running, totals.total);
+        });
+        text
+    }
+
+    /// Display width at `detail` with bars of `bar_width` cells (0 = no bars),
+    /// matching exactly what [`HeaderText::line`] draws.
+    fn width(&self, detail: Detail, bar_width: usize) -> usize {
+        let bar = if bar_width > 0 { bar_width + 1 } else { 0 };
+        let mut width = self.kind.len()
+            + self.buf[self.label.clone()].width()
+            + "CPU ".len()
+            + bar
+            + self.cpu.len()
+            + "  MEM ".len()
+            + bar
+            + self.mem.len()
+            + self.running.len();
+        if detail.cores() {
+            width += self.cores.len();
+        }
+        if detail.network() {
+            width += "  TX ".len() + self.tx.len() + " RX ".len() + self.rx.len();
+        }
+        if detail.swap() {
+            width += self.swap.len();
+        }
+        if detail.load() {
+            width += self.load.len();
+        }
+        if detail.uptime() {
+            width += self.uptime.len();
+        }
+        width
+    }
+
+    fn line(&self, detail: Detail, bar_width: usize, styles: &UiStyles) -> Line<'_> {
+        let text = |range: &Range<usize>| &self.buf[range.clone()];
+        let cpu_style = get_percentage_style(self.cpu_pct, styles);
+        let mem_style = get_percentage_style(self.mem_pct, styles);
+
+        let mut spans = Vec::with_capacity(20);
+        spans.push(Span::styled(self.kind, styles.header));
+        spans.push(Span::raw(text(&self.label)));
+        spans.push(Span::styled("CPU ", styles.header));
+        push_bar(&mut spans, self.cpu_pct, bar_width, cpu_style);
+        spans.push(Span::styled(text(&self.cpu), cpu_style));
+        if detail.cores() {
+            spans.push(Span::raw(text(&self.cores)));
+        }
+        spans.push(Span::styled("  MEM ", styles.header));
+        push_bar(&mut spans, self.mem_pct, bar_width, mem_style);
+        spans.push(Span::styled(text(&self.mem), mem_style));
+        if detail.network() {
+            spans.push(Span::styled("  TX ", styles.header));
+            spans.push(Span::raw(text(&self.tx)));
+            spans.push(Span::styled(" RX ", styles.header));
+            spans.push(Span::raw(text(&self.rx)));
+        }
+        for (shown, range) in [
+            (detail.swap(), &self.swap),
+            (detail.load(), &self.load),
+            (detail.uptime(), &self.uptime),
+            (true, &self.running),
+        ] {
+            if shown && !range.is_empty() {
+                spans.push(Span::raw(text(range)));
+            }
+        }
+        Line::from(spans)
+    }
+}
+
+/// Pushes a `bar_width`-cell bar and its trailing space, borrowing the glyphs.
+fn push_bar<'a>(spans: &mut Vec<Span<'a>>, percent: f64, bar_width: usize, style: Style) {
+    if bar_width == 0 {
+        return;
+    }
+    let bar_width = bar_width.min(BAR_CAPACITY);
+    let filled = ((percent.clamp(0.0, 100.0) / 100.0) * bar_width as f64).round() as usize;
+    let glyph = "█".len();
+    spans.push(Span::styled(&BAR_FILLED[..filled * glyph], style));
+    spans.push(Span::styled(
+        &BAR_EMPTY[..(bar_width - filled) * glyph],
+        style,
+    ));
+    spans.push(Span::raw(" "));
+}
+
+/// Builds the header's lines: the local machine and `local` host first, then
+/// each other host's machine and containers together. Host IDs come from two
+/// sorted maps, merged in order without collecting them.
+fn header_texts(state: &AppState) -> Vec<HeaderText> {
+    let label_width = state
+        .system_stats
+        .iter()
+        .map(|s| s.hostname.width())
+        .chain(state.remote_system_stats.keys().map(|h| h.width()))
+        .chain(state.host_info.keys().map(|h| h.width()))
+        .max()
+        .unwrap_or(0)
+        .min(MAX_LABEL_WIDTH);
+
+    let mut texts = Vec::with_capacity(
+        usize::from(state.system_stats.is_some())
+            + state.remote_system_stats.len()
+            + state.host_info.len(),
+    );
+    if let Some(stats) = &state.system_stats {
+        texts.push(HeaderText::system(stats, label_width));
+    }
+
+    let mut add_host = |host_id: &str| {
+        if let Some(stats) = state.remote_system_stats.get(host_id) {
+            texts.push(HeaderText::system(stats, label_width));
+        }
+        if let Some(info) = state.host_info.get(host_id) {
+            let totals = state.docker_totals(host_id);
+            texts.push(HeaderText::docker(host_id, info, &totals, label_width));
+        }
+    };
+
+    // `local` first so its Docker line sits under the local machine's line
+    if state.remote_system_stats.contains_key("local") || state.host_info.contains_key("local") {
+        add_host("local");
+    }
+    let mut remote = state.remote_system_stats.keys().peekable();
+    let mut docker = state.host_info.keys().peekable();
+    loop {
+        let next = match (remote.peek(), docker.peek()) {
+            (Some(r), Some(d)) if r == d => {
+                docker.next();
+                remote.next()
+            }
+            (Some(r), Some(d)) if r < d => remote.next(),
+            (Some(_), None) => remote.next(),
+            (_, Some(_)) => docker.next(),
+            (None, None) => break,
+        };
+        if let Some(host_id) = next
+            && host_id != "local"
+        {
+            add_host(host_id);
+        }
+    }
+    texts
 }
 
 /// Renders the header into `area`, which must be [`header_height`] rows tall.
@@ -140,230 +388,36 @@ fn entries(state: &AppState) -> Vec<Entry<'_>> {
 /// The CPU and memory bars stretch so the widest line fills `area`. Every line
 /// gets the same bar width, so the bars and the text after them stay aligned.
 pub fn render_system_header(f: &mut Frame, area: Rect, state: &AppState, styles: &UiStyles) {
-    let entries = entries(state);
-    let label_width = entries
-        .iter()
-        .map(|e| e.label().width())
-        .max()
-        .unwrap_or(0)
-        .min(MAX_LABEL_WIDTH);
+    let texts = header_texts(state);
     let width = usize::from(area.width);
-    let build = |bar_width, detail| -> Vec<Line<'static>> {
-        entries
-            .iter()
-            .map(|e| line(e, label_width, bar_width, detail, styles))
-            .collect()
-    };
-    let text_width = |lines: &[Line]| lines.iter().map(Line::width).max().unwrap_or(0);
+    let text_width = |detail| texts.iter().map(|t| t.width(detail, 0)).max().unwrap_or(0);
 
-    // Lay out without bars to find how much room the text needs, then split
-    // what's left between the two bars (each also takes a separating space).
-    // Shed swap/load/uptime to make room for bars, but not the core count or
-    // network: the bars only restate the percentage, so they go before those do.
-    // Without bars, keep the most detail that fits, or the least detail, which
-    // overflows the least.
-    let mut fallback = None;
+    // Find how much room the text needs without bars, then split what's left
+    // between the two bars (each also takes a separating space). Shed
+    // swap/load/uptime to make room for bars, but not the core count or
+    // network: the bars only restate the percentage, so they go before those
+    // do. Without bars, keep the most detail that fits, or the least detail,
+    // which overflows the least.
+    let mut chosen = None;
     for level in (0..=Detail::MAX.0).rev() {
         let detail = Detail(level);
-        let lines = build(0, detail);
-        let text_width = text_width(&lines);
-        let bar_width = (width.saturating_sub(text_width) / 2).saturating_sub(1);
+        let needed = text_width(detail);
+        let bar_width = (width.saturating_sub(needed) / 2).saturating_sub(1);
         if detail >= Detail::MIN_WITH_BARS && bar_width >= MIN_BAR_WIDTH {
-            f.render_widget(Paragraph::new(build(bar_width, detail)), area);
-            return;
+            chosen = Some((detail, bar_width));
+            break;
         }
-        if fallback.is_none() && text_width <= width {
-            fallback = Some(lines);
+        if chosen.is_none() && needed <= width {
+            chosen = Some((detail, 0));
         }
     }
-    let lines = fallback.unwrap_or_else(|| build(0, Detail(0)));
+    let (detail, bar_width) = chosen.unwrap_or((Detail(0), 0));
+
+    let lines: Vec<Line> = texts
+        .iter()
+        .map(|text| text.line(detail, bar_width, styles))
+        .collect();
     f.render_widget(Paragraph::new(lines), area);
-}
-
-fn line(
-    entry: &Entry<'_>,
-    label_width: usize,
-    bar_width: usize,
-    detail: Detail,
-    styles: &UiStyles,
-) -> Line<'static> {
-    match entry {
-        Entry::System(stats) => system_line(stats, label_width, bar_width, detail, styles),
-        Entry::Docker {
-            host_id,
-            info,
-            totals,
-        } => docker_line(
-            host_id,
-            info,
-            totals,
-            label_width,
-            bar_width,
-            detail,
-            styles,
-        ),
-    }
-}
-
-fn system_line(
-    stats: &SystemStats,
-    label_width: usize,
-    bar_width: usize,
-    detail: Detail,
-    styles: &UiStyles,
-) -> Line<'static> {
-    let mut spans = label_spans("System", &stats.hostname, label_width, styles);
-    spans.extend(cpu_spans(stats.cpu, stats.cpus, bar_width, detail, styles));
-    spans.extend(memory_spans(
-        stats.memory_used_bytes,
-        stats.memory_total_bytes,
-        bar_width,
-        styles,
-    ));
-    if detail.network() {
-        spans.extend(network_spans(
-            stats.net_tx_bytes_per_sec,
-            stats.net_rx_bytes_per_sec,
-            styles,
-        ));
-    }
-
-    let mut text = String::new();
-    if detail.swap() && stats.swap_total_bytes > 0 {
-        text.push_str("  Swap ");
-        write_bytes(&mut text, stats.swap_used_bytes);
-        text.push('/');
-        write_bytes(&mut text, stats.swap_total_bytes);
-    }
-    let [one, five, fifteen] = stats.load_average;
-    if detail.load() && (one > 0.0 || five > 0.0 || fifteen > 0.0) {
-        let _ = write!(text, "  Load {one:.2} {five:.2} {fifteen:.2}");
-    }
-    if detail.uptime() {
-        text.push_str("  Up ");
-        write_uptime(&mut text, stats.uptime_secs);
-    }
-    spans.push(Span::raw(text));
-
-    Line::from(spans)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn docker_line(
-    host_id: &str,
-    info: &HostInfo,
-    totals: &DockerTotals,
-    label_width: usize,
-    bar_width: usize,
-    detail: Detail,
-    styles: &UiStyles,
-) -> Line<'static> {
-    let mut spans = label_spans("Docker", host_id, label_width, styles);
-    spans.extend(cpu_spans(
-        totals.cpu_percent(info),
-        info.cpus as usize,
-        bar_width,
-        detail,
-        styles,
-    ));
-    spans.extend(memory_spans(
-        totals.memory_used_bytes,
-        info.memory_total_bytes,
-        bar_width,
-        styles,
-    ));
-    if detail.network() {
-        spans.extend(network_spans(
-            totals.net_tx_bytes_per_sec,
-            totals.net_rx_bytes_per_sec,
-            styles,
-        ));
-    }
-    spans.push(Span::raw(format!(
-        "  {}/{} running",
-        totals.running, totals.total
-    )));
-
-    Line::from(spans)
-}
-
-fn label_spans(
-    kind: &'static str,
-    label: &str,
-    label_width: usize,
-    styles: &UiStyles,
-) -> Vec<Span<'static>> {
-    let (label, width) = clip_to_width(label, label_width as u16);
-    let padding = label_width - usize::from(width);
-    vec![
-        Span::styled(kind, styles.header),
-        Span::raw(format!("  {label}{:padding$}  ", "")),
-    ]
-}
-
-/// CPU usage as a share of the whole machine, with the core count it is
-/// measured against so the percentage isn't mistaken for a single core's.
-fn cpu_spans(
-    cpu: f64,
-    cores: usize,
-    bar_width: usize,
-    detail: Detail,
-    styles: &UiStyles,
-) -> Vec<Span<'static>> {
-    let mut text = String::new();
-    write_bar_if_wide(&mut text, cpu, bar_width);
-    let _ = write!(text, "{cpu:5.1}%");
-    let mut spans = vec![
-        Span::styled("CPU ", styles.header),
-        Span::styled(text, get_percentage_style(cpu, styles)),
-    ];
-    if detail.cores() {
-        // Singular padded to the plural's width so lines stay aligned
-        let unit = if cores == 1 { "core " } else { "cores" };
-        spans.push(Span::raw(format!(" of {cores:>2} {unit}")));
-    }
-    spans
-}
-
-fn memory_spans(used: u64, total: u64, bar_width: usize, styles: &UiStyles) -> [Span<'static>; 2] {
-    let percent = if total > 0 {
-        used as f64 / total as f64 * 100.0
-    } else {
-        0.0
-    };
-    let mut text = String::new();
-    write_bar_if_wide(&mut text, percent, bar_width);
-    let start = text.len();
-    write_bytes(&mut text, used);
-    text.push('/');
-    write_bytes(&mut text, total);
-    // Fixed width so the columns after it line up across lines (ASCII only, so
-    // byte length is display width)
-    let padding = MEMORY_TEXT_WIDTH.saturating_sub(text.len() - start);
-    text.extend(std::iter::repeat_n(' ', padding));
-    [
-        Span::styled("  MEM ", styles.header),
-        Span::styled(text, get_percentage_style(percent, styles)),
-    ]
-}
-
-/// Container network rates summed (Docker lines) or interface rates (System line).
-fn network_spans(tx: f64, rx: f64, styles: &UiStyles) -> [Span<'static>; 4] {
-    [
-        Span::styled("  TX ", styles.header),
-        Span::raw(format!("{:<RATE_WIDTH$}", format_bytes_per_sec(tx))),
-        Span::styled(" RX ", styles.header),
-        Span::raw(format!("{:<RATE_WIDTH$}", format_bytes_per_sec(rx))),
-    ]
-}
-
-fn write_bar_if_wide(buf: &mut String, percent: f64, bar_width: usize) {
-    if bar_width == 0 {
-        return;
-    }
-    let filled = ((percent.clamp(0.0, 100.0) / 100.0) * bar_width as f64).round() as usize;
-    write_bar(buf, filled, bar_width - filled);
-    buf.push(' ');
 }
 
 /// Formats an uptime as its two most significant units, e.g. `3d 4h` or `12m`.

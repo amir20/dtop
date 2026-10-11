@@ -169,4 +169,57 @@ mod tests {
             "per-container render allocation cost regressed to {per_container:.1} (expected <= 42)"
         );
     }
+
+    /// The stats header used to rebuild every line once per detail level while
+    /// searching for the widest layout that fits, costing 200-480 allocations a
+    /// frame. Each line is now formatted once into one buffer and measured by
+    /// arithmetic, so the header's cost stays small and flat across widths.
+    #[test]
+    fn render_stats_header_allocations() {
+        use crate::core::types::{HostInfo, SystemStats};
+
+        let hosts = ["local", "user@server1"];
+        let mut plain = build_state(30, &hosts);
+        let mut with_header = build_state(30, &hosts);
+        let stats = SystemStats {
+            hostname: "workstation".to_string(),
+            cpu: 30.0,
+            cpus: 10,
+            memory_used_bytes: 1 << 34,
+            memory_total_bytes: 1 << 35,
+            swap_used_bytes: 1 << 29,
+            swap_total_bytes: 1 << 31,
+            net_rx_bytes_per_sec: 1e6,
+            net_tx_bytes_per_sec: 1e5,
+            load_average: [1.0, 2.0, 3.0],
+            uptime_secs: 100_000,
+        };
+        with_header.system_stats = Some(stats.clone());
+        with_header
+            .remote_system_stats
+            .insert("user@server1".to_string(), stats);
+        for host in hosts {
+            with_header.host_info.insert(
+                host.to_string(),
+                HostInfo {
+                    cpus: 8,
+                    memory_total_bytes: 1 << 34,
+                },
+            );
+        }
+
+        // 100 columns exercises the full shedding search; 240 the widest bars
+        for width in [100, 160, 240] {
+            let without = measure_render(&mut plain, width, 40);
+            let with = measure_render(&mut with_header, width, 40);
+            let header_cost = with.saturating_sub(without);
+            println!("stats header allocations at {width} columns: {header_cost}");
+
+            assert!(
+                header_cost <= 30,
+                "stats header allocated {header_cost} times per frame at {width} columns \
+                 (expected <= 30)"
+            );
+        }
+    }
 }

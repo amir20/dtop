@@ -64,8 +64,13 @@ pub fn format_bytes(bytes: u64) -> String {
 /// Formats bytes per second into a human-readable string (KB/s, MB/s, GB/s)
 pub fn format_bytes_per_sec(bytes_per_sec: f64) -> String {
     let mut s = String::new();
-    write_byte_value(&mut s, bytes_per_sec, "/s", true, (2, 2, 1, 0));
+    write_bytes_per_sec(&mut s, bytes_per_sec);
     s
+}
+
+/// Writes bytes per second (KB/s, MB/s, GB/s) into an existing buffer.
+pub fn write_bytes_per_sec(buf: &mut String, bytes_per_sec: f64) {
+    write_byte_value(buf, bytes_per_sec, "/s", true, (2, 2, 1, 0));
 }
 
 /// Formats the time elapsed since container creation
