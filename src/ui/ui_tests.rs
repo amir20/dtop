@@ -333,6 +333,21 @@ mod tests {
         assert!(find_text_position(&buffer, "System").is_some());
     }
 
+    /// 80 columns is the classic default; every line must fit without clipping.
+    #[test]
+    fn test_system_stats_header_80_columns() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 80, 20);
+        for y in 2..6 {
+            let row: String = (0..80).map(|x| buffer[(x, y)].symbol()).collect();
+            assert!(
+                row.ends_with(' '),
+                "header line {y} reaches the right edge, so it was clipped: {row:?}"
+            );
+        }
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
     /// The header gives way on short terminals instead of squeezing out the list.
     #[test]
     fn test_system_stats_header_hidden_when_too_short() {

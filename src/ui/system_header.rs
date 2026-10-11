@@ -43,27 +43,30 @@ const RATE_WIDTH: usize = 10;
 const MEMORY_TEXT_WIDTH: usize = 11;
 
 /// How much optional detail the lines carry. When the terminal is too narrow,
-/// detail is shed from the top down: uptime, load, swap, then the core count
-/// (with the bars dropped before the core count).
+/// detail is shed from the top down: uptime, load, swap, then the core count,
+/// then network (with the bars dropped before the core count).
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 struct Detail(u8);
 
 impl Detail {
-    const MAX: Detail = Detail(4);
+    const MAX: Detail = Detail(5);
     /// Bars are only drawn while at least this much detail fits alongside them
-    const MIN_WITH_BARS: Detail = Detail(1);
+    const MIN_WITH_BARS: Detail = Detail(2);
 
-    fn cores(self) -> bool {
+    fn network(self) -> bool {
         self.0 >= 1
     }
-    fn swap(self) -> bool {
+    fn cores(self) -> bool {
         self.0 >= 2
     }
-    fn load(self) -> bool {
+    fn swap(self) -> bool {
         self.0 >= 3
     }
-    fn uptime(self) -> bool {
+    fn load(self) -> bool {
         self.0 >= 4
+    }
+    fn uptime(self) -> bool {
+        self.0 >= 5
     }
 }
 
@@ -155,8 +158,8 @@ pub fn render_system_header(f: &mut Frame, area: Rect, state: &AppState, styles:
 
     // Lay out without bars to find how much room the text needs, then split
     // what's left between the two bars (each also takes a separating space).
-    // Shed swap/load/uptime to make room for bars, but not the core count: the
-    // bars only restate the percentage, so they go before it does.
+    // Shed swap/load/uptime to make room for bars, but not the core count or
+    // network: the bars only restate the percentage, so they go before those do.
     // Without bars, keep the most detail that fits, or the least detail, which
     // overflows the least.
     let mut fallback = None;
@@ -217,11 +220,13 @@ fn system_line(
         bar_width,
         styles,
     ));
-    spans.extend(network_spans(
-        stats.net_tx_bytes_per_sec,
-        stats.net_rx_bytes_per_sec,
-        styles,
-    ));
+    if detail.network() {
+        spans.extend(network_spans(
+            stats.net_tx_bytes_per_sec,
+            stats.net_rx_bytes_per_sec,
+            styles,
+        ));
+    }
 
     let mut text = String::new();
     if detail.swap() && stats.swap_total_bytes > 0 {
@@ -267,11 +272,13 @@ fn docker_line(
         bar_width,
         styles,
     ));
-    spans.extend(network_spans(
-        totals.net_tx_bytes_per_sec,
-        totals.net_rx_bytes_per_sec,
-        styles,
-    ));
+    if detail.network() {
+        spans.extend(network_spans(
+            totals.net_tx_bytes_per_sec,
+            totals.net_rx_bytes_per_sec,
+            styles,
+        ));
+    }
     spans.push(Span::raw(format!(
         "  {}/{} running",
         totals.running, totals.total
