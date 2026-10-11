@@ -365,6 +365,40 @@ mod tests {
         assert!(find_text_position(&buffer, "System").is_some());
     }
 
+    /// Docker lines carry no network (container counters double-count traffic
+    /// between containers). With no System line to align to, the network
+    /// column is left out entirely rather than drawn as an empty gap.
+    #[test]
+    fn test_docker_only_header_has_no_network_gap() {
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(create_test_container(
+            "abc123456789",
+            "nginx",
+            "tcp-host",
+            10.0,
+            10.0,
+            5000.0,
+            5000.0,
+        )));
+        state.handle_event(AppEvent::HostInfo(
+            "tcp-host".to_string(),
+            HostInfo {
+                cpus: 4,
+                memory_total_bytes: 8 * 1024 * 1024 * 1024,
+            },
+        ));
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        let row: String = (0..150).map(|x| buffer[(x, 2)].symbol()).collect();
+
+        assert!(!row.contains("TX"), "Docker line shows network: {row:?}");
+        let after_memory = row.split("/8G").nth(1).unwrap_or_default();
+        assert!(
+            after_memory.trim_start().starts_with("1/1 running")
+                && after_memory.trim_end().len() < 20,
+            "gap left where the network column would be: {row:?}"
+        );
+    }
+
     /// 80 columns is the classic default; every line must fit without clipping.
     #[test]
     fn test_system_stats_header_80_columns() {

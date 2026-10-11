@@ -10,8 +10,6 @@ pub struct DockerTotals {
     /// Sum of container CPU percentages, where 100% is one core
     pub cpu: f64,
     pub memory_used_bytes: u64,
-    pub net_rx_bytes_per_sec: f64,
-    pub net_tx_bytes_per_sec: f64,
     pub running: usize,
     pub total: usize,
 }
@@ -37,8 +35,6 @@ impl AppState {
                 totals.running += 1;
                 totals.cpu += container.stats.cpu;
                 totals.memory_used_bytes += container.stats.memory_used_bytes;
-                totals.net_rx_bytes_per_sec += container.stats.network_rx_bytes_per_sec;
-                totals.net_tx_bytes_per_sec += container.stats.network_tx_bytes_per_sec;
             }
         }
         totals
@@ -158,8 +154,6 @@ mod tests {
             DockerTotals {
                 cpu: 200.0,
                 memory_used_bytes: 200,
-                net_rx_bytes_per_sec: 20.0,
-                net_tx_bytes_per_sec: 40.0,
                 running: 2,
                 total: 3,
             }

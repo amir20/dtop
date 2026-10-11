@@ -40,6 +40,11 @@ const MAX_LABEL_WIDTH: usize = 24;
 /// Width the network rates are padded to, e.g. `999.99MB/s`.
 const RATE_WIDTH: usize = 10;
 
+/// Blank space standing in for the network column on lines without one, so
+/// what follows lines up with the lines that have it.
+const NETWORK_GAP: &str = "                             ";
+const _: () = assert!(NETWORK_GAP.len() == "  TX ".len() + RATE_WIDTH + " RX ".len() + RATE_WIDTH);
+
 /// Width the `used/total` memory text is padded to, e.g. `1006M/11.7G`.
 const MEMORY_TEXT_WIDTH: usize = 11;
 
@@ -106,6 +111,11 @@ struct HeaderText {
     kind: &'static str,
     buf: String,
     label: Range<usize>,
+    /// Only System lines carry network: the sum of container counters would
+    /// count traffic between containers (twice, as one's TX and the other's
+    /// RX) that never touches the machine's interfaces, so a Docker line's
+    /// "network" could exceed the machine's own.
+    has_network: bool,
     cpu: Range<usize>,
     cpu_pct: f64,
     cores: Range<usize>,
@@ -148,6 +158,7 @@ impl HeaderText {
             kind,
             buf,
             label,
+            has_network: false,
             cpu: 0..0,
             cpu_pct: 0.0,
             cores: 0..0,
@@ -192,8 +203,9 @@ impl HeaderText {
         });
     }
 
-    /// Container rates summed (Docker lines) or interface rates (System lines).
+    /// Interface rates (System lines only, see `has_network`).
     fn network(&mut self, tx: f64, rx: f64) {
+        self.has_network = true;
         for (range, rate) in [(&mut self.tx, tx), (&mut self.rx, rx)] {
             *range = field(&mut self.buf, |buf| {
                 let start = buf.len();
@@ -233,7 +245,6 @@ impl HeaderText {
         let mut text = Self::new("Docker", host_id, label_width);
         text.cpu(totals.cpu_percent(info), info.cpus as usize);
         text.memory(totals.memory_used_bytes, info.memory_total_bytes);
-        text.network(totals.net_tx_bytes_per_sec, totals.net_rx_bytes_per_sec);
         text.running = field(&mut text.buf, |buf| {
             let _ = write!(buf, "  {}/{} running", totals.running, totals.total);
         });
@@ -241,8 +252,9 @@ impl HeaderText {
     }
 
     /// Display width at `detail` with bars of `bar_width` cells (0 = no bars),
-    /// matching exactly what [`HeaderText::line`] draws.
-    fn width(&self, detail: Detail, bar_width: usize) -> usize {
+    /// matching exactly what [`HeaderText::line`] draws. `network_column` is
+    /// whether the network column is drawn at all (on some line).
+    fn width(&self, detail: Detail, bar_width: usize, network_column: bool) -> usize {
         let bar = if bar_width > 0 { bar_width + 1 } else { 0 };
         let mut width = self.kind.len()
             + self.buf[self.label.clone()].width()
@@ -256,8 +268,12 @@ impl HeaderText {
         if detail.cores() {
             width += self.cores.len();
         }
-        if detail.network() {
-            width += "  TX ".len() + self.tx.len() + " RX ".len() + self.rx.len();
+        if network_column {
+            width += if self.has_network {
+                "  TX ".len() + self.tx.len() + " RX ".len() + self.rx.len()
+            } else {
+                NETWORK_GAP.len()
+            };
         }
         if detail.swap() {
             width += self.swap.len();
@@ -271,7 +287,13 @@ impl HeaderText {
         width
     }
 
-    fn line(&self, detail: Detail, bar_width: usize, styles: &UiStyles) -> Line<'_> {
+    fn line(
+        &self,
+        detail: Detail,
+        bar_width: usize,
+        network_column: bool,
+        styles: &UiStyles,
+    ) -> Line<'_> {
         let text = |range: &Range<usize>| &self.buf[range.clone()];
         let cpu_style = get_percentage_style(self.cpu_pct, styles);
         let mem_style = get_percentage_style(self.mem_pct, styles);
@@ -288,11 +310,13 @@ impl HeaderText {
         spans.push(Span::styled("  MEM ", styles.header));
         push_bar(&mut spans, self.mem_pct, bar_width, mem_style);
         spans.push(Span::styled(text(&self.mem), mem_style));
-        if detail.network() {
+        if network_column && self.has_network {
             spans.push(Span::styled("  TX ", styles.header));
             spans.push(Span::raw(text(&self.tx)));
             spans.push(Span::styled(" RX ", styles.header));
             spans.push(Span::raw(text(&self.rx)));
+        } else if network_column {
+            spans.push(Span::raw(NETWORK_GAP));
         }
         for (shown, range) in [
             (detail.swap(), &self.swap),
@@ -390,7 +414,15 @@ fn header_texts(state: &AppState) -> Vec<HeaderText> {
 pub fn render_system_header(f: &mut Frame, area: Rect, state: &AppState, styles: &UiStyles) {
     let texts = header_texts(state);
     let width = usize::from(area.width);
-    let text_width = |detail| texts.iter().map(|t| t.width(detail, 0)).max().unwrap_or(0);
+    let any_network = texts.iter().any(|t| t.has_network);
+    let network_column = |detail: Detail| detail.network() && any_network;
+    let text_width = |detail| {
+        texts
+            .iter()
+            .map(|t| t.width(detail, 0, network_column(detail)))
+            .max()
+            .unwrap_or(0)
+    };
 
     // Find how much room the text needs without bars, then split what's left
     // between the two bars (each also takes a separating space). Shed
@@ -415,7 +447,7 @@ pub fn render_system_header(f: &mut Frame, area: Rect, state: &AppState, styles:
 
     let lines: Vec<Line> = texts
         .iter()
-        .map(|text| text.line(detail, bar_width, styles))
+        .map(|text| text.line(detail, bar_width, network_column(detail), styles))
         .collect();
     f.render_widget(Paragraph::new(lines), area);
 }
