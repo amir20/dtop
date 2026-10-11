@@ -244,17 +244,35 @@ async fn dial_stdio(session: &Arc<openssh::Session>) -> Result<SshChild, openssh
         .arg("dial-stdio")
         .stdin(openssh::Stdio::piped())
         .stdout(openssh::Stdio::piped())
+        // Never inherit: the TUI owns the terminal, and anything ssh or the
+        // remote docker CLI writes there (e.g. "Could not resolve hostname"
+        // during a network blip) lands on top of the UI and stays there, since
+        // ratatui only repaints cells it thinks changed.
+        .stderr(openssh::Stdio::piped())
         .spawn()
         .await?;
 
     let stdin = TokioIo::new(child.stdin().take().expect("stdin was piped"));
     let stdout = TokioIo::new(child.stdout().take().expect("stdout was piped"));
+    if let Some(stderr) = child.stderr().take() {
+        tokio::spawn(log_stderr(stderr));
+    }
 
     Ok(SshChild {
         child,
         stdin,
         stdout,
     })
+}
+
+/// Forwards a channel's stderr to the debug log, line by line, until it closes.
+async fn log_stderr(stderr: openssh::ChildStderr) {
+    use tokio::io::AsyncBufReadExt;
+
+    let mut lines = tokio::io::BufReader::new(stderr).lines();
+    while let Ok(Some(line)) = lines.next_line().await {
+        tracing::debug!("ssh dial-stdio stderr: {line}");
+    }
 }
 
 struct SshChild {
