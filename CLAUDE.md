@@ -631,7 +631,10 @@ connections instead of 31.
   are cleaned up on quit.
 - `SshRunner` (returned by `connect_with_ssh`, stored on `DockerHost::ssh`) runs short
   commands on the host over the same pool, borrowing one channel per command. It is
-  what the remote system stats sampler uses, so it costs no extra connections.
+  what the remote system stats sampler uses. Usually that's a free slot on an existing
+  master, but if every master is exactly full the sample launches one more (one extra
+  connection over the counts above, relevant to `MaxStartups`/fail2ban). A timed-out
+  command is dropped, and openssh's `kill_on_drop` closes its channel.
 
 **Docker Context Resolution (`docker/context.rs`):**
 For the `local` host, dtop mirrors the Docker CLI's endpoint resolution so it works
@@ -664,8 +667,9 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
    - **System stats header** (`ui/system_header.rs`) between the title and the table.
      Toggled with `t`, or `stats_header: false` in config (saved by Ctrl-S). Lines, in order:
      - `System` line for the machine dtop runs on, sampled with `sysinfo` by
-       `core/system_stats.rs::system_stats_worker`. Only spawned when a host is `local` or `unix://`
-       (a forwarded `unix://` socket would make this describe the wrong machine; accepted).
+       `core/system_stats.rs::system_stats_worker` on its own thread (sysinfo refreshes
+       block). Only spawned for the `local` host; an explicit `unix://` socket may be
+       forwarded from another machine, so it doesn't get one.
      - Then per host, `local` first: a `System` line for `ssh://` hosts and a `Docker` line.
      - Remote `System` lines come from `docker/remote_stats.rs`, which runs one
        `cat /proc/...` script every 2s over the host's existing SSH masters (via

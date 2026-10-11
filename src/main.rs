@@ -322,8 +322,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     spawn_remaining_connections_handler(connection_result.remaining_rx, tx.clone());
 
     // The machine's own metrics only mean something next to a host that runs on it
-    if merged_config.hosts.iter().any(|h| is_local_host(&h.host)) {
-        tokio::spawn(system_stats_worker(tx.clone()));
+    if merged_config.hosts.iter().any(|h| h.host == "local") {
+        let tx = tx.clone();
+        std::thread::spawn(move || system_stats_worker(tx));
     }
 
     // Create pause flag for keyboard worker
@@ -385,15 +386,6 @@ fn spawn_container_manager(docker_host: DockerHost, tx: mpsc::Sender<AppEvent>) 
     tokio::spawn(async move {
         container_manager(docker_host, tx).await;
     });
-}
-
-/// Whether a host spec points at a daemon on this machine.
-///
-/// `local` may still resolve (via `DOCKER_HOST` or a context) to somewhere else,
-/// and a `unix://` socket can be forwarded from another machine, but both are
-/// what the user usually means by "this machine", so they get the header.
-fn is_local_host(host: &str) -> bool {
-    host == "local" || host.starts_with("unix://")
 }
 
 /// Spawns the keyboard input worker thread

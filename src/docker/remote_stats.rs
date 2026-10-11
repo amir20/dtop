@@ -178,7 +178,8 @@ impl Snapshot {
                 .map(|kb| kb * 1024)
         };
         let memory_total_bytes = meminfo_kb("MemTotal")?;
-        // MemAvailable is missing on kernels older than 3.14
+        // MemAvailable is missing on kernels older than 3.14. MemFree counts
+        // reclaimable cache as used, so usage reads high there; accepted.
         let memory_available_bytes =
             meminfo_kb("MemAvailable").or_else(|| meminfo_kb("MemFree"))?;
 
@@ -402,6 +403,25 @@ mod tests {
         let (received, finished) = run_worker(FakeShell::new(results), 1).await;
         assert_eq!(received, 1);
         assert!(!finished);
+    }
+
+    #[test]
+    fn rejects_a_short_cpu_line() {
+        let short = output("100 0 50 800 50 0 0 0 0 0", 1, 1)
+            .replace("cpu  100 0 50 800 50 0 0 0 0 0", "cpu  100 0 50");
+        assert_eq!(Snapshot::parse(&short), None);
+    }
+
+    #[test]
+    fn tolerates_a_truncated_net_dev() {
+        // Cut mid-way through the eth0 counters: the partial line is skipped
+        // rather than misread, and everything else still parses
+        let full = output("100 0 50 800 50 0 0 0 0 0", 1000, 2000);
+        let truncated = &full[..full.find("eth0: 1000 10").unwrap() + "eth0: 1000 10".len()];
+
+        let snapshot = Snapshot::parse(truncated).unwrap();
+        assert_eq!((snapshot.net_rx_bytes, snapshot.net_tx_bytes), (0, 0));
+        assert_eq!(snapshot.cpus, 2);
     }
 
     #[test]

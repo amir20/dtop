@@ -15,7 +15,11 @@ use crate::core::types::{AppEvent, EventSender, SystemStats};
 pub(crate) const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Sends a [`AppEvent::SystemStats`] every [`SAMPLE_INTERVAL`] until the UI goes away.
-pub async fn system_stats_worker(tx: EventSender) {
+///
+/// Blocking: run it on its own thread, like the keyboard worker. `sysinfo`
+/// refreshes are synchronous syscalls (a few ms for networks and memory on
+/// macOS) that shouldn't occupy a tokio worker.
+pub fn system_stats_worker(tx: EventSender) {
     let hostname = System::host_name().unwrap_or_else(|| "localhost".to_string());
     let mut sys = System::new();
     let mut networks = Networks::new_with_refreshed_list();
@@ -25,7 +29,7 @@ pub async fn system_stats_worker(tx: EventSender) {
     // wait a little.
     sys.refresh_cpu_usage();
     let mut last_refresh = Instant::now();
-    tokio::time::sleep(MINIMUM_CPU_UPDATE_INTERVAL).await;
+    std::thread::sleep(MINIMUM_CPU_UPDATE_INTERVAL);
 
     loop {
         sys.refresh_cpu_usage();
@@ -35,17 +39,12 @@ pub async fn system_stats_worker(tx: EventSender) {
         let elapsed = last_refresh.elapsed().as_secs_f64();
         last_refresh = Instant::now();
 
-        if tx
-            .send(AppEvent::SystemStats(sample(
-                &sys, &networks, elapsed, &hostname,
-            )))
-            .await
-            .is_err()
-        {
+        let stats = sample(&sys, &networks, elapsed, &hostname);
+        if tx.blocking_send(AppEvent::SystemStats(stats)).is_err() {
             return;
         }
 
-        tokio::time::sleep(SAMPLE_INTERVAL).await;
+        std::thread::sleep(SAMPLE_INTERVAL);
     }
 }
 
