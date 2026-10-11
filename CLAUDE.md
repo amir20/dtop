@@ -674,9 +674,9 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      - Remote `System` lines come from `docker/remote_stats.rs`, which runs one
        `cat /proc/...` script every 2s over the host's existing SSH masters (via
        `SshRunner`, see SSH Transport). CPU and network rates are deltas between two
-       reads. Reads that run but fail (no `/proc`, bad output) are retried every
-       10s and the host is dropped after 3 in a row; connection errors retry every
-       10s forever. `run_sh` times out after 10s and never evicts a master (a dead
+       reads. A host is dropped only after 3 reads in a row find no `/proc`
+       (not Linux); every other failure (connection, killed `cat`, bad output) is
+       retried forever with a 10s → 60s backoff. `run_sh` times out after 10s and never evicts a master (a dead
        one is replaced by the Docker reconnect). Cleared on `HostDisconnected`.
      - `Docker` lines: CPU, memory and network summed over the host's *running*
        containers (`AppState::docker_totals`), measured against `NCPU`/`MemTotal`

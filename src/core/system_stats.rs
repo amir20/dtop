@@ -95,7 +95,11 @@ pub(crate) fn is_virtual_interface(name: &str) -> bool {
     let loopback = name
         .strip_prefix("lo")
         .is_some_and(|rest| rest.chars().all(|c| c.is_ascii_digit()));
-    loopback || name.starts_with("veth") || name.starts_with("docker") || name.starts_with("br-")
+    loopback
+        || name.starts_with("veth")
+        || name == "docker0"
+        || name == "docker_gwbridge"
+        || name.starts_with("br-")
 }
 
 #[cfg(test)]
@@ -123,10 +127,25 @@ mod tests {
 
     #[test]
     fn virtual_interfaces_are_skipped() {
-        for name in ["lo", "lo0", "veth1a2b3c", "docker0", "br-0123abcd"] {
+        for name in [
+            "lo",
+            "lo0",
+            "veth1a2b3c",
+            "docker0",
+            "docker_gwbridge",
+            "br-0123abcd",
+        ] {
             assert!(is_virtual_interface(name), "{name}");
         }
-        for name in ["eth0", "en0", "wlan0", "ens5", "utun3", "lowpan0"] {
+        for name in [
+            "eth0",
+            "en0",
+            "wlan0",
+            "ens5",
+            "utun3",
+            "lowpan0",
+            "dockerhost0",
+        ] {
             assert!(!is_virtual_interface(name), "{name}");
         }
     }

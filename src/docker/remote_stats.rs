@@ -22,15 +22,17 @@ const SCRIPT: &str = "cat /proc/stat && echo @@dtop@@ && cat /proc/meminfo && ec
                       && cat /proc/loadavg && echo @@dtop@@ && cat /proc/uptime && echo @@dtop@@ \
                       && exec cat /proc/net/dev";
 
-/// Wait after a failed read before trying again, so a host that is down
-/// isn't hammered with SSH handshakes.
+/// First wait after a failed read; doubles per failure in a row up to
+/// [`MAX_RETRY_DELAY`], so a host that is down isn't hammered with SSH
+/// handshakes.
 const RETRY_DELAY: Duration = Duration::from_secs(10);
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
 
-/// Reads that run but fail (non-zero exit, unparseable output) in a row before
-/// giving up. More than one, so a transient failure (a `cat` killed under
-/// load, truncated output) doesn't cost the host its System line for the rest
-/// of the session; a host without `/proc` fails every time.
-const MAX_FAILED_READS: u32 = 3;
+/// Reads in a row that find no `/proc` before giving up on the host (a remote
+/// that isn't Linux). Every other failure — connection trouble, a `cat` killed
+/// under load, truncated output — is retried for as long as dtop runs, so a
+/// bad moment never costs a Linux host its System line for the session.
+const MAX_MISSING_PROC_READS: u32 = 3;
 
 /// Runs the sampling script on a host. [`SshRunner`] in production; a trait so
 /// the worker's retry and give-up behavior can be tested without SSH.
@@ -50,7 +52,8 @@ impl RemoteShell for SshRunner {
 /// the host turns out not to have a readable Linux `/proc`.
 pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell, tx: EventSender) {
     let mut previous: Option<Snapshot> = None;
-    let mut failed_reads = 0;
+    let mut failures_in_a_row: u32 = 0;
+    let mut missing_proc_reads: u32 = 0;
 
     loop {
         let snapshot = match shell.run_sh(SCRIPT).await {
@@ -58,26 +61,34 @@ pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell
                 Snapshot::parse(&String::from_utf8_lossy(&output.stdout))
                     .ok_or_else(|| format!("couldn't parse /proc on '{host_id}'"))
             }
-            Ok(output) => Err(format!(
-                "reading /proc on '{host_id}' failed ({}): {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )),
-            Err(e) => {
-                // Connection trouble says nothing about the host; keep trying
-                // for as long as dtop runs, like the Docker connection does
-                tracing::debug!("Failed to sample system stats on '{host_id}': {e}");
-                previous = None;
-                if !wait(&tx, RETRY_DELAY).await {
-                    return;
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                // `cat: /proc/stat: No such file or directory`: not Linux
+                if stderr.contains("No such file") {
+                    missing_proc_reads += 1;
+                    if missing_proc_reads >= MAX_MISSING_PROC_READS {
+                        tracing::info!(
+                            "'{host_id}' has no /proc ({}); not showing its system stats",
+                            stderr.trim()
+                        );
+                        return;
+                    }
+                } else {
+                    missing_proc_reads = 0;
                 }
-                continue;
+                Err(format!(
+                    "reading /proc on '{host_id}' failed ({}): {}",
+                    output.status,
+                    stderr.trim()
+                ))
             }
+            Err(e) => Err(format!("failed to sample system stats on '{host_id}': {e}")),
         };
 
         let delay = match snapshot {
             Ok(snapshot) => {
-                failed_reads = 0;
+                failures_in_a_row = 0;
+                missing_proc_reads = 0;
                 // Rates need two samples, so the first one only primes them
                 if let Some(previous) = &previous {
                     let stats = snapshot.stats_since(previous, &host_id);
@@ -93,15 +104,12 @@ pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell
                 SAMPLE_INTERVAL
             }
             Err(reason) => {
-                failed_reads += 1;
                 // Counters from before a failure would produce a bogus rate
                 previous = None;
-                if failed_reads >= MAX_FAILED_READS {
-                    tracing::info!("{reason}; not showing its system stats");
-                    return;
-                }
-                tracing::debug!("{reason} (attempt {failed_reads} of {MAX_FAILED_READS})");
-                RETRY_DELAY
+                failures_in_a_row += 1;
+                let delay = retry_delay(failures_in_a_row);
+                tracing::debug!("{reason}; retrying in {delay:?}");
+                delay
             }
         };
 
@@ -109,6 +117,12 @@ pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell
             return;
         }
     }
+}
+
+/// [`RETRY_DELAY`] doubled for each failure in a row after the first, capped.
+fn retry_delay(failures_in_a_row: u32) -> Duration {
+    let doublings = failures_in_a_row.saturating_sub(1).min(8);
+    (RETRY_DELAY * 2u32.pow(doublings)).min(MAX_RETRY_DELAY)
 }
 
 /// Sleeps for `delay`, returning `false` if the UI went away meanwhile.
@@ -348,11 +362,15 @@ mod tests {
     }
 
     fn exited(code: i32, stdout: &str) -> io::Result<Output> {
+        exited_with_stderr(code, stdout, "")
+    }
+
+    fn exited_with_stderr(code: i32, stdout: &str, stderr: &str) -> io::Result<Output> {
         use std::os::unix::process::ExitStatusExt;
         Ok(Output {
             status: std::process::ExitStatus::from_raw(code << 8),
             stdout: stdout.as_bytes().to_vec(),
-            stderr: Vec::new(),
+            stderr: stderr.as_bytes().to_vec(),
         })
     }
 
@@ -383,7 +401,11 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn gives_up_on_a_host_without_proc() {
-        let shell = FakeShell::new(vec![exited(1, "")]);
+        let shell = FakeShell::new(vec![exited_with_stderr(
+            1,
+            "",
+            "cat: /proc/stat: No such file or directory",
+        )]);
         let (received, _) = run_worker(shell, 1).await;
         assert_eq!(received, 0, "the worker should have stopped");
     }
@@ -394,6 +416,26 @@ mod tests {
         let (received, finished) = run_worker(shell, 1).await;
         assert_eq!(received, 1);
         assert!(!finished);
+    }
+
+    /// Failed reads that aren't a missing /proc (a killed `cat`, say) never
+    /// cost the host its line, however many there are.
+    #[tokio::test(start_paused = true)]
+    async fn never_gives_up_on_other_failed_reads() {
+        let mut results: Vec<_> = (0..20).map(|_| exited(137, "")).collect();
+        results.push(proc_read());
+        let (received, finished) = run_worker(FakeShell::new(results), 1).await;
+        assert_eq!(received, 1);
+        assert!(!finished);
+    }
+
+    #[test]
+    fn retry_delay_backs_off_and_caps() {
+        let secs = |n| retry_delay(n).as_secs();
+        assert_eq!(
+            [secs(1), secs(2), secs(3), secs(4), secs(50)],
+            [10, 20, 40, 60, 60]
+        );
     }
 
     #[tokio::test(start_paused = true)]
