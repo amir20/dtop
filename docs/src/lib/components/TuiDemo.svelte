@@ -57,6 +57,7 @@
    * System lines add the rest of the machine's load on top. Like the real
    * header, the local machine comes first and each host's lines are grouped.
    */
+  // Illustrative: each row's MEM % is read as a share of a 4 GB limit
   const CONTAINER_MEM_GB = 4;
   const machines = [
     { host: "local", label: "workstation", cores: 10, memGb: 32 },
@@ -90,7 +91,7 @@
           label,
           cores,
           cpu: Math.min(100, docker.cpu + load.cpu),
-          memUsed: docker.mem + load.memGb,
+          memUsed: Math.min(memGb, docker.mem + load.memGb),
           memGb,
           memPct: Math.min(100, ((docker.mem + load.memGb) / memGb) * 100),
           tx: docker.tx + load.tx,
@@ -102,7 +103,7 @@
           label: host,
           cores,
           cpu: docker.cpu,
-          memUsed: docker.mem,
+          memUsed: Math.min(memGb, docker.mem),
           memGb,
           memPct: Math.min(100, (docker.mem / memGb) * 100),
           // Like dtop: summed container counters include traffic between
