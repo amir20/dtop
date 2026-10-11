@@ -89,6 +89,8 @@ pub struct AppState {
     pub last_sort_time: Instant,
     /// Notification message to display (message, expiry time)
     pub notification: Option<(String, Instant)>,
+    /// Whether `notification` reports a failure (drawn in red)
+    pub notification_is_error: bool,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -141,6 +143,7 @@ impl AppState {
             show_system_header: true,
             last_sort_time: Instant::now(),
             notification: None,
+            notification_is_error: false,
             reset_confirm_pending: false,
         }
     }

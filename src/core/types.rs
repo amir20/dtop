@@ -254,6 +254,17 @@ impl ContainerAction {
         }
     }
 
+    /// Progress and result wording for notifications, e.g. ("Stopping", "Stopped")
+    pub fn progress_words(self) -> (&'static str, &'static str) {
+        match self {
+            ContainerAction::Start => ("Starting", "Started"),
+            ContainerAction::Stop => ("Stopping", "Stopped"),
+            ContainerAction::Restart => ("Restarting", "Restarted"),
+            ContainerAction::Remove => ("Removing", "Removed"),
+            ContainerAction::Shell => ("Opening shell in", "Closed shell in"),
+        }
+    }
+
     /// Returns all available actions for a given container state
     pub fn available_for_state(state: &ContainerState) -> Vec<ContainerAction> {
         match state {

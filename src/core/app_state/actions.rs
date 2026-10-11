@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerAction, ContainerKey, RenderAction, ViewState};
 
@@ -182,35 +184,60 @@ impl AppState {
         RenderAction::Render // Force draw
     }
 
+    /// The container's name for notifications, or its ID once it is gone
+    /// (e.g. after a successful remove).
+    fn action_target_name(&self, key: &ContainerKey) -> String {
+        self.containers
+            .get(key)
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| key.container_id.clone())
+    }
+
     pub(super) fn handle_action_in_progress(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
+        key: ContainerKey,
+        action: ContainerAction,
     ) -> RenderAction {
-        // TODO: Could show a loading indicator in the UI in the future
-        // For now, just let Docker events update the container state
-        RenderAction::None // Don't force redraw for progress events
+        // Stop and restart wait up to 10s for the container to exit, so say
+        // something is happening. Held until the result replaces it.
+        let (doing, _) = action.progress_words();
+        let message = format!("{doing} {}…", self.action_target_name(&key));
+        self.show_notification_for(&message, Duration::from_secs(30), false);
+        RenderAction::Render
     }
 
     pub(super) fn handle_action_success(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
+        key: ContainerKey,
+        action: ContainerAction,
     ) -> RenderAction {
-        // TODO: Could show a success toast/notification in the UI in the future
-        // The container state will be updated by Docker events
-        // so we don't need to manually update it here
-        RenderAction::None // Don't force redraw - Docker events will trigger updates
+        // The row itself is updated by the Docker event for the change
+        let (_, done) = action.progress_words();
+        let message = format!("{done} {}", self.action_target_name(&key));
+        self.show_notification_for(&message, Duration::from_secs(2), false);
+        RenderAction::Render
     }
 
     pub(super) fn handle_action_error(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
-        _error: String,
+        key: ContainerKey,
+        action: ContainerAction,
+        error: String,
     ) -> RenderAction {
-        // TODO: Could show an error toast/notification in the UI in the future
-        // For now, silently fail - the container state won't change on error
-        RenderAction::None // Don't force redraw for error messages
+        tracing::warn!(
+            "{} failed for {}: {}",
+            action.display_name(),
+            key.container_id,
+            error
+        );
+        // Docker errors can span lines; the toast has room for one
+        let error = error.lines().next().unwrap_or_default();
+        let message = format!(
+            "Failed to {} {}: {error}",
+            action.display_name().to_lowercase(),
+            self.action_target_name(&key)
+        );
+        self.show_notification_for(&message, Duration::from_secs(6), true);
+        RenderAction::Render
     }
 }

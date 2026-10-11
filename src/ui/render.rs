@@ -289,21 +289,15 @@ fn render_notification(f: &mut Frame, state: &AppState) {
     };
 
     // Use different styling based on whether it's a confirmation prompt
-    let is_confirm = state.reset_confirm_pending;
-    let border_style = if is_confirm {
-        Style::default().fg(Color::Yellow)
+    let color = if state.reset_confirm_pending {
+        Color::Yellow
+    } else if state.notification_is_error {
+        Color::Red
     } else {
-        Style::default().fg(Color::Green)
+        Color::Green
     };
-    let text_style = if is_confirm {
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-            .fg(Color::Green)
-            .add_modifier(Modifier::BOLD)
-    };
+    let border_style = Style::default().fg(color);
+    let text_style = Style::default().fg(color).add_modifier(Modifier::BOLD);
 
     let notification_widget = Paragraph::new(Line::from(vec![Span::styled(message, text_style)]))
         .block(

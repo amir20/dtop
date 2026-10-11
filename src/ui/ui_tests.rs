@@ -258,6 +258,57 @@ mod tests {
         assert_eq!(row("Docker  a-host"), Some(4));
     }
 
+    /// A failed action used to be dropped silently; it must say what failed.
+    #[test]
+    fn test_action_error_notification() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let container = create_test_container("abc123456789", "nginx", "local", 1.0, 1.0, 0.0, 0.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.handle_event(AppEvent::ContainerCreated(container));
+
+        state.handle_event(AppEvent::ActionInProgress(
+            key.clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping nginx…")
+        );
+
+        state.handle_event(AppEvent::ActionError(
+            key,
+            ContainerAction::Stop,
+            "Docker responded with status code 500: cannot stop container\nmore detail".to_string(),
+        ));
+        assert!(state.notification_is_error);
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 15);
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
+    /// An action finishing must not replace the reset prompt while a y/n is armed.
+    #[test]
+    fn test_action_notification_keeps_reset_prompt() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('r'),
+            KeyModifiers::CONTROL,
+        )));
+        state.handle_event(AppEvent::ActionSuccess(
+            ContainerKey::new("local".to_string(), "abc".to_string()),
+            ContainerAction::Start,
+        ));
+
+        assert!(state.reset_confirm_pending);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Reset all preferences to defaults? (y/n)")
+        );
+    }
+
     /// At a common 120 columns, detail is shed but the bars stay.
     #[test]
     fn test_system_stats_header_medium() {
