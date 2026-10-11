@@ -1,5 +1,6 @@
 - Press `?` for help
 - Press `s` to open sort selector (uptime, name, CPU, or memory)
 - Press `c` to configure column visibility
+- Press `t` to show or hide the system stats header
 - Press `Enter` to view container logs
 - Connect to remote hosts with `dtop --host ssh://user@host`

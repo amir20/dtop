@@ -11,6 +11,8 @@
     { marker: "# == Icons ==", label: "Icons", description: "Icon style for the UI" },
     { marker: "# == All ==", label: "Show All", description: "Show all containers including stopped" },
     { marker: "# == Sort ==", label: "Sort", description: "Default sort field for container list" },
+    { marker: "# == Hyperlinks ==", label: "Hyperlinks", description: "Clickable container names linking to Dozzle" },
+    { marker: "# == Stats Header ==", label: "Stats Header", description: "Machine and host stats above the list" },
     { marker: "# == Columns ==", label: "Columns", description: "Column visibility and order" },
   ];
 

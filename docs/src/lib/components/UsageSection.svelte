@@ -10,6 +10,7 @@
     { key: "s", action: "Choose the sort field" },
     { key: "c", action: "Show and reorder columns" },
     { key: "a", action: "Include stopped containers" },
+    { key: "t", action: "Show or hide system stats" },
   ];
 </script>
 
@@ -22,7 +23,7 @@
       Hands stay on the keyboard
     </h2>
     <p class="text-(--c-text-muted)">
-      Eight bindings cover the whole surface. Press
+      Nine bindings cover the whole surface. Press
       <code class="font-mono text-(--c-text)">?</code> anywhere for the overlay.
     </p>
   </header>
