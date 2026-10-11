@@ -164,6 +164,9 @@ pub async fn fetch_older_logs(
             match log_result {
                 Ok(log_output) => {
                     let log_line = log_output.to_string().replace('\r', "");
+                    // Strictly older: a distinct line stamped with exactly the
+                    // boundary line's nanosecond would be skipped. Docker's
+                    // nanosecond stamps make that vanishingly rare; accepted.
                     if let Some(log_entry) = LogEntry::parse(&log_line)
                         && log_entry.timestamp < before_timestamp
                     {
@@ -270,7 +273,8 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         timestamps: true,
         // NOTE: Bollard's LogsOptions uses i32 for timestamps (Y2038 limitation)
         // Whole seconds only, so this replays the rest of the last historical
-        // log's second; those lines are skipped below.
+        // log's second; those lines are skipped below (strictly newer, with the
+        // same accepted equal-nanosecond caveat as `fetch_older_logs`).
         since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0),
         ..Default::default()
     });

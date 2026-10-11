@@ -261,6 +261,8 @@ impl ContainerAction {
             ContainerAction::Stop => ("Stopping", "Stopped"),
             ContainerAction::Restart => ("Restarting", "Restarted"),
             ContainerAction::Remove => ("Removing", "Removed"),
+            // Not reported: shells run through `RenderAction::StartShell`, not
+            // the ActionInProgress/Success events. Kept so the match is total.
             ContainerAction::Shell => ("Opening shell in", "Closed shell in"),
         }
     }
