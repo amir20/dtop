@@ -92,10 +92,11 @@ fn sample(sys: &System, networks: &Networks, elapsed: f64, hostname: &str) -> Sy
 /// container packet once more on its way to the real NIC, so counting them
 /// would roughly double container traffic.
 pub(crate) fn is_virtual_interface(name: &str) -> bool {
-    name.starts_with("lo")
-        || name.starts_with("veth")
-        || name.starts_with("docker")
-        || name.starts_with("br-")
+    // `lo` (Linux) and `lo0` (macOS), but not e.g. `lowpan0`
+    let loopback = name
+        .strip_prefix("lo")
+        .is_some_and(|rest| rest.chars().all(|c| c.is_ascii_digit()));
+    loopback || name.starts_with("veth") || name.starts_with("docker") || name.starts_with("br-")
 }
 
 #[cfg(test)]
@@ -126,7 +127,7 @@ mod tests {
         for name in ["lo", "lo0", "veth1a2b3c", "docker0", "br-0123abcd"] {
             assert!(is_virtual_interface(name), "{name}");
         }
-        for name in ["eth0", "en0", "wlan0", "ens5", "utun3"] {
+        for name in ["eth0", "en0", "wlan0", "ens5", "utun3", "lowpan0"] {
             assert!(!is_virtual_interface(name), "{name}");
         }
     }

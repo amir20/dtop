@@ -390,7 +390,8 @@ fn spawn_container_manager(docker_host: DockerHost, tx: mpsc::Sender<AppEvent>) 
 /// Whether a host spec points at a daemon on this machine.
 ///
 /// `local` may still resolve (via `DOCKER_HOST` or a context) to somewhere else,
-/// but it is what the user thinks of as "this machine", so it gets the header.
+/// and a `unix://` socket can be forwarded from another machine, but both are
+/// what the user usually means by "this machine", so they get the header.
 fn is_local_host(host: &str) -> bool {
     host == "local" || host.starts_with("unix://")
 }

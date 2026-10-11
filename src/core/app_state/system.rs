@@ -113,6 +113,25 @@ mod tests {
         }
     }
 
+    /// A disconnected host's System line must not keep showing its last sample.
+    #[test]
+    fn disconnect_drops_the_hosts_machine_stats() {
+        use crate::core::types::AppEvent;
+
+        let mut state = state();
+        let stats = SystemStats {
+            hostname: "h".to_string(),
+            ..Default::default()
+        };
+        state.handle_event(AppEvent::RemoteSystemStats("h".to_string(), stats.clone()));
+        state.handle_event(AppEvent::RemoteSystemStats("other".to_string(), stats));
+
+        state.handle_event(AppEvent::HostDisconnected("h".to_string()));
+
+        assert!(!state.remote_system_stats.contains_key("h"));
+        assert!(state.remote_system_stats.contains_key("other"));
+    }
+
     #[test]
     fn docker_totals_count_only_running_containers_of_the_host() {
         let mut state = state();

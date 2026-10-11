@@ -42,6 +42,9 @@ const MAX_CHANNELS_PER_MASTER: usize = 8;
 /// error (and gets evicted) instead of hanging.
 const SERVER_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
+/// How long [`SshRunner::run_sh`] waits for a command before giving up on it.
+const RUN_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Connects to a Docker daemon over SSH, honoring an optional port in `addr`.
 ///
 /// `addr` is expected in the `ssh://[user@]host[:port]` form. Also returns an
@@ -92,39 +95,34 @@ impl std::fmt::Debug for SshRunner {
 impl SshRunner {
     /// Runs `script` with the remote `sh`.
     ///
-    /// `Err` means the command couldn't be run at all (connection trouble); a
-    /// script that ran and failed comes back as `Ok` with a failed status. Like
-    /// the Docker connector, a dead master is evicted and the command is retried
-    /// once on a fresh one.
+    /// `Err` means the command couldn't be run (connection trouble, or no
+    /// answer within [`RUN_TIMEOUT`]); a script that ran and failed comes back
+    /// as `Ok` with a failed status.
+    ///
+    /// Unlike the Docker connector this never evicts a master: one failed
+    /// channel doesn't prove the master is dead, and evicting it every sample
+    /// would churn the connection every stats stream shares. A master that
+    /// really died breaks those streams too, and the reconnect that follows
+    /// replaces it through the connector.
     pub async fn run_sh(&self, script: &str) -> io::Result<std::process::Output> {
-        let mut last_err = None;
+        let lease = self
+            .pool
+            .acquire(|| launch_master(&self.destination))
+            .await
+            .map_err(io::Error::other)?;
 
-        for _ in 0..2 {
-            let lease = self
-                .pool
-                .acquire(|| launch_master(&self.destination))
-                .await
-                .map_err(io::Error::other)?;
+        let mut command = Arc::clone(&lease.session).arc_command("sh");
+        command.arg("-c").arg(script);
 
-            let output = Arc::clone(&lease.session)
-                .arc_command("sh")
-                .arg("-c")
-                .arg(script)
-                .output()
-                .await;
-
-            match output {
-                Ok(output) => return Ok(output),
-                Err(err) => {
-                    self.pool.evict(lease.master_id).await;
-                    last_err = Some(err);
-                }
-            }
+        // A hung command would otherwise hold one of the master's channel
+        // slots, which it shares with the stats streams, indefinitely
+        match tokio::time::timeout(RUN_TIMEOUT, command.output()).await {
+            Ok(output) => output.map_err(io::Error::other),
+            Err(_) => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("no answer within {RUN_TIMEOUT:?}"),
+            )),
         }
-
-        Err(io::Error::other(
-            last_err.expect("loop records an error before exiting"),
-        ))
     }
 }
 

@@ -3,8 +3,11 @@
 //!
 //! The Docker API only describes containers and the daemon's capacity, so this
 //! is what gives `ssh://` hosts a `System` line like the local machine's. It only
-//! works on Linux hosts; anywhere else the first read fails and sampling stops.
+//! works on Linux hosts; anywhere else the reads keep failing and sampling stops.
 
+use std::future::Future;
+use std::io;
+use std::process::Output;
 use std::time::{Duration, Instant};
 
 use crate::core::system_stats::{SAMPLE_INTERVAL, is_virtual_interface};
@@ -19,25 +22,62 @@ const SCRIPT: &str = "cat /proc/stat && echo @@dtop@@ && cat /proc/meminfo && ec
                       && cat /proc/loadavg && echo @@dtop@@ && cat /proc/uptime && echo @@dtop@@ \
                       && exec cat /proc/net/dev";
 
-/// Wait after a failed connection before trying again, so a host that is down
+/// Wait after a failed read before trying again, so a host that is down
 /// isn't hammered with SSH handshakes.
 const RETRY_DELAY: Duration = Duration::from_secs(10);
 
+/// Reads that run but fail (non-zero exit, unparseable output) in a row before
+/// giving up. More than one, so a transient failure (a `cat` killed under
+/// load, truncated output) doesn't cost the host its System line for the rest
+/// of the session; a host without `/proc` fails every time.
+const MAX_FAILED_READS: u32 = 3;
+
+/// Runs the sampling script on a host. [`SshRunner`] in production; a trait so
+/// the worker's retry and give-up behavior can be tested without SSH.
+pub trait RemoteShell: Send + Sync + 'static {
+    /// See [`SshRunner::run_sh`]: `Err` for connection trouble, `Ok` with the
+    /// exit status for a script that ran.
+    fn run_sh(&self, script: &str) -> impl Future<Output = io::Result<Output>> + Send;
+}
+
+impl RemoteShell for SshRunner {
+    fn run_sh(&self, script: &str) -> impl Future<Output = io::Result<Output>> + Send {
+        SshRunner::run_sh(self, script)
+    }
+}
+
 /// Sends [`AppEvent::RemoteSystemStats`] for `host_id` until the UI goes away or
-/// the host turns out not to have a Linux `/proc`.
-pub async fn remote_system_stats_worker(host_id: HostId, ssh: SshRunner, tx: EventSender) {
+/// the host turns out not to have a readable Linux `/proc`.
+pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell, tx: EventSender) {
     let mut previous: Option<Snapshot> = None;
+    let mut failed_reads = 0;
 
     loop {
-        let delay = match ssh.run_sh(SCRIPT).await {
+        let snapshot = match shell.run_sh(SCRIPT).await {
             Ok(output) if output.status.success() => {
-                let Some(snapshot) = Snapshot::parse(&String::from_utf8_lossy(&output.stdout))
-                else {
-                    tracing::warn!(
-                        "Couldn't parse /proc on '{host_id}'; not showing its system stats"
-                    );
+                Snapshot::parse(&String::from_utf8_lossy(&output.stdout))
+                    .ok_or_else(|| format!("couldn't parse /proc on '{host_id}'"))
+            }
+            Ok(output) => Err(format!(
+                "reading /proc on '{host_id}' failed ({}): {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(e) => {
+                // Connection trouble says nothing about the host; keep trying
+                // for as long as dtop runs, like the Docker connection does
+                tracing::debug!("Failed to sample system stats on '{host_id}': {e}");
+                previous = None;
+                if !wait(&tx, RETRY_DELAY).await {
                     return;
-                };
+                }
+                continue;
+            }
+        };
+
+        let delay = match snapshot {
+            Ok(snapshot) => {
+                failed_reads = 0;
                 // Rates need two samples, so the first one only primes them
                 if let Some(previous) = &previous {
                     let stats = snapshot.stats_since(previous, &host_id);
@@ -52,27 +92,32 @@ pub async fn remote_system_stats_worker(host_id: HostId, ssh: SshRunner, tx: Eve
                 previous = Some(snapshot);
                 SAMPLE_INTERVAL
             }
-            Ok(output) => {
-                // The command ran but `/proc` isn't there: not Linux. Won't change.
-                tracing::info!(
-                    "'{host_id}' has no readable /proc ({}); not showing its system stats",
-                    String::from_utf8_lossy(&output.stderr).trim()
-                );
-                return;
-            }
-            Err(e) => {
-                tracing::debug!("Failed to sample system stats on '{host_id}': {e}");
-                // Counters from before an outage would produce a bogus rate
+            Err(reason) => {
+                failed_reads += 1;
+                // Counters from before a failure would produce a bogus rate
                 previous = None;
+                if failed_reads >= MAX_FAILED_READS {
+                    tracing::info!("{reason}; not showing its system stats");
+                    return;
+                }
+                tracing::debug!("{reason} (attempt {failed_reads} of {MAX_FAILED_READS})");
                 RETRY_DELAY
             }
         };
 
-        if tx.is_closed() {
+        if !wait(&tx, delay).await {
             return;
         }
-        tokio::time::sleep(delay).await;
     }
+}
+
+/// Sleeps for `delay`, returning `false` if the UI went away meanwhile.
+async fn wait(tx: &EventSender, delay: Duration) -> bool {
+    if tx.is_closed() {
+        return false;
+    }
+    tokio::time::sleep(delay).await;
+    !tx.is_closed()
 }
 
 /// Raw counters from one read of `/proc`.
@@ -217,6 +262,7 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::mpsc;
 
     fn output(cpu: &str, rx: u64, tx: u64) -> String {
         format!(
@@ -275,6 +321,87 @@ mod tests {
         assert_eq!(stats.swap_used_bytes, 500_000 * 1024);
         assert_eq!(stats.net_rx_bytes_per_sec, 2000.0);
         assert_eq!(stats.net_tx_bytes_per_sec, 500.0);
+    }
+
+    /// Plays back scripted results, then repeats the last one.
+    struct FakeShell(std::sync::Mutex<std::collections::VecDeque<io::Result<Output>>>);
+
+    impl FakeShell {
+        fn new(results: Vec<io::Result<Output>>) -> Self {
+            Self(std::sync::Mutex::new(results.into()))
+        }
+    }
+
+    impl RemoteShell for FakeShell {
+        async fn run_sh(&self, _script: &str) -> io::Result<Output> {
+            let mut results = self.0.lock().unwrap();
+            if results.len() > 1 {
+                results.pop_front().unwrap()
+            } else {
+                match results.front().unwrap() {
+                    Ok(output) => Ok(output.clone()),
+                    Err(e) => Err(io::Error::new(e.kind(), e.to_string())),
+                }
+            }
+        }
+    }
+
+    fn exited(code: i32, stdout: &str) -> io::Result<Output> {
+        use std::os::unix::process::ExitStatusExt;
+        Ok(Output {
+            status: std::process::ExitStatus::from_raw(code << 8),
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: Vec::new(),
+        })
+    }
+
+    fn proc_read() -> io::Result<Output> {
+        exited(0, &output("100 0 50 800 50 0 0 0 0 0", 1000, 2000))
+    }
+
+    fn connection_error() -> io::Result<Output> {
+        Err(io::Error::new(io::ErrorKind::ConnectionRefused, "refused"))
+    }
+
+    /// Runs the worker to completion or until it has sent `wanted` samples.
+    async fn run_worker(shell: FakeShell, wanted: usize) -> (usize, bool) {
+        let (tx, mut rx) = mpsc::channel(16);
+        let worker = tokio::spawn(remote_system_stats_worker("h".to_string(), shell, tx));
+        let mut received = 0;
+        while received < wanted {
+            match rx.recv().await {
+                Some(AppEvent::RemoteSystemStats(..)) => received += 1,
+                Some(_) => {}
+                None => break, // worker returned
+            }
+        }
+        let finished = worker.is_finished();
+        worker.abort();
+        (received, finished)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn gives_up_on_a_host_without_proc() {
+        let shell = FakeShell::new(vec![exited(1, "")]);
+        let (received, _) = run_worker(shell, 1).await;
+        assert_eq!(received, 0, "the worker should have stopped");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn survives_a_transient_failed_read() {
+        let shell = FakeShell::new(vec![exited(1, ""), exited(0, "garbage"), proc_read()]);
+        let (received, finished) = run_worker(shell, 1).await;
+        assert_eq!(received, 1);
+        assert!(!finished);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn never_gives_up_on_connection_errors() {
+        let mut results: Vec<_> = (0..20).map(|_| connection_error()).collect();
+        results.push(proc_read());
+        let (received, finished) = run_worker(FakeShell::new(results), 1).await;
+        assert_eq!(received, 1);
+        assert!(!finished);
     }
 
     #[test]

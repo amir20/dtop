@@ -664,13 +664,16 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
    - **System stats header** (`ui/system_header.rs`) between the title and the table.
      Toggled with `t`, or `stats_header: false` in config (saved by Ctrl-S). Lines, in order:
      - `System` line for the machine dtop runs on, sampled with `sysinfo` by
-       `core/system_stats.rs::system_stats_worker`. Only spawned when a host is `local` or `unix://`.
+       `core/system_stats.rs::system_stats_worker`. Only spawned when a host is `local` or `unix://`
+       (a forwarded `unix://` socket would make this describe the wrong machine; accepted).
      - Then per host, `local` first: a `System` line for `ssh://` hosts and a `Docker` line.
      - Remote `System` lines come from `docker/remote_stats.rs`, which runs one
        `cat /proc/...` script every 2s over the host's existing SSH masters (via
        `SshRunner`, see SSH Transport). CPU and network rates are deltas between two
-       reads. Non-Linux hosts (no `/proc`) fail the first read and are skipped for
-       the session; connection errors back off to 10s.
+       reads. Reads that run but fail (no `/proc`, bad output) are retried every
+       10s and the host is dropped after 3 in a row; connection errors retry every
+       10s forever. `run_sh` times out after 10s and never evicts a master (a dead
+       one is replaced by the Docker reconnect). Cleared on `HostDisconnected`.
      - `Docker` lines: CPU, memory and network summed over the host's *running*
        containers (`AppState::docker_totals`), measured against `NCPU`/`MemTotal`
        from `docker info` (container CPU is per-core, so the sum is divided by the

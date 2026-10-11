@@ -375,6 +375,10 @@ impl AppState {
     /// The host's containers are left in place: they are stale, but wiping them
     /// would blank the list, and the next successful poll re-synchronizes them.
     fn handle_host_disconnected(&mut self, host_id: HostId) -> RenderAction {
+        // Unlike the containers, whose rows the banner marks as stale, the
+        // System line would keep showing a dead host's last sample as live.
+        // The sampler brings it back once the host answers again.
+        self.remote_system_stats.remove(&host_id);
         self.disconnected_hosts.insert(host_id);
         RenderAction::Render // Force draw - show the reconnecting banner
     }
