@@ -3,7 +3,7 @@ mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
         AppEvent, Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats,
-        SortState, ViewState,
+        HostInfo, SortState, SystemStats, ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -139,6 +139,171 @@ mod tests {
             })
             .unwrap();
         terminal.backend().buffer().clone()
+    }
+
+    /// State with a local machine sample and two Docker hosts, for the stats header.
+    fn create_system_stats_state() -> AppState {
+        let mut state = create_test_app_state();
+        let mut stopped =
+            create_test_container("ccc000000003", "old-job", "local", 0.0, 0.0, 0.0, 0.0);
+        stopped.state = ContainerState::Exited;
+        for (i, mut container) in [
+            create_test_container(
+                "abc123456789",
+                "nginx",
+                "local",
+                150.0,
+                45.2,
+                1024.0,
+                2048.0,
+            ),
+            create_test_container("bbb222222222", "redis", "local", 50.0, 30.0, 0.0, 0.0),
+            stopped,
+            create_test_container(
+                "def987654321",
+                "postgres",
+                "user@server1",
+                380.0,
+                78.3,
+                0.0,
+                0.0,
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            // Distinct creation times so the default uptime sort is deterministic
+            container.created = Some(chrono::Utc::now() - chrono::Duration::hours(i as i64 + 1));
+            state.handle_event(AppEvent::ContainerCreated(container));
+        }
+        state.handle_event(AppEvent::HostInfo(
+            "local".to_string(),
+            HostInfo {
+                cpus: 8,
+                memory_total_bytes: 8 * 1024 * 1024 * 1024,
+            },
+        ));
+        state.handle_event(AppEvent::HostInfo(
+            "user@server1".to_string(),
+            HostInfo {
+                cpus: 4,
+                memory_total_bytes: 2 * 1024 * 1024 * 1024,
+            },
+        ));
+        state.handle_event(AppEvent::SystemStats(SystemStats {
+            hostname: "workstation".to_string(),
+            cpu: 62.5,
+            cpus: 10,
+            memory_used_bytes: 12 * 1024 * 1024 * 1024,
+            memory_total_bytes: 16 * 1024 * 1024 * 1024,
+            swap_used_bytes: 512 * 1024 * 1024,
+            swap_total_bytes: 2 * 1024 * 1024 * 1024,
+            net_rx_bytes_per_sec: 3.5 * 1024.0 * 1024.0,
+            net_tx_bytes_per_sec: 420.0 * 1024.0,
+            load_average: [1.25, 0.9, 0.75],
+            uptime_secs: 3 * 86_400 + 4 * 3_600,
+        }));
+        state.handle_event(AppEvent::RemoteSystemStats(
+            "user@server1".to_string(),
+            SystemStats {
+                hostname: "user@server1".to_string(),
+                cpu: 97.0,
+                cpus: 4,
+                memory_used_bytes: 1900 * 1024 * 1024,
+                memory_total_bytes: 2 * 1024 * 1024 * 1024,
+                swap_used_bytes: 0,
+                swap_total_bytes: 0,
+                net_rx_bytes_per_sec: 12.0 * 1024.0 * 1024.0,
+                net_tx_bytes_per_sec: 8.0 * 1024.0 * 1024.0,
+                load_average: [3.9, 3.5, 2.8],
+                uptime_secs: 41 * 86_400,
+            },
+        ));
+        state.force_sort_containers();
+        state.table_state.select(Some(0));
+        state
+    }
+
+    #[test]
+    fn test_system_stats_header() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
+    #[test]
+    fn test_system_stats_header_narrow() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 100, 20);
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
+    /// `local` sorts after names like `b.example.com`, but its Docker line must
+    /// stay under the local machine's System line.
+    #[test]
+    fn test_system_stats_header_keeps_local_first() {
+        let mut state = create_system_stats_state();
+        state.handle_event(AppEvent::HostInfo(
+            "a-host".to_string(),
+            HostInfo {
+                cpus: 2,
+                memory_total_bytes: 1024 * 1024 * 1024,
+            },
+        ));
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+
+        let row = |label: &str| find_text_position(&buffer, label).map(|(_, y)| y);
+        assert_eq!(row("workstation"), Some(2));
+        assert_eq!(row("Docker  local"), Some(3));
+        assert_eq!(row("Docker  a-host"), Some(4));
+    }
+
+    /// At a common 120 columns, detail is shed but the bars stay.
+    #[test]
+    fn test_system_stats_header_medium() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 20);
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
+    /// 't' hides the header and gives its rows back to the list.
+    #[test]
+    fn test_system_stats_header_toggle() {
+        let mut state = create_system_stats_state();
+        let toggle = || AppEvent::KeyInput(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+
+        state.handle_event(toggle());
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        assert!(find_text_position(&buffer, "System").is_none());
+        assert!(find_text_position(&buffer, "nginx").is_some());
+
+        state.handle_event(toggle());
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        assert!(find_text_position(&buffer, "System").is_some());
+    }
+
+    /// The header gives way on short terminals instead of squeezing out the list.
+    #[test]
+    fn test_system_stats_header_hidden_when_too_short() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 10);
+        assert!(find_text_position(&buffer, "System").is_none());
+        assert!(find_text_position(&buffer, "nginx").is_some());
+    }
+
+    /// Page up/down must account for the rows the header takes from the list.
+    #[test]
+    fn test_system_stats_header_shrinks_list_viewport() {
+        let mut plain = create_test_app_state();
+        render_list(&mut plain, &UiStyles::default(), 150, 20);
+        let mut with_header = create_system_stats_state();
+        render_list(&mut with_header, &UiStyles::default(), 150, 20);
+
+        // 4 header lines + 1 spacer row
+        assert_eq!(
+            with_header.last_list_viewport_height,
+            plain.last_list_viewport_height - 5
+        );
     }
 
     fn dozzle_container(id: &str, name: &str, dozzle: &str) -> Container {

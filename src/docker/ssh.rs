@@ -44,20 +44,24 @@ const SERVER_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
 /// Connects to a Docker daemon over SSH, honoring an optional port in `addr`.
 ///
-/// `addr` is expected in the `ssh://[user@]host[:port]` form.
+/// `addr` is expected in the `ssh://[user@]host[:port]` form. Also returns an
+/// [`SshRunner`] that runs commands on the same host over the same masters.
 pub fn connect_with_ssh(
     addr: &str,
     timeout: u64,
     client_version: &ClientVersion,
-) -> Result<Docker, BollardError> {
-    let connector = SshConnector {
-        pool: Arc::new(Pool::new(MAX_CHANNELS_PER_MASTER)),
+) -> Result<(Docker, SshRunner), BollardError> {
+    let pool = Arc::new(Pool::new(MAX_CHANNELS_PER_MASTER));
+    let runner = SshRunner {
+        pool: Arc::clone(&pool),
+        destination: addr.to_string(),
     };
+    let connector = SshConnector { pool };
     let client = Arc::new(
         hyper_util::client::legacy::Client::builder(TokioExecutor::new()).build(connector),
     );
 
-    Docker::connect_with_custom_transport(
+    let docker = Docker::connect_with_custom_transport(
         move |req: bollard::BollardRequest| {
             let client = Arc::clone(&client);
             Box::pin(async move { client.request(req).await.map_err(BollardError::from) })
@@ -65,7 +69,63 @@ pub fn connect_with_ssh(
         Some(addr),
         timeout,
         client_version,
-    )
+    )?;
+    Ok((docker, runner))
+}
+
+/// Runs short commands on an SSH Docker host, sharing the Docker transport's
+/// pool of masters so it costs a channel, not a new connection.
+#[derive(Clone)]
+pub struct SshRunner {
+    pool: Arc<SshPool>,
+    destination: String,
+}
+
+impl std::fmt::Debug for SshRunner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SshRunner")
+            .field("destination", &self.destination)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SshRunner {
+    /// Runs `script` with the remote `sh`.
+    ///
+    /// `Err` means the command couldn't be run at all (connection trouble); a
+    /// script that ran and failed comes back as `Ok` with a failed status. Like
+    /// the Docker connector, a dead master is evicted and the command is retried
+    /// once on a fresh one.
+    pub async fn run_sh(&self, script: &str) -> io::Result<std::process::Output> {
+        let mut last_err = None;
+
+        for _ in 0..2 {
+            let lease = self
+                .pool
+                .acquire(|| launch_master(&self.destination))
+                .await
+                .map_err(io::Error::other)?;
+
+            let output = Arc::clone(&lease.session)
+                .arc_command("sh")
+                .arg("-c")
+                .arg(script)
+                .output()
+                .await;
+
+            match output {
+                Ok(output) => return Ok(output),
+                Err(err) => {
+                    self.pool.evict(lease.master_id).await;
+                    last_err = Some(err);
+                }
+            }
+        }
+
+        Err(io::Error::other(
+            last_err.expect("loop records an error before exiting"),
+        ))
+    }
 }
 
 /// A pooled SSH master and its remaining channel capacity.

@@ -44,6 +44,7 @@ impl AppState {
             SortDirection::Descending => "desc".to_string(),
         };
         let all = self.show_all_containers;
+        let stats_header = self.show_system_header;
 
         // Build display path for notification (shorten home dir to ~)
         let display_path = config_path
@@ -61,7 +62,16 @@ impl AppState {
 
         // Perform synchronous write - preferences save is user-initiated and should
         // complete before showing result. The write is fast (<1ms typically).
-        match write_preferences(&config_path, columns, sort, sort_direction, all) {
+        match write_preferences(
+            &config_path,
+            Preferences {
+                columns,
+                sort,
+                sort_direction,
+                all,
+                stats_header,
+            },
+        ) {
             Ok(()) => {
                 self.show_notification(&format!("Saved to {display_path}"));
             }
@@ -100,6 +110,7 @@ impl AppState {
         self.column_config = ColumnConfig::default();
         self.sort_state = SortState::default();
         self.show_all_containers = false;
+        self.show_system_header = true;
 
         // Force re-sort with new settings
         self.force_sort_containers();
@@ -127,12 +138,18 @@ fn default_config_path() -> PathBuf {
 /// Uses atomic write (write to temp file, then rename) to prevent corruption on crash.
 /// Returns an error if the existing config file contains invalid YAML rather than
 /// silently replacing it.
-fn write_preferences(
-    path: &PathBuf,
+/// The preference keys written to the config file.
+struct Preferences {
     columns: Vec<String>,
     sort: String,
     sort_direction: String,
     all: bool,
+    stats_header: bool,
+}
+
+fn write_preferences(
+    path: &PathBuf,
+    prefs: Preferences,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use serde_yaml::Value;
     use std::fs;
@@ -156,14 +173,18 @@ fn write_preferences(
     // Update preference keys
     mapping.insert(
         Value::String("columns".to_string()),
-        Value::Sequence(columns.into_iter().map(Value::String).collect()),
+        Value::Sequence(prefs.columns.into_iter().map(Value::String).collect()),
     );
-    mapping.insert(Value::String("sort".to_string()), Value::String(sort));
+    mapping.insert(Value::String("sort".to_string()), Value::String(prefs.sort));
     mapping.insert(
         Value::String("sort_direction".to_string()),
-        Value::String(sort_direction),
+        Value::String(prefs.sort_direction),
     );
-    mapping.insert(Value::String("all".to_string()), Value::Bool(all));
+    mapping.insert(Value::String("all".to_string()), Value::Bool(prefs.all));
+    mapping.insert(
+        Value::String("stats_header".to_string()),
+        Value::Bool(prefs.stats_header),
+    );
 
     // Create parent directories if needed
     if let Some(parent) = path.parent() {

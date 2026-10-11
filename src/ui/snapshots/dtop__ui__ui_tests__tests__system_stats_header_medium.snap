@@ -1,0 +1,16 @@
+---
+source: src/ui/ui_tests.rs
+expression: buffer_to_string(&buffer)
+---
+dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)                                                                  
+                                                                                                                        
+  System  workstation   CPU  62.5% of 10 cores  MEM 12G/16G      TX 420.0KB/s  RX 3.50MB/s    Swap 512M/2G              
+  Docker  local         CPU  25.0% of  8 cores  MEM 717M/8G      TX 1.0KB/s    RX 2.0KB/s     2/3 running               
+  System  user@server1  CPU  97.0% of  4 cores  MEM 1.9G/2G      TX 8.00MB/s   RX 12.00MB/s                             
+  Docker  user@server1  CPU  95.0% of  4 cores  MEM 747M/2G      TX 0B/s       RX 0B/s        1/1 running               
+                                                                                                                        
+  ID             Name                   Host                 CPU %   Memory  Net TX       Net RX       Created ▼        
+                                                                                                                        
+  abc123456789 ▶ nginx                  local                150.0%   45.2%  1.0KB/s      2.0KB/s      1 hour ago       
+  bbb222222222 ▶ redis                  local                 50.0%   30.0%  0B/s         0B/s         2 hours ago      
+  def987654321 ▶ postgres               user@server1         380.0%   78.3%  0B/s         0B/s         4 hours ago

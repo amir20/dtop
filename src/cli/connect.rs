@@ -6,7 +6,7 @@ use url::Url;
 use crate::cli::config::{Config, HostConfig};
 use crate::cli::filters::parse_filters;
 use crate::core::types::AppEvent;
-use crate::docker::connection::{DockerHost, connect_docker, container_manager};
+use crate::docker::connection::{DockerHost, connect_docker_with_runner, container_manager};
 
 /// Result of establishing connections to Docker hosts
 pub struct ConnectionResult {
@@ -146,7 +146,7 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     debug!("Attempting to connect to host: {}", host_spec);
 
     // Attempt to connect
-    let docker = connect_docker(host_spec)
+    let (docker, ssh) = connect_docker_with_runner(host_spec)
         .map_err(|e| format!("Failed to create Docker client for host '{host_spec}': {e}"))?;
 
     debug!("Successfully created Docker client for host: {}", host_spec);
@@ -161,7 +161,8 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
 
     // Create host ID and DockerHost instance
     let host_id = create_host_id(host_spec);
-    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters);
+    let docker_host =
+        DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters).with_ssh(ssh);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);

@@ -1,12 +1,12 @@
 use ratatui::widgets::{ListState, TableState};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, LogState, RenderAction,
-    SortDirection, SortState, ViewState,
+    AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, HostInfo, LogState,
+    RenderAction, SortDirection, SortState, SystemStats, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -20,6 +20,7 @@ mod navigation;
 mod preferences;
 mod search;
 pub mod sorting;
+pub mod system;
 
 /// Application state that manages all runtime data
 pub struct AppState {
@@ -74,6 +75,16 @@ pub struct AppState {
     /// Hosts whose connection dropped and that are being retried in the background.
     /// A `BTreeSet` so the rendered banners keep a stable order.
     pub disconnected_hosts: BTreeSet<HostId>,
+    /// Capacity of each Docker host, shown in the system stats header.
+    /// A `BTreeMap` so the header lines keep a stable order.
+    pub host_info: BTreeMap<HostId, HostInfo>,
+    /// Latest sample of the local machine's metrics (None until the first
+    /// sample arrives, or when no `local` host is configured)
+    pub system_stats: Option<SystemStats>,
+    /// Latest whole-machine metrics for SSH hosts, keyed by host
+    pub remote_system_stats: BTreeMap<HostId, SystemStats>,
+    /// Whether the system stats header is shown ('t' toggles)
+    pub show_system_header: bool,
     /// Last time containers were sorted (for throttling)
     pub last_sort_time: Instant,
     /// Notification message to display (message, expiry time)
@@ -124,6 +135,10 @@ impl AppState {
             sort_selector_state: ListState::default(),
             connection_errors: HashMap::new(),
             disconnected_hosts: BTreeSet::new(),
+            host_info: BTreeMap::new(),
+            system_stats: None,
+            remote_system_stats: BTreeMap::new(),
+            show_system_header: true,
             last_sort_time: Instant::now(),
             notification: None,
             reset_confirm_pending: false,
@@ -208,6 +223,11 @@ impl AppState {
             AppEvent::HostConnected(docker_host) => self.handle_host_connected(docker_host),
             AppEvent::HostDisconnected(host_id) => self.handle_host_disconnected(host_id),
             AppEvent::HostReconnected(host_id) => self.handle_host_reconnected(host_id),
+            AppEvent::HostInfo(host_id, info) => self.handle_host_info(host_id, info),
+            AppEvent::SystemStats(stats) => self.handle_system_stats(stats),
+            AppEvent::RemoteSystemStats(host_id, stats) => {
+                self.handle_remote_system_stats(host_id, stats)
+            }
         }
     }
 
@@ -311,6 +331,7 @@ impl AppState {
             KeyCode::Char('s') => self.handle_open_sort_selector(),
             KeyCode::Char('a') | KeyCode::Char('A') => self.handle_toggle_show_all(),
             KeyCode::Char('c') => self.handle_open_column_selector(),
+            KeyCode::Char('t') => self.handle_toggle_system_header(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
             KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
             KeyCode::Char('g') => self.handle_scroll_to_top(),
