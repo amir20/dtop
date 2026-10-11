@@ -52,6 +52,7 @@ struct EventLoopConfig {
     column_config: ColumnConfig,
     config_path: Option<std::path::PathBuf>,
     stats_header: bool,
+    header_visible: Arc<AtomicBool>,
 }
 
 /// Returns custom styles for CLI help output
@@ -315,16 +316,26 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         connection_result.first_host.clone(),
     );
 
+    // Shared with the stats samplers so they idle while the header is hidden
+    let stats_header = merged_config.stats_header.unwrap_or(true);
+    let header_visible = Arc::new(AtomicBool::new(stats_header));
+
     // Start container manager for first host
+    docker::remote_stats::spawn_for_host(&connection_result.first_host, &tx, &header_visible);
     spawn_container_manager(connection_result.first_host, tx.clone());
 
     // Handle remaining connections in background
-    spawn_remaining_connections_handler(connection_result.remaining_rx, tx.clone());
+    spawn_remaining_connections_handler(
+        connection_result.remaining_rx,
+        tx.clone(),
+        Arc::clone(&header_visible),
+    );
 
     // The machine's own metrics only mean something next to a host that runs on it
     if merged_config.hosts.iter().any(|h| h.host == "local") {
         let tx = tx.clone();
-        std::thread::spawn(move || system_stats_worker(tx));
+        let header_visible = Arc::clone(&header_visible);
+        std::thread::spawn(move || system_stats_worker(tx, header_visible));
     }
 
     // Create pause flag for keyboard worker
@@ -351,7 +362,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             sort_direction,
             column_config,
             config_path: config_path_for_state,
-            stats_header: merged_config.stats_header.unwrap_or(true),
+            stats_header,
+            header_visible,
         },
     )
     .await?;
@@ -413,7 +425,8 @@ async fn run_event_loop(
         config.column_config,
         config.config_path,
     );
-    state.show_system_header = config.stats_header;
+    state.header_visible = config.header_visible;
+    state.set_show_system_header(config.stats_header);
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 

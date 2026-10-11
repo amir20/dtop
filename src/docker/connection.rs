@@ -9,7 +9,6 @@ use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, EventSender, HostId,
     HostInfo,
 };
-use crate::docker::remote_stats::remote_system_stats_worker;
 use crate::docker::ssh::SshRunner;
 use crate::docker::stats::stream_container_stats;
 
@@ -701,15 +700,6 @@ impl DockerHost {
 pub async fn container_manager(host: DockerHost, tx: EventSender) {
     let mut active_containers: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
     let mut restart_backfill: Option<tokio::task::JoinHandle<()>> = None;
-
-    // Runs for the life of the manager and rides out outages on its own
-    if let Some(ssh) = host.ssh.clone() {
-        tokio::spawn(remote_system_stats_worker(
-            host.host_id.clone(),
-            ssh,
-            tx.clone(),
-        ));
-    }
 
     loop {
         // Refreshed on every (re)connect, since a daemon restart may come with a

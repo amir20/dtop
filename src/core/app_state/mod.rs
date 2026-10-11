@@ -83,8 +83,12 @@ pub struct AppState {
     pub system_stats: Option<SystemStats>,
     /// Latest whole-machine metrics for SSH hosts, keyed by host
     pub remote_system_stats: BTreeMap<HostId, SystemStats>,
-    /// Whether the system stats header is shown ('t' toggles)
+    /// Whether the system stats header is shown ('t' toggles). Change it with
+    /// [`AppState::set_show_system_header`] so the samplers follow.
     pub show_system_header: bool,
+    /// Mirror of `show_system_header` shared with the stats samplers, which
+    /// idle while the header is hidden
+    pub header_visible: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Last time containers were sorted (for throttling)
     pub last_sort_time: Instant,
     /// Notification message to display (message, expiry time)
@@ -141,6 +145,7 @@ impl AppState {
             system_stats: None,
             remote_system_stats: BTreeMap::new(),
             show_system_header: true,
+            header_visible: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
             last_sort_time: Instant::now(),
             notification: None,
             notification_is_error: false,

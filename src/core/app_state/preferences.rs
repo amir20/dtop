@@ -133,7 +133,7 @@ impl AppState {
         self.column_config = ColumnConfig::default();
         self.sort_state = SortState::default();
         self.show_all_containers = false;
-        self.show_system_header = true;
+        self.set_show_system_header(true);
 
         // Force re-sort with new settings
         self.force_sort_containers();

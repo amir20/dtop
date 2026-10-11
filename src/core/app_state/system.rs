@@ -64,9 +64,16 @@ impl AppState {
         RenderAction::None
     }
 
+    /// Shows or hides the header, pausing or resuming the samplers with it.
+    pub fn set_show_system_header(&mut self, show: bool) {
+        self.show_system_header = show;
+        self.header_visible
+            .store(show, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Handles 't': show or hide the system stats header
     pub(super) fn handle_toggle_system_header(&mut self) -> RenderAction {
-        self.show_system_header = !self.show_system_header;
+        self.set_show_system_header(!self.show_system_header);
         RenderAction::Render
     }
 }
