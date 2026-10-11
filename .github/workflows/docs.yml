@@ -3,7 +3,7 @@ name: Deploy Docs
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - "docs/**"
       - "README.md"
@@ -46,13 +46,13 @@ jobs:
         working-directory: docs
 
       - name: Upload artifact
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: docs/build
 
   deploy:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

@@ -6,7 +6,7 @@
 
 A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 
-![dtop screenshot](https://github.com/amir20/dtop/blob/master/demo.gif)
+![dtop screenshot](https://github.com/amir20/dtop/blob/main/demo.gif)
 
 ## Overview
 
@@ -258,7 +258,7 @@ hosts:
       - health=healthy
 ```
 
-See [config.example.yaml](https://github.com/amir20/dtop/blob/master/config.example.yaml) for more examples.
+See [config.example.yaml](https://github.com/amir20/dtop/blob/main/config.example.yaml) for more examples.
 
 ## Nerd Font Icons
 

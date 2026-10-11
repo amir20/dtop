@@ -3,10 +3,10 @@ name: Docker Build
 on:
   pull_request:
     branches:
-      - master
+      - main
   push:
     branches:
-      - master
+      - main
 
 env:
   REGISTRY: ghcr.io
