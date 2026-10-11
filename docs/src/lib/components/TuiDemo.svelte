@@ -105,8 +105,10 @@
           memUsed: docker.mem,
           memGb,
           memPct: Math.min(100, (docker.mem / memGb) * 100),
-          tx: docker.tx,
-          rx: docker.rx,
+          // Like dtop: summed container counters include traffic between
+          // containers, so only System lines show network
+          tx: null,
+          rx: null,
           extra: `${running.length}/${hostRows.length} running`,
         },
       ];
@@ -234,10 +236,10 @@
               >
             </td>
             <td class="px-2.5 py-0 whitespace-nowrap text-(--c-text-muted)">
-              <span class="text-(--c-text-dim)">TX</span> {rate(line.tx)}
+              {#if line.tx !== null}<span class="text-(--c-text-dim)">TX</span> {rate(line.tx)}{/if}
             </td>
             <td class="px-2.5 py-0 whitespace-nowrap text-(--c-text-muted)">
-              <span class="text-(--c-text-dim)">RX</span> {rate(line.rx)}
+              {#if line.rx !== null}<span class="text-(--c-text-dim)">RX</span> {rate(line.rx)}{/if}
             </td>
             <td class="w-full px-2.5 py-0 whitespace-nowrap text-(--c-text-muted)">{line.extra}</td>
           </tr>
