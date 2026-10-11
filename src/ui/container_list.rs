@@ -353,13 +353,9 @@ fn create_container_row<'a>(
                     Cell::from("")
                 }
             }
-            Column::Uptime => {
-                if is_running {
-                    Cell::from(format_time_elapsed(container.created.as_ref()))
-                } else {
-                    Cell::from("N/A")
-                }
-            }
+            // Labelled "Created" and sorted by creation time for every state,
+            // so stopped containers show it too
+            Column::Uptime => Cell::from(format_time_elapsed(container.created.as_ref())),
             Column::Restarts => Cell::from(
                 container
                     .restart_count
