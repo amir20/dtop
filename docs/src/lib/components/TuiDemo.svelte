@@ -92,6 +92,7 @@
           cpu: Math.min(100, docker.cpu + load.cpu),
           memUsed: docker.mem + load.memGb,
           memGb,
+          memPct: Math.min(100, ((docker.mem + load.memGb) / memGb) * 100),
           tx: docker.tx + load.tx,
           rx: docker.rx + load.rx,
           extra: "",
@@ -103,6 +104,7 @@
           cpu: docker.cpu,
           memUsed: docker.mem,
           memGb,
+          memPct: Math.min(100, (docker.mem / memGb) * 100),
           tx: docker.tx,
           rx: docker.rx,
           extra: `${running.length}/${hostRows.length} running`,
@@ -222,12 +224,12 @@
             </td>
             <td class="px-2.5 py-0 whitespace-nowrap">
               <span class="text-(--c-text-dim)">MEM</span>
-              <span class="tracking-[-0.05em] {tone((line.memUsed / line.memGb) * 100)}"
-                >{filled((line.memUsed / line.memGb) * 100)}</span
+              <span class="tracking-[-0.05em] {tone(line.memPct)}"
+                >{filled(line.memPct)}</span
               ><span class="tracking-[-0.05em] text-(--c-track)"
-                >{empty((line.memUsed / line.memGb) * 100)}</span
+                >{empty(line.memPct)}</span
               >
-              <span class={tone((line.memUsed / line.memGb) * 100)}
+              <span class={tone(line.memPct)}
                 >{line.memUsed.toFixed(1)}G/{line.memGb}G</span
               >
             </td>
