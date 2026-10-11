@@ -103,6 +103,38 @@ pub struct ContainerStats {
     pub pids_limit: u64,
 }
 
+/// Capacity of a Docker host as reported by `docker info`.
+///
+/// This is the daemon's view of the machine, so under Docker Desktop or colima
+/// it describes the Linux VM rather than the Mac or Windows machine around it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct HostInfo {
+    /// Number of CPUs available to the daemon
+    pub cpus: u32,
+    /// Total memory available to the daemon, in bytes
+    pub memory_total_bytes: u64,
+}
+
+/// Real-time metrics for a whole machine: the one dtop runs on (sampled
+/// locally), or an SSH host (read from its `/proc`). Not from the Docker API.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SystemStats {
+    pub hostname: String,
+    /// Overall CPU usage across all cores, 0-100
+    pub cpu: f64,
+    pub cpus: usize,
+    pub memory_used_bytes: u64,
+    pub memory_total_bytes: u64,
+    pub swap_used_bytes: u64,
+    pub swap_total_bytes: u64,
+    /// Received/transmitted rates summed over all non-loopback interfaces
+    pub net_rx_bytes_per_sec: f64,
+    pub net_tx_bytes_per_sec: f64,
+    /// 1, 5 and 15 minute load averages (all zero on platforms without them)
+    pub load_average: [f64; 3],
+    pub uptime_secs: u64,
+}
+
 /// Unique key for identifying containers across multiple hosts
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct ContainerKey {
@@ -162,6 +194,12 @@ pub enum AppEvent {
     HostDisconnected(HostId),
     /// A previously disconnected Docker host became reachable again
     HostReconnected(HostId),
+    /// Capacity of a Docker host, fetched whenever it (re)connects
+    HostInfo(HostId, HostInfo),
+    /// A new sample of the local machine's metrics
+    SystemStats(SystemStats),
+    /// A new sample of an SSH host's own metrics, read from its `/proc`
+    RemoteSystemStats(HostId, SystemStats),
 }
 
 pub type EventSender = mpsc::Sender<AppEvent>;

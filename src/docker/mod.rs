@@ -5,6 +5,7 @@ pub mod json_formatter;
 pub mod logs;
 #[cfg(test)]
 mod reconnect_tests;
+pub mod remote_stats;
 pub mod shell;
 pub mod ssh;
 pub mod stats;

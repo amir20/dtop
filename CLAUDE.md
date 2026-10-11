@@ -129,6 +129,9 @@ icons: unicode
 # OSC 8 hyperlinks on container names: "auto" (default), "always", or "never"
 hyperlinks: auto
 
+# System stats header above the container list (default: true; 't' toggles)
+stats_header: true
+
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
@@ -150,12 +153,13 @@ Global config options:
 - `sort_direction`: Sort direction ("asc" or "desc") - if omitted, uses field's default
 - `columns`: List of column IDs to show, in order (e.g., ["status", "name", "cpu", "memory"])
 - `hyperlinks`: OSC 8 hyperlink mode for Dozzle links ("auto", "always", "never")
+- `stats_header`: Show the system stats header (default: true)
 
 See `config.example.yaml` for a complete example.
 
 ### Preferences Persistence
 
-Preferences (columns, sort field, sort direction, show-all) can be saved to the config file:
+Preferences (columns, sort field, sort direction, show-all, stats header) can be saved to the config file:
 
 - **Ctrl-S** - Save current preferences to config file (creates `~/.config/dtop/config.yaml` if no config exists)
 - **Ctrl-R** - Reset preferences to defaults (requires y/n confirmation)
@@ -418,6 +422,9 @@ Container-related events use structured types to identify containers across host
 - `SearchKeyEvent(KeyEvent)` - Key event for search input (passed to tui-input)
 - `HostDisconnected(HostId)` - Lost the connection to a previously connected host; it is being retried in the background
 - `HostReconnected(HostId)` - A disconnected host is reachable again
+- `HostInfo(HostId, HostInfo)` - CPU count and total memory from `docker info`, sent on every (re)connect
+- `SystemStats(SystemStats)` - A sample of the local machine's CPU/memory/swap/network/load/uptime (every 2s)
+- `RemoteSystemStats(HostId, SystemStats)` - The same for an SSH host, read from its `/proc` (every 2s)
 
 ### View States (`core/types.rs::ViewState`)
 
@@ -622,6 +629,12 @@ connections instead of 31.
 - Masters are launched with `ServerAliveInterval=15s` so a dead master surfaces as an
   error instead of hanging. Dropping the last reference runs `ssh -O exit`, so masters
   are cleaned up on quit.
+- `SshRunner` (returned by `connect_with_ssh`, stored on `DockerHost::ssh`) runs short
+  commands on the host over the same pool, borrowing one channel per command. It is
+  what the remote system stats sampler uses. Usually that's a free slot on an existing
+  master, but if every master is exactly full the sample launches one more (one extra
+  connection over the counts above, relevant to `MaxStartups`/fail2ban). A timed-out
+  command is dropped, and openssh's `kill_on_drop` closes its channel.
 
 **Docker Context Resolution (`docker/context.rs`):**
 For the `local` host, dtop mirrors the Docker CLI's endpoint resolution so it works
@@ -651,6 +664,32 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 
 **Four View Modes:**
 1. **Container List View** - Main table showing all containers
+   - **System stats header** (`ui/system_header.rs`) between the title and the table.
+     Toggled with `t`, or `stats_header: false` in config (saved by Ctrl-S). Lines, in order:
+     - `System` line for the machine dtop runs on, sampled with `sysinfo` by
+       `core/system_stats.rs::system_stats_worker` on its own thread (sysinfo refreshes
+       block). Only spawned for the `local` host; an explicit `unix://` socket may be
+       forwarded from another machine, so it doesn't get one.
+     - Then per host, `local` first: a `System` line for `ssh://` hosts and a `Docker` line.
+     - Remote `System` lines come from `docker/remote_stats.rs`, which runs one
+       `cat /proc/...` script every 2s over the host's existing SSH masters (via
+       `SshRunner`, see SSH Transport). CPU and network rates are deltas between two
+       reads. A host is dropped only after 3 reads in a row find no `/proc`
+       (not Linux); every other failure (connection, killed `cat`, bad output) is
+       retried forever with a 10s → 60s backoff. `run_sh` times out after 10s and never evicts a master (a dead
+       one is replaced by the Docker reconnect). Cleared on `HostDisconnected`.
+     - `Docker` lines: CPU, memory and network summed over the host's *running*
+       containers (`AppState::docker_totals`), measured against `NCPU`/`MemTotal`
+       from `docker info` (container CPU is per-core, so the sum is divided by the
+       core count). Under Docker Desktop/colima those describe the VM, not the Mac.
+     - Network on `System` lines skips loopback, `veth*`, `docker*` and `br-*`
+       (`is_virtual_interface`): bridges and veths re-count container traffic.
+     - The CPU/MEM bars are sized so the widest line fills the terminal width (same
+       width on every line, so they align). When space runs short, detail is shed in
+       order: uptime, load, swap, bars, core count.
+     - Rows are reserved by growing the list block's top padding, so `block.inner()`
+       (and the hyperlink overlay) stay correct. Hidden on terminals too short to fit
+       it plus 8 list rows.
    - Dynamically shows/hides "Host" column (only shown when multiple hosts are connected)
    - Displays: ID, Name, Host (conditional), CPU%, Memory%, PIDs, Net TX, Net RX, Disk R, Disk W, Uptime, Status
    - PIDs and Disk I/O columns (Disk R, Disk W) are hidden by default - enable via column selector ('c')
@@ -844,6 +883,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - **Timeago**: Human-readable time formatting for container uptime
 - **Tui-input**: Text input widget for search functionality
 - **Unicode-width**: Display-width calculation for placing/clipping hyperlink labels
+- **Sysinfo**: Local machine CPU/memory/swap/network/load for the stats header (`system` + `network` features only)
 
 ### Dev Dependencies
 - **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)
@@ -883,8 +923,9 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `/` - Enter search mode (filter containers)
 - `s` - Open sort selector popup (Uptime, Name, CPU, Memory)
 - `c` - Open column visibility selector
+- `t` - Show/hide the system stats header
 - `a` - Toggle showing all containers (including stopped containers)
-- `Ctrl-S` - Save preferences (columns, sort, all) to config file
+- `Ctrl-S` - Save preferences (columns, sort, all, stats header) to config file
 - `Ctrl-R` - Reset preferences to defaults (requires y/n confirmation)
 
 **Log View:**

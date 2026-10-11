@@ -15,7 +15,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
 use tokio::task::{JoinHandle, JoinSet};
 
-use crate::core::types::AppEvent;
+use crate::core::types::{AppEvent, HostInfo};
 use crate::docker::connection::{DockerHost, connect_docker, container_manager};
 
 /// How long a test waits for an expected event before giving up. Generous
@@ -129,6 +129,8 @@ async fn handle_connection(mut stream: UnixStream, containers_json: &'static str
 
         let body = if path.contains("/_ping") {
             "OK".to_string()
+        } else if path.contains("/info") {
+            r#"{"NCPU":4,"MemTotal":8589934592}"#.to_string()
         } else if path.contains("/containers/json") {
             containers_json.to_string()
         } else if path.contains("/containers/") && path.ends_with("/json") {
@@ -266,6 +268,42 @@ async fn container_manager_reconnects_after_daemon_restart() {
         vec!["db"],
         "reconnect should re-sync from the daemon, not replay pre-outage state"
     );
+
+    manager.abort();
+}
+
+/// The system stats header needs each host's capacity, and a daemon restart may
+/// come back on a resized VM, so `docker info` is fetched on every (re)connect.
+#[tokio::test]
+async fn host_info_is_sent_on_connect_and_reconnect() {
+    let path = socket_path("host-info");
+    let mut daemon = FakeDocker::start(&path, "[]");
+
+    let (tx, mut rx) = mpsc::channel::<AppEvent>(100);
+    let manager = tokio::spawn(container_manager(docker_host(&path), tx));
+
+    let expected = HostInfo {
+        cpus: 4,
+        memory_total_bytes: 8 * 1024 * 1024 * 1024,
+    };
+    let host_info = |event: &AppEvent| match event {
+        AppEvent::HostInfo(host_id, info) => Some((host_id.clone(), *info)),
+        _ => None,
+    };
+
+    let first = wait_for(&mut rx, "HostInfo on connect", host_info).await;
+    assert_eq!(first, ("test".to_string(), expected));
+
+    daemon.stop();
+    wait_for(&mut rx, "HostDisconnected", |event| match event {
+        AppEvent::HostDisconnected(_) => Some(()),
+        _ => None,
+    })
+    .await;
+    daemon.restart("[]");
+
+    let again = wait_for(&mut rx, "HostInfo on reconnect", host_info).await;
+    assert_eq!(again, ("test".to_string(), expected));
 
     manager.abort();
 }

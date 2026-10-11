@@ -42,22 +42,29 @@ const MAX_CHANNELS_PER_MASTER: usize = 8;
 /// error (and gets evicted) instead of hanging.
 const SERVER_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
+/// How long [`SshRunner::run_sh`] waits for a command before giving up on it.
+const RUN_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Connects to a Docker daemon over SSH, honoring an optional port in `addr`.
 ///
-/// `addr` is expected in the `ssh://[user@]host[:port]` form.
+/// `addr` is expected in the `ssh://[user@]host[:port]` form. Also returns an
+/// [`SshRunner`] that runs commands on the same host over the same masters.
 pub fn connect_with_ssh(
     addr: &str,
     timeout: u64,
     client_version: &ClientVersion,
-) -> Result<Docker, BollardError> {
-    let connector = SshConnector {
-        pool: Arc::new(Pool::new(MAX_CHANNELS_PER_MASTER)),
+) -> Result<(Docker, SshRunner), BollardError> {
+    let pool = Arc::new(Pool::new(MAX_CHANNELS_PER_MASTER));
+    let runner = SshRunner {
+        pool: Arc::clone(&pool),
+        destination: addr.to_string(),
     };
+    let connector = SshConnector { pool };
     let client = Arc::new(
         hyper_util::client::legacy::Client::builder(TokioExecutor::new()).build(connector),
     );
 
-    Docker::connect_with_custom_transport(
+    let docker = Docker::connect_with_custom_transport(
         move |req: bollard::BollardRequest| {
             let client = Arc::clone(&client);
             Box::pin(async move { client.request(req).await.map_err(BollardError::from) })
@@ -65,7 +72,58 @@ pub fn connect_with_ssh(
         Some(addr),
         timeout,
         client_version,
-    )
+    )?;
+    Ok((docker, runner))
+}
+
+/// Runs short commands on an SSH Docker host, sharing the Docker transport's
+/// pool of masters so it costs a channel, not a new connection.
+#[derive(Clone)]
+pub struct SshRunner {
+    pool: Arc<SshPool>,
+    destination: String,
+}
+
+impl std::fmt::Debug for SshRunner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SshRunner")
+            .field("destination", &self.destination)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SshRunner {
+    /// Runs `script` with the remote `sh`.
+    ///
+    /// `Err` means the command couldn't be run (connection trouble, or no
+    /// answer within [`RUN_TIMEOUT`]); a script that ran and failed comes back
+    /// as `Ok` with a failed status.
+    ///
+    /// Unlike the Docker connector this never evicts a master: one failed
+    /// channel doesn't prove the master is dead, and evicting it every sample
+    /// would churn the connection every stats stream shares. A master that
+    /// really died breaks those streams too, and the reconnect that follows
+    /// replaces it through the connector.
+    pub async fn run_sh(&self, script: &str) -> io::Result<std::process::Output> {
+        let lease = self
+            .pool
+            .acquire(|| launch_master(&self.destination))
+            .await
+            .map_err(io::Error::other)?;
+
+        let mut command = Arc::clone(&lease.session).arc_command("sh");
+        command.arg("-c").arg(script);
+
+        // A hung command would otherwise hold one of the master's channel
+        // slots, which it shares with the stats streams, indefinitely
+        match tokio::time::timeout(RUN_TIMEOUT, command.output()).await {
+            Ok(output) => output.map_err(io::Error::other),
+            Err(_) => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("no answer within {RUN_TIMEOUT:?}"),
+            )),
+        }
+    }
 }
 
 /// A pooled SSH master and its remaining channel capacity.

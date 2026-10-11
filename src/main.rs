@@ -34,6 +34,7 @@ use tracing_subscriber::EnvFilter;
 use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
+use core::system_stats::system_stats_worker;
 use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
 use docker::connection::{DockerHost, container_manager};
 use ui::hyperlinks::HyperlinkMode;
@@ -50,6 +51,7 @@ struct EventLoopConfig {
     sort_direction: Option<SortDirection>,
     column_config: ColumnConfig,
     config_path: Option<std::path::PathBuf>,
+    stats_header: bool,
 }
 
 /// Returns custom styles for CLI help output
@@ -319,6 +321,12 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Handle remaining connections in background
     spawn_remaining_connections_handler(connection_result.remaining_rx, tx.clone());
 
+    // The machine's own metrics only mean something next to a host that runs on it
+    if merged_config.hosts.iter().any(|h| h.host == "local") {
+        let tx = tx.clone();
+        std::thread::spawn(move || system_stats_worker(tx));
+    }
+
     // Create pause flag for keyboard worker
     let keyboard_paused = Arc::new(AtomicBool::new(false));
 
@@ -343,6 +351,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             sort_direction,
             column_config,
             config_path: config_path_for_state,
+            stats_header: merged_config.stats_header.unwrap_or(true),
         },
     )
     .await?;
@@ -404,6 +413,7 @@ async fn run_event_loop(
         config.column_config,
         config.config_path,
     );
+    state.show_system_header = config.stats_header;
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 

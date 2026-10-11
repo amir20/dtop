@@ -49,6 +49,10 @@ sort: uptime
 #   never  - never render links
 hyperlinks: auto
 
+# Show the system stats header above the container list (default: true).
+# Press 't' to toggle it at runtime; Ctrl-S saves the current state.
+stats_header: true
+
 # == Columns ==
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.

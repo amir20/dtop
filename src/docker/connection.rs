@@ -7,7 +7,10 @@ use std::time::Duration;
 
 use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, EventSender, HostId,
+    HostInfo,
 };
+use crate::docker::remote_stats::remote_system_stats_worker;
+use crate::docker::ssh::SshRunner;
 use crate::docker::stats::stream_container_stats;
 
 /// Docker container IDs are 64-char hex strings; like the Docker CLI we track
@@ -66,6 +69,8 @@ pub struct DockerHost {
     pub docker: Docker,
     pub dozzle_url: Option<String>,
     pub filters: HashMap<String, Vec<String>>,
+    /// Set for `ssh://` hosts; used to sample the remote machine's own stats
+    pub ssh: Option<SshRunner>,
 }
 
 impl DockerHost {
@@ -80,7 +85,13 @@ impl DockerHost {
             docker,
             dozzle_url,
             filters,
+            ssh: None,
         }
+    }
+
+    pub fn with_ssh(mut self, ssh: Option<SshRunner>) -> Self {
+        self.ssh = ssh;
+        self
     }
 
     /// Fetches the current list of containers and starts monitoring them.
@@ -364,6 +375,25 @@ impl DockerHost {
             }
 
             delay = next_reconnect_delay(delay);
+        }
+    }
+
+    /// Fetches the host's CPU count and total memory for the system stats header.
+    ///
+    /// Best-effort: on failure the host just has no header line, which is not
+    /// worth surfacing as a connection error.
+    async fn send_host_info(&self, tx: &EventSender) {
+        match self.docker.info().await {
+            Ok(info) => {
+                let host_info = HostInfo {
+                    cpus: info.ncpu.unwrap_or(0).max(0) as u32,
+                    memory_total_bytes: info.mem_total.unwrap_or(0).max(0) as u64,
+                };
+                let _ = tx
+                    .send(AppEvent::HostInfo(self.host_id.clone(), host_info))
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to fetch info for host '{}': {e}", self.host_id),
         }
     }
 
@@ -654,7 +684,24 @@ pub async fn container_manager(host: DockerHost, tx: EventSender) {
     let mut active_containers: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
     let mut restart_backfill: Option<tokio::task::JoinHandle<()>> = None;
 
+    // Runs for the life of the manager and rides out outages on its own
+    if let Some(ssh) = host.ssh.clone() {
+        tokio::spawn(remote_system_stats_worker(
+            host.host_id.clone(),
+            ssh,
+            tx.clone(),
+        ));
+    }
+
     loop {
+        // Refreshed on every (re)connect, since a daemon restart may come with a
+        // resized VM. Spawned so it doesn't hold up the container list.
+        tokio::spawn({
+            let host = host.clone();
+            let tx = tx.clone();
+            async move { host.send_host_info(&tx).await }
+        });
+
         // Fetch the container list and start monitoring; then follow the event
         // stream until the connection to the daemon breaks.
         if host
@@ -700,6 +747,42 @@ pub async fn container_manager(host: DockerHost, tx: EventSender) {
             .send(AppEvent::HostReconnected(host.host_id.clone()))
             .await;
     }
+}
+
+/// Like [`connect_docker`], but for `ssh://` hosts also returns an [`SshRunner`]
+/// for running commands on that host over the same SSH connections.
+pub fn connect_docker_with_runner(
+    host: &str,
+) -> Result<(Docker, Option<SshRunner>), Box<dyn std::error::Error>> {
+    if host.starts_with("ssh://") {
+        connect_ssh(host).map(|(docker, runner)| (docker, Some(runner)))
+    } else {
+        Ok((connect_docker(host)?, None))
+    }
+}
+
+fn connect_ssh(host: &str) -> Result<(Docker, SshRunner), Box<dyn std::error::Error>> {
+    use tracing::{debug, error};
+
+    debug!("Connecting to Docker via SSH: {}", host);
+    debug!(
+        "SSH timeout: 120 seconds, API version: {}",
+        API_DEFAULT_VERSION
+    );
+
+    // Connect via SSH with 120 second timeout. Uses our own connector instead
+    // of `Docker::connect_with_ssh` because bollard drops the `ssh://` scheme
+    // before resolving the destination, which breaks custom ports (#335).
+    crate::docker::ssh::connect_with_ssh(
+        host,
+        120, // timeout in seconds
+        API_DEFAULT_VERSION,
+    )
+    .map_err(|e| {
+        error!("SSH Docker connection failed for '{}': {:?}", host, e);
+        debug!("Bollard SSH error type: {}", std::any::type_name_of_val(&e));
+        e.into()
+    })
 }
 
 /// Connects to Docker based on the host string
@@ -752,25 +835,7 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
             e.into()
         })
     } else if host.starts_with("ssh://") {
-        debug!("Connecting to Docker via SSH: {}", host);
-        debug!(
-            "SSH timeout: 120 seconds, API version: {}",
-            API_DEFAULT_VERSION
-        );
-
-        // Connect via SSH with 120 second timeout. Uses our own connector instead
-        // of `Docker::connect_with_ssh` because bollard drops the `ssh://` scheme
-        // before resolving the destination, which breaks custom ports (#335).
-        crate::docker::ssh::connect_with_ssh(
-            host,
-            120, // timeout in seconds
-            API_DEFAULT_VERSION,
-        )
-        .map_err(|e| {
-            error!("SSH Docker connection failed for '{}': {:?}", host, e);
-            debug!("Bollard SSH error type: {}", std::any::type_name_of_val(&e));
-            e.into()
-        })
+        connect_ssh(host).map(|(docker, _)| docker)
     } else if host.starts_with("tls://") {
         // Connect via TLS using environment variables for certificates
         // Expects DOCKER_CERT_PATH to be set with key.pem, cert.pem, and ca.pem files

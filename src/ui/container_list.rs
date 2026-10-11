@@ -5,6 +5,7 @@ use crate::core::types::{
 use crate::ui::formatters::{format_bytes_per_sec, format_time_elapsed, write_bytes};
 use crate::ui::hyperlinks::Hyperlink;
 use crate::ui::render::UiStyles;
+use crate::ui::system_header::{header_height, render_system_header};
 use ratatui::{
     Frame,
     layout::{Constraint, Flex, Layout, Rect},
@@ -40,10 +41,21 @@ pub fn render_container_list(
     let width = area.width;
     let show_progress_bars = width >= 128;
 
+    // The system stats header sits between the title and the table, inside the
+    // block's top padding, followed by a blank spacer row.
+    let stats_height = header_height(app_state, area.height);
+    let stats_rows = if stats_height > 0 {
+        stats_height + 1
+    } else {
+        0
+    };
+
     // Track visible data rows for page up/down navigation.
-    // Layout consumes: proportional(1) block padding (top+bottom = 2 rows) and
-    // the header row plus its bottom_margin(1) = 2 rows.
-    app_state.last_list_viewport_height = (area.height as usize).saturating_sub(4).max(1);
+    // Layout consumes: proportional(1) block padding (top+bottom = 2 rows),
+    // the header row plus its bottom_margin(1) = 2 rows, and the stats header.
+    app_state.last_list_viewport_height = (area.height as usize)
+        .saturating_sub(4 + stats_rows as usize)
+        .max(1);
 
     app_state.sort_containers();
 
@@ -74,13 +86,24 @@ pub fn render_container_list(
         app_state.sort_state,
     );
     let constraints = column_constraints(visible_columns, show_host_column, show_progress_bars);
-    let block = list_block(app_state.sorted_container_keys.len(), styles);
+    let block = list_block(app_state.sorted_container_keys.len(), stats_rows, styles);
     // Capture the table's rect before the block is moved into the table; the
     // hyperlink overlay is positioned relative to it.
     let table_area = block.inner(area);
     let table = create_table(rows, header, constraints.clone(), block, styles);
 
     f.render_stateful_widget(table, area, &mut app_state.table_state);
+
+    if stats_height > 0 {
+        // Below the title row and the padding row, aligned with the table
+        let stats_area = Rect {
+            x: table_area.x,
+            y: area.y + 2,
+            width: table_area.width,
+            height: stats_height,
+        };
+        render_system_header(f, stats_area, app_state, styles);
+    }
 
     if styles.hyperlinks {
         // `render_rows` writes the first visible index back into the state, so
@@ -211,7 +234,7 @@ fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
 
 /// Truncates `text` to at most `max_width` display columns, returning the
 /// clipped text and its width.
-fn clip_to_width(text: &str, max_width: u16) -> (&str, u16) {
+pub(crate) fn clip_to_width(text: &str, max_width: u16) -> (&str, u16) {
     let max_width = max_width as usize;
     let mut width = 0usize;
 
@@ -350,7 +373,7 @@ fn create_container_row<'a>(
 }
 
 /// Writes the progress bar characters (filled + empty) into the given String buffer
-fn write_bar(buf: &mut String, filled_width: usize, empty_width: usize) {
+pub(crate) fn write_bar(buf: &mut String, filled_width: usize, empty_width: usize) {
     for _ in 0..filled_width {
         buf.push('█');
     }
@@ -425,7 +448,7 @@ fn get_status_icon<'a>(
 }
 
 /// Returns the appropriate style based on percentage value
-fn get_percentage_style(value: f64, styles: &UiStyles) -> Style {
+pub(crate) fn get_percentage_style(value: f64, styles: &UiStyles) -> Style {
     if value > 80.0 {
         styles.high
     } else if value > 50.0 {
@@ -533,10 +556,14 @@ fn column_constraints(
 /// Returned rather than inlined so the caller can ask it for `inner()` — the
 /// hyperlink overlay needs the exact rect the table rendered into, and the
 /// title row plus proportional padding make that non-obvious to compute by hand.
-fn list_block(container_count: usize, styles: &UiStyles) -> Block<'static> {
+///
+/// `extra_top` rows are reserved under the title for the system stats header.
+fn list_block(container_count: usize, extra_top: u16, styles: &UiStyles) -> Block<'static> {
+    let mut padding = ratatui::widgets::Padding::proportional(1);
+    padding.top += extra_top;
     Block::default()
         .borders(Borders::NONE)
-        .padding(ratatui::widgets::Padding::proportional(1))
+        .padding(padding)
         .title(format!(
             "dtop v{VERSION} - {container_count} containers ('?' for help, 'q' to quit)"
         ))
