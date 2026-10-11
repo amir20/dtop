@@ -15,9 +15,16 @@ impl AppState {
     /// Shows a notification for `duration`, in red when `is_error`.
     ///
     /// Leaves a pending reset confirmation alone: replacing its prompt would
-    /// leave a `y`/`n` armed with nothing on screen asking for it.
+    /// leave a `y`/`n` armed with nothing on screen asking for it. Likewise an
+    /// error stays up for its full time rather than being replaced by routine
+    /// progress ("Stopped x") before it can be read.
     pub fn show_notification_for(&mut self, message: &str, duration: Duration, is_error: bool) {
-        if self.reset_confirm_pending {
+        let showing_error = self.notification_is_error
+            && self
+                .notification
+                .as_ref()
+                .is_some_and(|(_, expiry)| Instant::now() < *expiry);
+        if self.reset_confirm_pending || (showing_error && !is_error) {
             return;
         }
         self.notification = Some((message.to_string(), Instant::now() + duration));

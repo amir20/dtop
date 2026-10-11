@@ -336,6 +336,8 @@ impl DockerHost {
                             // The stats stream keeps running through a pause, so
                             // only the displayed state needs to change
                             "pause" | "unpause" => {
+                                // Only a running container can be paused, so
+                                // unpausing always returns it to running
                                 let state = if action == "pause" {
                                     ContainerState::Paused
                                 } else {

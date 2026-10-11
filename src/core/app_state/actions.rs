@@ -199,10 +199,11 @@ impl AppState {
         action: ContainerAction,
     ) -> RenderAction {
         // Stop and restart wait up to 10s for the container to exit, so say
-        // something is happening. Held until the result replaces it.
+        // something is happening. The result normally replaces it; the expiry
+        // only matters if none arrives (e.g. the host dropped mid-action).
         let (doing, _) = action.progress_words();
         let message = format!("{doing} {}…", self.action_target_name(&key));
-        self.show_notification_for(&message, Duration::from_secs(30), false);
+        self.show_notification_for(&message, Duration::from_secs(15), false);
         RenderAction::Render
     }
 

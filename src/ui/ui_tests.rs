@@ -287,6 +287,38 @@ mod tests {
         assert_snapshot_with_redaction!(buffer_to_string(&buffer));
     }
 
+    /// Routine progress must not replace an error before it can be read.
+    #[test]
+    fn test_progress_toast_does_not_replace_an_error() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let key = ContainerKey::new("local".to_string(), "abc".to_string());
+        state.handle_event(AppEvent::ActionError(
+            key.clone(),
+            ContainerAction::Remove,
+            "conflict".to_string(),
+        ));
+        state.handle_event(AppEvent::ActionSuccess(key.clone(), ContainerAction::Start));
+
+        assert!(state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to remove abc: conflict")
+        );
+
+        // A newer error still replaces an older one
+        state.handle_event(AppEvent::ActionError(
+            key,
+            ContainerAction::Stop,
+            "timeout".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to stop abc: timeout")
+        );
+    }
+
     /// An action finishing must not replace the reset prompt while a y/n is armed.
     #[test]
     fn test_action_notification_keeps_reset_prompt() {
