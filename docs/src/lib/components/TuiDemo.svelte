@@ -4,10 +4,16 @@
 
   /**
    * A recreation of the dtop container list, drawn as a character grid with
-   * the same layout rules as the binary (`src/ui/container_list.rs` and
-   * `src/ui/system_header.rs`): column widths, header bar fitting, byte
-   * formatting and colors. Stats are animated with the same exponential moving
-   * average the real stats pipeline uses (alpha = 0.3, 500ms tick).
+   * the same layout rules as the binary: column widths, header bar fitting,
+   * byte formatting and colors. Stats are animated with the same exponential
+   * moving average the real stats pipeline uses (alpha = 0.3, 500ms tick).
+   *
+   * Hand-ported, so keep it in sync when these change:
+   * - `src/ui/container_list.rs`: `column_constraints`, `create_header_row`,
+   *   `create_container_row`, `get_percentage_style`, `list_block`
+   * - `src/ui/system_header.rs`: `HeaderText`, `render_system_header`
+   * - `src/ui/formatters.rs`: `write_byte_value`
+   * - `src/ui/icons.rs`, and default columns in `src/core/types.rs`
    */
   const version = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? "";
 
@@ -366,7 +372,8 @@
   <div class="overflow-x-auto px-2 py-2 [container-type:inline-size]">
     <pre
       class="w-max min-w-full font-mono text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)"
-      aria-label="dtop showing containers across three Docker hosts">{title}
+      role="img"
+      aria-label="dtop showing live CPU, memory and network stats for containers across three Docker hosts">{title}
 
 {#each headerLines as segments}  {@render line(segments)}
 {/each}
