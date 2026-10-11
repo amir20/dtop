@@ -1,0 +1,19 @@
+---
+source: src/ui/ui_tests.rs
+expression: buffer_to_string(&buffer)
+---
+dtop vX.X.X - 1 container ('?' for help, 'q' to quit)                                                                   
+                                                                                                                        
+  ID             Name                                        CPU %   Memory  Net TX       Net RX       Created ▼        
+                                                                                                                        
+  abc123456789 ▶ nginx                                         1.0%    1.0%  0B/s         0B/s         2 hours ago      
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                 ┌────────────────────────────────────────────────────────────────────────────────────┐                 
+                 │ Failed to stop nginx: Docker responded with status code 500: cannot stop container │                 
+                 └────────────────────────────────────────────────────────────────────────────────────┘

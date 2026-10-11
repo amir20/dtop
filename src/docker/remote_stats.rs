@@ -8,10 +8,13 @@
 use std::future::Future;
 use std::io;
 use std::process::Output;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::core::system_stats::{SAMPLE_INTERVAL, is_virtual_interface};
+use crate::core::system_stats::{PAUSED_POLL_INTERVAL, SAMPLE_INTERVAL, is_virtual_interface};
 use crate::core::types::{AppEvent, EventSender, HostId, SystemStats};
+use crate::docker::connection::DockerHost;
 use crate::docker::ssh::SshRunner;
 
 /// Sections are separated by a marker line so each can be parsed on its own.
@@ -48,14 +51,44 @@ impl RemoteShell for SshRunner {
     }
 }
 
+/// Starts sampling `host`'s machine if it is reached over SSH. Runs for the
+/// rest of the session and rides out outages on its own.
+pub fn spawn_for_host(host: &DockerHost, tx: &EventSender, header_visible: &Arc<AtomicBool>) {
+    if let Some(ssh) = host.ssh.clone() {
+        tokio::spawn(remote_system_stats_worker(
+            host.host_id.clone(),
+            ssh,
+            tx.clone(),
+            Arc::clone(header_visible),
+        ));
+    }
+}
+
 /// Sends [`AppEvent::RemoteSystemStats`] for `host_id` until the UI goes away or
 /// the host turns out not to have a readable Linux `/proc`.
-pub async fn remote_system_stats_worker(host_id: HostId, shell: impl RemoteShell, tx: EventSender) {
+///
+/// Idles while `header_visible` is false: with the header hidden ('t') nothing
+/// shows the result, and each read costs an SSH channel and a process launch.
+pub async fn remote_system_stats_worker(
+    host_id: HostId,
+    shell: impl RemoteShell,
+    tx: EventSender,
+    header_visible: Arc<AtomicBool>,
+) {
     let mut previous: Option<Snapshot> = None;
     let mut failures_in_a_row: u32 = 0;
     let mut missing_proc_reads: u32 = 0;
 
     loop {
+        if !header_visible.load(Ordering::Relaxed) {
+            // Rates across the pause would be averaged over it; start fresh
+            previous = None;
+            if !wait(&tx, PAUSED_POLL_INTERVAL).await {
+                return;
+            }
+            continue;
+        }
+
         let snapshot = match shell.run_sh(SCRIPT).await {
             Ok(output) if output.status.success() => {
                 Snapshot::parse(&String::from_utf8_lossy(&output.stdout))
@@ -385,7 +418,12 @@ mod tests {
     /// Runs the worker to completion or until it has sent `wanted` samples.
     async fn run_worker(shell: FakeShell, wanted: usize) -> (usize, bool) {
         let (tx, mut rx) = mpsc::channel(16);
-        let worker = tokio::spawn(remote_system_stats_worker("h".to_string(), shell, tx));
+        let worker = tokio::spawn(remote_system_stats_worker(
+            "h".to_string(),
+            shell,
+            tx,
+            Arc::new(AtomicBool::new(true)),
+        ));
         let mut received = 0;
         while received < wanted {
             match rx.recv().await {
@@ -397,6 +435,45 @@ mod tests {
         let finished = worker.is_finished();
         worker.abort();
         (received, finished)
+    }
+
+    /// Hidden header: no SSH reads at all, then sampling resumes when shown.
+    #[tokio::test(start_paused = true)]
+    async fn idles_while_the_header_is_hidden() {
+        struct CountingShell(std::sync::atomic::AtomicUsize);
+        impl RemoteShell for CountingShell {
+            async fn run_sh(&self, _script: &str) -> io::Result<Output> {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                proc_read()
+            }
+        }
+
+        let shell = Arc::new(CountingShell(Default::default()));
+        let visible = Arc::new(AtomicBool::new(false));
+        let (tx, mut rx) = mpsc::channel(16);
+        let worker = tokio::spawn({
+            // Arc<CountingShell> isn't RemoteShell; forward through a newtype
+            struct Shared(Arc<CountingShell>);
+            impl RemoteShell for Shared {
+                async fn run_sh(&self, script: &str) -> io::Result<Output> {
+                    self.0.run_sh(script).await
+                }
+            }
+            remote_system_stats_worker(
+                "h".to_string(),
+                Shared(Arc::clone(&shell)),
+                tx,
+                Arc::clone(&visible),
+            )
+        });
+
+        tokio::time::sleep(SAMPLE_INTERVAL * 10).await;
+        assert_eq!(shell.0.load(Ordering::Relaxed), 0, "read while hidden");
+
+        visible.store(true, Ordering::Relaxed);
+        let first = rx.recv().await;
+        assert!(matches!(first, Some(AppEvent::RemoteSystemStats(..))));
+        worker.abort();
     }
 
     #[tokio::test(start_paused = true)]

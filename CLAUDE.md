@@ -678,12 +678,19 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
        (not Linux); every other failure (connection, killed `cat`, bad output) is
        retried forever with a 10s → 60s backoff. `run_sh` times out after 10s and never evicts a master (a dead
        one is replaced by the Docker reconnect). Cleared on `HostDisconnected`.
-     - `Docker` lines: CPU, memory and network summed over the host's *running*
+     - `Docker` lines: CPU and memory summed over the host's *running*
        containers (`AppState::docker_totals`), measured against `NCPU`/`MemTotal`
        from `docker info` (container CPU is per-core, so the sum is divided by the
        core count). Under Docker Desktop/colima those describe the VM, not the Mac.
-     - Network on `System` lines skips loopback, `veth*`, `docker*` and `br-*`
-       (`is_virtual_interface`): bridges and veths re-count container traffic.
+     - Network is on `System` lines only, and skips loopback, `veth*`, `docker*`
+       and `br-*` (`is_virtual_interface`): bridges and veths re-count container
+       traffic. Docker lines have none because summed container counters include
+       traffic between containers (counted twice, as TX and RX) that never reaches
+       the machine's interfaces, so it could exceed the machine's own traffic.
+     - Rendering formats each line once into one buffer and measures widths from
+       field ranges (`HeaderText`); keep it that way, `render_stats_header_allocations`
+       guards the per-frame allocation cost. Both samplers idle while the header
+       is hidden (`AppState::header_visible`, set via `set_show_system_header`).
      - The CPU/MEM bars are sized so the widest line fills the terminal width (same
        width on every line, so they align). When space runs short, detail is shed in
        order: uptime, load, swap, bars, core count.

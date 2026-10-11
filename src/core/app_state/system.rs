@@ -10,8 +10,6 @@ pub struct DockerTotals {
     /// Sum of container CPU percentages, where 100% is one core
     pub cpu: f64,
     pub memory_used_bytes: u64,
-    pub net_rx_bytes_per_sec: f64,
-    pub net_tx_bytes_per_sec: f64,
     pub running: usize,
     pub total: usize,
 }
@@ -37,8 +35,6 @@ impl AppState {
                 totals.running += 1;
                 totals.cpu += container.stats.cpu;
                 totals.memory_used_bytes += container.stats.memory_used_bytes;
-                totals.net_rx_bytes_per_sec += container.stats.network_rx_bytes_per_sec;
-                totals.net_tx_bytes_per_sec += container.stats.network_tx_bytes_per_sec;
             }
         }
         totals
@@ -64,9 +60,24 @@ impl AppState {
         RenderAction::None
     }
 
+    /// Shows or hides the header, pausing or resuming the samplers with it.
+    ///
+    /// Hiding drops the machine stats: the samplers stop updating them, so on
+    /// re-show they'd be presented as live however old they were. The lines
+    /// come back with the first fresh samples.
+    pub fn set_show_system_header(&mut self, show: bool) {
+        if !show {
+            self.system_stats = None;
+            self.remote_system_stats.clear();
+        }
+        self.show_system_header = show;
+        self.header_visible
+            .store(show, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Handles 't': show or hide the system stats header
     pub(super) fn handle_toggle_system_header(&mut self) -> RenderAction {
-        self.show_system_header = !self.show_system_header;
+        self.set_show_system_header(!self.show_system_header);
         RenderAction::Render
     }
 }
@@ -151,8 +162,6 @@ mod tests {
             DockerTotals {
                 cpu: 200.0,
                 memory_used_bytes: 200,
-                net_rx_bytes_per_sec: 20.0,
-                net_tx_bytes_per_sec: 40.0,
                 running: 2,
                 total: 3,
             }

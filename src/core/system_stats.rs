@@ -5,6 +5,8 @@
 //! why it only describes the machine behind the `local` host. Remote hosts get
 //! their numbers from `docker info` plus their containers' stats instead.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use sysinfo::{MINIMUM_CPU_UPDATE_INTERVAL, Networks, System};
@@ -14,24 +16,45 @@ use crate::core::types::{AppEvent, EventSender, SystemStats};
 /// How often a new sample is taken. CPU usage is averaged over this window.
 pub(crate) const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
 
+/// How often a paused sampler checks whether the header is back, so pressing
+/// 't' brings the numbers back promptly.
+pub(crate) const PAUSED_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
 /// Sends a [`AppEvent::SystemStats`] every [`SAMPLE_INTERVAL`] until the UI goes away.
 ///
 /// Blocking: run it on its own thread, like the keyboard worker. `sysinfo`
 /// refreshes are synchronous syscalls (a few ms for networks and memory on
 /// macOS) that shouldn't occupy a tokio worker.
-pub fn system_stats_worker(tx: EventSender) {
+///
+/// Idles while `header_visible` is false, since nothing shows the result.
+pub fn system_stats_worker(tx: EventSender, header_visible: Arc<AtomicBool>) {
     let hostname = System::host_name().unwrap_or_else(|| "localhost".to_string());
     let mut sys = System::new();
     let mut networks = Networks::new_with_refreshed_list();
-
-    // CPU usage and network traffic are deltas between two refreshes, so the
-    // first refresh only primes the counters and the first real sample has to
-    // wait a little.
-    sys.refresh_cpu_usage();
     let mut last_refresh = Instant::now();
-    std::thread::sleep(MINIMUM_CPU_UPDATE_INTERVAL);
+    let mut primed = false;
 
     loop {
+        if !header_visible.load(Ordering::Relaxed) {
+            if tx.is_closed() {
+                return;
+            }
+            // Rates across the pause would be averaged over it; prime again
+            primed = false;
+            std::thread::sleep(PAUSED_POLL_INTERVAL);
+            continue;
+        }
+        if !primed {
+            // CPU usage and network traffic are deltas between two refreshes,
+            // so the first refresh only primes the counters and the first real
+            // sample has to wait a little.
+            sys.refresh_cpu_usage();
+            networks.refresh(true);
+            last_refresh = Instant::now();
+            primed = true;
+            std::thread::sleep(MINIMUM_CPU_UPDATE_INTERVAL);
+        }
+
         sys.refresh_cpu_usage();
         sys.refresh_memory();
         // `true` drops interfaces that went away (VPNs, container veths)

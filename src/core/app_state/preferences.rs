@@ -9,7 +9,22 @@ use crate::core::types::{ColumnConfig, RenderAction, SortDirection, SortState, V
 impl AppState {
     /// Shows a notification message that auto-dismisses after 2 seconds
     pub fn show_notification(&mut self, message: &str) {
-        self.notification = Some((message.to_string(), Instant::now() + Duration::from_secs(2)));
+        self.show_notification_for(message, Duration::from_secs(2), false);
+    }
+
+    /// Shows a notification for `duration`, in red when `is_error`.
+    ///
+    /// Leaves a pending reset confirmation alone: replacing its prompt would
+    /// leave a `y`/`n` armed with nothing on screen asking for it. Otherwise
+    /// it always shows: user-initiated confirmations ("Saved to …") must win
+    /// even over an error. Background progress uses
+    /// `show_action_notification`, which yields to an unexpired error.
+    pub fn show_notification_for(&mut self, message: &str, duration: Duration, is_error: bool) {
+        if self.reset_confirm_pending {
+            return;
+        }
+        self.notification = Some((message.to_string(), Instant::now() + duration));
+        self.notification_is_error = is_error;
     }
 
     /// Clears the notification if it has expired. Also cancels a pending reset
@@ -77,7 +92,11 @@ impl AppState {
             }
             Err(e) => {
                 tracing::error!("Failed to save preferences: {}", e);
-                self.show_notification(&format!("Save failed: {e}"));
+                self.show_notification_for(
+                    &format!("Save failed: {e}"),
+                    Duration::from_secs(6),
+                    true,
+                );
             }
         }
 
@@ -110,7 +129,7 @@ impl AppState {
         self.column_config = ColumnConfig::default();
         self.sort_state = SortState::default();
         self.show_all_containers = false;
-        self.show_system_header = true;
+        self.set_show_system_header(true);
 
         // Force re-sort with new settings
         self.force_sort_containers();

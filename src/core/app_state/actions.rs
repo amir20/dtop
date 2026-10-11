@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerAction, ContainerKey, RenderAction, ViewState};
 
@@ -182,35 +184,82 @@ impl AppState {
         RenderAction::Render // Force draw
     }
 
+    /// The container's name for notifications. Remembered when the action
+    /// starts, since a removed container can be gone from the list (via its
+    /// destroy event) before the action's result arrives; the ID is the last
+    /// resort.
+    fn action_target_name(&self, key: &ContainerKey) -> String {
+        self.action_names
+            .get(key)
+            .or_else(|| self.containers.get(key).map(|c| &c.name))
+            .cloned()
+            .unwrap_or_else(|| key.container_id.clone())
+    }
+
+    /// Shows background action progress, unless an unexpired error is up:
+    /// routine news ("Stopped x") shouldn't replace an error before it can be
+    /// read. A newer error still replaces an older one.
+    fn show_action_notification(&mut self, message: &str, duration: Duration, is_error: bool) {
+        let showing_error = self.notification_is_error
+            && self
+                .notification
+                .as_ref()
+                .is_some_and(|(_, expiry)| std::time::Instant::now() < *expiry);
+        if showing_error && !is_error {
+            return;
+        }
+        self.show_notification_for(message, duration, is_error);
+    }
+
     pub(super) fn handle_action_in_progress(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
+        key: ContainerKey,
+        action: ContainerAction,
     ) -> RenderAction {
-        // TODO: Could show a loading indicator in the UI in the future
-        // For now, just let Docker events update the container state
-        RenderAction::None // Don't force redraw for progress events
+        // Stop and restart wait up to 10s for the container to exit, so say
+        // something is happening. The result normally replaces it; the expiry
+        // only matters if none arrives (e.g. the host dropped mid-action).
+        let name = self.action_target_name(&key);
+        let (doing, _) = action.progress_words();
+        self.show_action_notification(&format!("{doing} {name}…"), Duration::from_secs(15), false);
+        self.action_names.insert(key, name);
+        RenderAction::Render
     }
 
     pub(super) fn handle_action_success(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
+        key: ContainerKey,
+        action: ContainerAction,
     ) -> RenderAction {
-        // TODO: Could show a success toast/notification in the UI in the future
-        // The container state will be updated by Docker events
-        // so we don't need to manually update it here
-        RenderAction::None // Don't force redraw - Docker events will trigger updates
+        // The row itself is updated by the Docker event for the change
+        let (_, done) = action.progress_words();
+        let message = format!("{done} {}", self.action_target_name(&key));
+        self.action_names.remove(&key);
+        self.show_action_notification(&message, Duration::from_secs(2), false);
+        RenderAction::Render
     }
 
     pub(super) fn handle_action_error(
         &mut self,
-        _key: ContainerKey,
-        _action: ContainerAction,
-        _error: String,
+        key: ContainerKey,
+        action: ContainerAction,
+        error: String,
     ) -> RenderAction {
-        // TODO: Could show an error toast/notification in the UI in the future
-        // For now, silently fail - the container state won't change on error
-        RenderAction::None // Don't force redraw for error messages
+        tracing::warn!(
+            "{} failed for {}: {}",
+            action.display_name(),
+            key.container_id,
+            error
+        );
+        // Docker errors can span lines; the toast has room for one
+        let error = error.lines().next().unwrap_or_default();
+        let message = format!(
+            "Failed to {} {}: {error}",
+            action.display_name().to_lowercase(),
+            self.action_target_name(&key)
+        );
+        self.action_names.remove(&key);
+        self.show_action_notification(&message, Duration::from_secs(6), true);
+        RenderAction::Render
     }
 }

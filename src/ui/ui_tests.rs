@@ -258,6 +258,135 @@ mod tests {
         assert_eq!(row("Docker  a-host"), Some(4));
     }
 
+    /// A failed action used to be dropped silently; it must say what failed.
+    #[test]
+    fn test_action_error_notification() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let container = create_test_container("abc123456789", "nginx", "local", 1.0, 1.0, 0.0, 0.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.handle_event(AppEvent::ContainerCreated(container));
+
+        state.handle_event(AppEvent::ActionInProgress(
+            key.clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping nginx…")
+        );
+
+        state.handle_event(AppEvent::ActionError(
+            key,
+            ContainerAction::Stop,
+            "Docker responded with status code 500: cannot stop container\nmore detail".to_string(),
+        ));
+        assert!(state.notification_is_error);
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 15);
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
+    }
+
+    /// Routine progress must not replace an error before it can be read.
+    #[test]
+    fn test_progress_toast_does_not_replace_an_error() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let key = ContainerKey::new("local".to_string(), "abc".to_string());
+        state.handle_event(AppEvent::ActionError(
+            key.clone(),
+            ContainerAction::Remove,
+            "conflict".to_string(),
+        ));
+        state.handle_event(AppEvent::ActionSuccess(key.clone(), ContainerAction::Start));
+
+        assert!(state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to remove abc: conflict")
+        );
+
+        // A newer error still replaces an older one
+        state.handle_event(AppEvent::ActionError(
+            key,
+            ContainerAction::Stop,
+            "timeout".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to stop abc: timeout")
+        );
+    }
+
+    /// A user-initiated confirmation ("Saved to …") must show even while an
+    /// action error is up, unlike background progress.
+    #[test]
+    fn test_user_notification_replaces_an_error() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ActionError(
+            ContainerKey::new("local".to_string(), "abc".to_string()),
+            ContainerAction::Stop,
+            "timeout".to_string(),
+        ));
+        state.show_notification("Saved to config.yaml");
+
+        assert!(!state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Saved to config.yaml")
+        );
+    }
+
+    /// Removing a container emits its destroy event, which can drop it from the
+    /// list before the action's result arrives; the toast keeps its name.
+    #[test]
+    fn test_remove_toast_keeps_the_container_name() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let container = create_test_container("abc123456789", "nginx", "local", 1.0, 1.0, 0.0, 0.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.handle_event(AppEvent::ContainerCreated(container));
+
+        state.handle_event(AppEvent::ActionInProgress(
+            key.clone(),
+            ContainerAction::Remove,
+        ));
+        state.handle_event(AppEvent::ContainerDestroyed(key.clone()));
+        state.handle_event(AppEvent::ActionSuccess(key, ContainerAction::Remove));
+
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Removed nginx")
+        );
+        assert!(state.action_names.is_empty());
+    }
+
+    /// An action finishing must not replace the reset prompt while a y/n is armed.
+    #[test]
+    fn test_action_notification_keeps_reset_prompt() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('r'),
+            KeyModifiers::CONTROL,
+        )));
+        state.handle_event(AppEvent::ActionSuccess(
+            ContainerKey::new("local".to_string(), "abc".to_string()),
+            ContainerAction::Start,
+        ));
+
+        assert!(state.reset_confirm_pending);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Reset all preferences to defaults? (y/n)")
+        );
+    }
+
     /// At a common 120 columns, detail is shed but the bars stay.
     #[test]
     fn test_system_stats_header_medium() {
@@ -273,13 +402,83 @@ mod tests {
         let toggle = || AppEvent::KeyInput(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
 
         state.handle_event(toggle());
+        assert!(
+            !state
+                .header_visible
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
         let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
         assert!(find_text_position(&buffer, "System").is_none());
         assert!(find_text_position(&buffer, "nginx").is_some());
 
+        // Shown again: the Docker lines are computed live and come straight
+        // back; the machine stats were dropped on hide (they'd be stale) and
+        // return with the next sample
         state.handle_event(toggle());
+        assert!(
+            state
+                .header_visible
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
         let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
-        assert!(find_text_position(&buffer, "System").is_some());
+        assert!(find_text_position(&buffer, "Docker  local").is_some());
+        assert!(find_text_position(&buffer, "System").is_none());
+
+        state.handle_event(AppEvent::SystemStats(SystemStats {
+            hostname: "workstation".to_string(),
+            ..Default::default()
+        }));
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        assert!(find_text_position(&buffer, "System  workstation").is_some());
+    }
+
+    /// Docker lines carry no network (container counters double-count traffic
+    /// between containers). With no System line to align to, the network
+    /// column is left out entirely rather than drawn as an empty gap.
+    #[test]
+    fn test_docker_only_header_has_no_network_gap() {
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ContainerCreated(create_test_container(
+            "abc123456789",
+            "nginx",
+            "tcp-host",
+            10.0,
+            10.0,
+            5000.0,
+            5000.0,
+        )));
+        state.handle_event(AppEvent::HostInfo(
+            "tcp-host".to_string(),
+            HostInfo {
+                cpus: 4,
+                memory_total_bytes: 8 * 1024 * 1024 * 1024,
+            },
+        ));
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        let row: String = (0..150).map(|x| buffer[(x, 2)].symbol()).collect();
+
+        assert!(!row.contains("TX"), "Docker line shows network: {row:?}");
+        let after_memory = row.split("/8G").nth(1).unwrap_or_default();
+        assert!(
+            after_memory.trim_start().starts_with("1/1 running")
+                && after_memory.trim_end().len() < 20,
+            "gap left where the network column would be: {row:?}"
+        );
+    }
+
+    /// 80 columns is the classic default; every line must fit without clipping.
+    #[test]
+    fn test_system_stats_header_80_columns() {
+        let mut state = create_system_stats_state();
+        let buffer = render_list(&mut state, &UiStyles::default(), 80, 20);
+        for y in 2..6 {
+            let row: String = (0..80).map(|x| buffer[(x, y)].symbol()).collect();
+            assert!(
+                row.ends_with(' '),
+                "header line {y} reaches the right edge, so it was clipped: {row:?}"
+            );
+        }
+        assert_snapshot_with_redaction!(buffer_to_string(&buffer));
     }
 
     /// The header gives way on short terminals instead of squeezing out the list.

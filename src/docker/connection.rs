@@ -9,7 +9,6 @@ use crate::core::types::{
     AppEvent, Container, ContainerKey, ContainerState, ContainerStats, EventSender, HostId,
     HostInfo,
 };
-use crate::docker::remote_stats::remote_system_stats_worker;
 use crate::docker::ssh::SshRunner;
 use crate::docker::stats::stream_container_stats;
 
@@ -271,6 +270,8 @@ impl DockerHost {
                 "stop".to_string(),
                 "destroy".to_string(),
                 "health_status".to_string(),
+                "pause".to_string(),
+                "unpause".to_string(),
             ],
         );
 
@@ -330,6 +331,22 @@ impl DockerHost {
                             "destroy" => {
                                 self.handle_container_destroy(&container_id, tx, active_containers)
                                     .await;
+                            }
+                            // The stats stream keeps running through a pause, so
+                            // only the displayed state needs to change
+                            "pause" | "unpause" => {
+                                // Only a running container can be paused, so
+                                // unpausing always returns it to running
+                                let state = if action == "pause" {
+                                    ContainerState::Paused
+                                } else {
+                                    ContainerState::Running
+                                };
+                                let key = ContainerKey::new(
+                                    self.host_id.clone(),
+                                    short_id(&container_id).to_string(),
+                                );
+                                let _ = tx.send(AppEvent::ContainerStateChanged(key, state)).await;
                             }
                             a if a.starts_with("health_status") => {
                                 self.handle_health_status_change(&container_id, a, &actor, tx)
@@ -683,15 +700,6 @@ impl DockerHost {
 pub async fn container_manager(host: DockerHost, tx: EventSender) {
     let mut active_containers: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
     let mut restart_backfill: Option<tokio::task::JoinHandle<()>> = None;
-
-    // Runs for the life of the manager and rides out outages on its own
-    if let Some(ssh) = host.ssh.clone() {
-        tokio::spawn(remote_system_stats_worker(
-            host.host_id.clone(),
-            ssh,
-            tx.clone(),
-        ));
-    }
 
     loop {
         // Refreshed on every (re)connect, since a daemon restart may come with a

@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use url::Url;
@@ -7,6 +9,7 @@ use crate::cli::config::{Config, HostConfig};
 use crate::cli::filters::parse_filters;
 use crate::core::types::AppEvent;
 use crate::docker::connection::{DockerHost, connect_docker_with_runner, container_manager};
+use crate::docker::remote_stats::spawn_for_host;
 
 /// Result of establishing connections to Docker hosts
 pub struct ConnectionResult {
@@ -119,9 +122,12 @@ pub async fn establish_connections(
 pub fn spawn_remaining_connections_handler(
     mut remaining_rx: mpsc::Receiver<DockerHost>,
     event_tx: mpsc::Sender<AppEvent>,
+    header_visible: Arc<AtomicBool>,
 ) {
     tokio::spawn(async move {
         while let Some(docker_host) = remaining_rx.recv().await {
+            spawn_for_host(&docker_host, &event_tx, &header_visible);
+
             // Send HostConnected event so AppState can track this host for log streaming
             let _ = event_tx
                 .send(AppEvent::HostConnected(docker_host.clone()))

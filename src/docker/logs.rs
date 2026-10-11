@@ -148,7 +148,11 @@ pub async fn fetch_older_logs(
             // NOTE: Bollard's LogsOptions uses i32 for timestamps, which will overflow in 2038.
             // This is a limitation of the bollard-stubs API. Track upstream for i64 support.
             since: since_timestamp.timestamp() as i32,
-            until: (before_timestamp.timestamp() - 1) as i32, // -1 to exclude boundary
+            // Docker only filters by whole seconds, so ask for the whole boundary
+            // second and trim to the exact timestamp below. Stopping a second
+            // early skipped every unloaded line that shared the oldest loaded
+            // line's second — for a burst, all of the remaining history.
+            until: (before_timestamp.timestamp() + 1) as i32,
             ..Default::default()
         });
 
@@ -160,7 +164,12 @@ pub async fn fetch_older_logs(
             match log_result {
                 Ok(log_output) => {
                     let log_line = log_output.to_string().replace('\r', "");
-                    if let Some(log_entry) = LogEntry::parse(&log_line) {
+                    // Strictly older: a distinct line stamped with exactly the
+                    // boundary line's nanosecond would be skipped. Docker's
+                    // nanosecond stamps make that vanishingly rare; accepted.
+                    if let Some(log_entry) = LogEntry::parse(&log_line)
+                        && log_entry.timestamp < before_timestamp
+                    {
                         batch_logs.push(log_entry);
                     }
                 }
@@ -179,12 +188,19 @@ pub async fn fetch_older_logs(
 
         // If we reached container start, return all logs we found (don't trim)
         if reached_container_start {
+            // Still one page at most: the window reaching the container's
+            // start can hold far more than a page (a burst at startup), and
+            // whatever doesn't fit is more history, not the end of it
+            let has_more = batch_logs.len() > batch_size;
+            if has_more {
+                batch_logs.drain(..batch_logs.len() - batch_size);
+            }
             tracing::debug!(
-                "Reached container start, returning all {} logs",
+                "Reached container start, returning {} logs (more: {has_more})",
                 batch_logs.len()
             );
             let _ = tx
-                .send(AppEvent::LogBatchPrepend(key, batch_logs, false))
+                .send(AppEvent::LogBatchPrepend(key, batch_logs, has_more))
                 .await;
             return;
         }
@@ -263,7 +279,10 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         stderr: true, // Include stderr
         timestamps: true,
         // NOTE: Bollard's LogsOptions uses i32 for timestamps (Y2038 limitation)
-        since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0), // Start after last historical log
+        // Whole seconds only, so this replays the rest of the last historical
+        // log's second; those lines are skipped below (strictly newer, with the
+        // same accepted equal-nanosecond caveat as `fetch_older_logs`).
+        since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0),
         ..Default::default()
     });
 
@@ -274,6 +293,7 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
             Ok(log_output) => {
                 let log_line = log_output.to_string().replace('\r', "");
                 if let Some(log_entry) = LogEntry::parse(&log_line)
+                    && last_timestamp.is_none_or(|last| log_entry.timestamp > last)
                     && tx
                         .send(AppEvent::LogLine(key.clone(), log_entry))
                         .await
