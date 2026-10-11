@@ -4,6 +4,8 @@ pub mod context;
 pub mod json_formatter;
 pub mod logs;
 #[cfg(test)]
+mod logs_tests;
+#[cfg(test)]
 mod reconnect_tests;
 pub mod remote_stats;
 pub mod shell;
