@@ -49,8 +49,12 @@ sort: uptime
 #   never  - never render links
 hyperlinks: auto
 
-# Show the system stats header above the container list (default: true).
+# == Stats Header ==
+# Show the system stats header above the container list: CPU, memory and
+# network for this machine, for each SSH host (read from its /proc), and
+# summed over each host's containers.
 # Press 't' to toggle it at runtime; Ctrl-S saves the current state.
+# Possible values: true (default), false
 stats_header: true
 
 # == Columns ==

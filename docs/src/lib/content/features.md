@@ -1,3 +1,3 @@
 - **Multi-Host Support** - Monitor containers across local, SSH, and TCP connections simultaneously from a single terminal session.
-- **Real-Time Metrics** - Track CPU, memory, and network I/O with smooth exponential moving averages. Color-coded at a glance.
+- **Real-Time Metrics** - Track CPU, memory, and network I/O per container with smooth exponential moving averages. A header adds machine stats for local and SSH hosts. Color-coded at a glance.
 - **Fast & Lightweight** - Built with Rust for minimal CPU and memory footprint. Starts instantly, runs silently in the background.
