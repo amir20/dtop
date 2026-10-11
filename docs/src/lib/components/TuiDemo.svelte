@@ -62,7 +62,9 @@
     { host: "local", label: "workstation", cores: 10, memGb: 32 },
     { host: "ops@db-eu", label: "ops@db-eu", cores: 8, memGb: 32 },
   ];
-  // Load outside the containers (desktop apps, the OS), animated like the rows
+  // Load outside the containers (desktop apps, the OS). CPU and network are
+  // animated with the rows; memory outside containers is held steady, so the
+  // memory bars move only with container memory.
   let machineLoad = $state(
     Object.fromEntries([
       ["local", { cpu: 14, target: 14, memGb: 13.2, tx: 3.1, rx: 6.4 }],
@@ -138,6 +140,16 @@
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const timer = setInterval(() => {
+      // Same tick as the rows, so the header and table update in one frame
+      for (const load of Object.values(machineLoad)) {
+        if (Math.random() < 0.25) {
+          load.target = Math.max(2, Math.min(40, load.target + (Math.random() - 0.5) * 12));
+        }
+        load.cpu += (load.target - load.cpu) * ALPHA;
+        load.tx = Math.max(0.1, load.tx + (Math.random() - 0.5) * 0.6);
+        load.rx = Math.max(0.1, load.rx + (Math.random() - 0.5) * 0.6);
+      }
+
       rows = rows.map((row) => {
         if (row.state === "exited") return row;
 
@@ -159,21 +171,7 @@
       });
     }, TICK_MS);
 
-    const loadTimer = setInterval(() => {
-      for (const load of Object.values(machineLoad)) {
-        if (Math.random() < 0.25) {
-          load.target = Math.max(2, Math.min(40, load.target + (Math.random() - 0.5) * 12));
-        }
-        load.cpu += (load.target - load.cpu) * ALPHA;
-        load.tx = Math.max(0.1, load.tx + (Math.random() - 0.5) * 0.6);
-        load.rx = Math.max(0.1, load.rx + (Math.random() - 0.5) * 0.6);
-      }
-    }, TICK_MS);
-
-    return () => {
-      clearInterval(timer);
-      clearInterval(loadTimer);
-    };
+    return () => clearInterval(timer);
   });
 </script>
 
