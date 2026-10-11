@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-10-11
+
+### Features
+
+- *(ui)* Add system stats header above the container list (#379)
+
+### Bug Fixes
+
+- Bugs found while testing dtop end to end in tmux (#380)
+
 ## [0.9.4] - 2026-09-26
 
 ### Features
