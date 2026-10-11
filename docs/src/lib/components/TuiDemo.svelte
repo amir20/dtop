@@ -89,18 +89,19 @@
   }
 
   /** `write_byte_value`, shared by `write_bytes` and `write_bytes_per_sec`. */
-  function bytes(value, [gbPrec, mbPrec, kbPrec, bPrec], unit = "") {
+  function bytes(value, [gbPrec, mbPrec, kbPrec, bPrec], includeB, suffix) {
+    const b = includeB ? "B" : "";
     if (value >= GB) {
       const gb = value / GB;
       const prec = gbPrec === 0 && Math.abs(gb - Math.round(gb)) >= 0.05 ? 1 : gbPrec;
-      return `${gb.toFixed(prec)}G${unit}`;
+      return `${gb.toFixed(prec)}G${b}${suffix}`;
     }
-    if (value >= MB) return `${(value / MB).toFixed(mbPrec)}M${unit}`;
-    if (value >= KB) return `${(value / KB).toFixed(kbPrec)}K${unit}`;
-    return `${value.toFixed(bPrec)}B${unit && unit.slice(1)}`;
+    if (value >= MB) return `${(value / MB).toFixed(mbPrec)}M${b}${suffix}`;
+    if (value >= KB) return `${(value / KB).toFixed(kbPrec)}K${b}${suffix}`;
+    return `${value.toFixed(bPrec)}B${suffix}`;
   }
-  const size = (value) => bytes(value, [0, 0, 0, 0]);
-  const rate = (value) => bytes(value, [2, 2, 1, 0], "B/s");
+  const size = (value) => bytes(value, [0, 0, 0, 0], false, "");
+  const rate = (value) => bytes(value, [2, 2, 1, 0], true, "/s");
 
   const pct = (value) => `${value.toFixed(1).padStart(5)}%`;
 
@@ -370,6 +371,8 @@
   </div>
 
   <div class="overflow-x-auto px-2 py-2 [container-type:inline-size]">
+    <!-- The <pre> is whitespace-exact: reformatting it shifts the grid -->
+    <!-- prettier-ignore -->
     <pre
       class="w-max min-w-full font-mono text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)"
       role="img"
