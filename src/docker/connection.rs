@@ -271,6 +271,8 @@ impl DockerHost {
                 "stop".to_string(),
                 "destroy".to_string(),
                 "health_status".to_string(),
+                "pause".to_string(),
+                "unpause".to_string(),
             ],
         );
 
@@ -330,6 +332,20 @@ impl DockerHost {
                             "destroy" => {
                                 self.handle_container_destroy(&container_id, tx, active_containers)
                                     .await;
+                            }
+                            // The stats stream keeps running through a pause, so
+                            // only the displayed state needs to change
+                            "pause" | "unpause" => {
+                                let state = if action == "pause" {
+                                    ContainerState::Paused
+                                } else {
+                                    ContainerState::Running
+                                };
+                                let key = ContainerKey::new(
+                                    self.host_id.clone(),
+                                    short_id(&container_id).to_string(),
+                                );
+                                let _ = tx.send(AppEvent::ContainerStateChanged(key, state)).await;
                             }
                             a if a.starts_with("health_status") => {
                                 self.handle_health_status_change(&container_id, a, &actor, tx)

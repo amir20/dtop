@@ -15,7 +15,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
 use tokio::task::{JoinHandle, JoinSet};
 
-use crate::core::types::{AppEvent, HostInfo};
+use crate::core::types::{AppEvent, ContainerState, HostInfo};
 use crate::docker::connection::{DockerHost, connect_docker, container_manager};
 
 /// How long a test waits for an expected event before giving up. Generous
@@ -28,15 +28,23 @@ struct FakeDocker {
     path: PathBuf,
     acceptor: Option<JoinHandle<()>>,
     containers_json: &'static str,
+    /// Newline-delimited event JSON sent on each `/events` stream before it idles
+    events: &'static str,
 }
 
 impl FakeDocker {
     /// Binds the socket and starts serving `containers_json` as the container list.
     fn start(path: &Path, containers_json: &'static str) -> Self {
+        Self::start_with_events(path, containers_json, "")
+    }
+
+    /// Like [`FakeDocker::start`], also sending `events` on the event stream.
+    fn start_with_events(path: &Path, containers_json: &'static str, events: &'static str) -> Self {
         let mut daemon = Self {
             path: path.to_path_buf(),
             acceptor: None,
             containers_json,
+            events,
         };
         daemon.restart(containers_json);
         daemon
@@ -52,6 +60,7 @@ impl FakeDocker {
         // before rebinding at the same path.
         let _ = std::fs::remove_file(&self.path);
         let listener = UnixListener::bind(&self.path).expect("bind fake docker socket");
+        let events = self.events;
 
         self.acceptor = Some(tokio::spawn(async move {
             // Connections live in a JoinSet owned by this task: aborting the task
@@ -60,7 +69,7 @@ impl FakeDocker {
             let mut connections = JoinSet::new();
 
             while let Ok((stream, _)) = listener.accept().await {
-                connections.spawn(handle_connection(stream, containers_json));
+                connections.spawn(handle_connection(stream, containers_json, events));
             }
         }));
     }
@@ -81,7 +90,11 @@ impl Drop for FakeDocker {
 }
 
 /// Serves requests on one connection until the client goes away.
-async fn handle_connection(mut stream: UnixStream, containers_json: &'static str) {
+async fn handle_connection(
+    mut stream: UnixStream,
+    containers_json: &'static str,
+    events: &'static str,
+) {
     let mut buffer = Vec::new();
 
     loop {
@@ -119,6 +132,12 @@ async fn handle_connection(mut stream: UnixStream, containers_json: &'static str
                 .await;
             if ok.is_err() {
                 return;
+            }
+            if !events.is_empty() {
+                let chunk = format!("{:x}\r\n{events}\r\n", events.len());
+                if stream.write_all(chunk.as_bytes()).await.is_err() {
+                    return;
+                }
             }
             let _ = stream.flush().await;
 
@@ -267,6 +286,41 @@ async fn container_manager_reconnects_after_daemon_restart() {
         names,
         vec!["db"],
         "reconnect should re-sync from the daemon, not replay pre-outage state"
+    );
+
+    manager.abort();
+}
+
+/// `docker pause` stops a container's processes without stopping the
+/// container, so it only shows up as a state change.
+#[tokio::test]
+async fn pause_and_unpause_events_change_the_displayed_state() {
+    const CONTAINERS: &str =
+        r#"[{"Id":"aaaaaaaaaaaa1111","Names":["/web"],"State":"exited","Created":1700000000}]"#;
+    const EVENTS: &str = concat!(
+        r#"{"Type":"container","Action":"pause","Actor":{"ID":"aaaaaaaaaaaa1111"}}"#,
+        "\n",
+        r#"{"Type":"container","Action":"unpause","Actor":{"ID":"aaaaaaaaaaaa1111"}}"#,
+        "\n",
+    );
+
+    let path = socket_path("pause");
+    let _daemon = FakeDocker::start_with_events(&path, CONTAINERS, EVENTS);
+    let (tx, mut rx) = mpsc::channel::<AppEvent>(100);
+    let manager = tokio::spawn(container_manager(docker_host(&path), tx));
+
+    let state_change = |event: &AppEvent| match event {
+        AppEvent::ContainerStateChanged(key, state) => {
+            Some((key.container_id.clone(), state.clone()))
+        }
+        _ => None,
+    };
+    let paused = wait_for(&mut rx, "the pause", state_change).await;
+    assert_eq!(paused, ("aaaaaaaaaaaa".to_string(), ContainerState::Paused));
+    let unpaused = wait_for(&mut rx, "the unpause", state_change).await;
+    assert_eq!(
+        unpaused,
+        ("aaaaaaaaaaaa".to_string(), ContainerState::Running)
     );
 
     manager.abort();
