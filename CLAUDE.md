@@ -69,6 +69,10 @@ bun run build                                # Production build
 bun run preview                              # Preview production build
 ```
 
+The animated TUI on the home page (`docs/src/lib/components/TuiDemo.svelte`) hand-ports dtop's
+rendering (column widths, header bar fitting, formatters, icons). Update it when changing
+`src/ui/container_list.rs`, `src/ui/system_header.rs`, `src/ui/formatters.rs` or the default columns.
+
 ## Nix Flake
 
 The project includes a Nix flake (`flake.nix`) for reproducible builds and easy installation.
