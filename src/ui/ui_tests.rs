@@ -319,6 +319,52 @@ mod tests {
         );
     }
 
+    /// A user-initiated confirmation ("Saved to …") must show even while an
+    /// action error is up, unlike background progress.
+    #[test]
+    fn test_user_notification_replaces_an_error() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        state.handle_event(AppEvent::ActionError(
+            ContainerKey::new("local".to_string(), "abc".to_string()),
+            ContainerAction::Stop,
+            "timeout".to_string(),
+        ));
+        state.show_notification("Saved to config.yaml");
+
+        assert!(!state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Saved to config.yaml")
+        );
+    }
+
+    /// Removing a container emits its destroy event, which can drop it from the
+    /// list before the action's result arrives; the toast keeps its name.
+    #[test]
+    fn test_remove_toast_keeps_the_container_name() {
+        use crate::core::types::ContainerAction;
+
+        let mut state = create_test_app_state();
+        let container = create_test_container("abc123456789", "nginx", "local", 1.0, 1.0, 0.0, 0.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.handle_event(AppEvent::ContainerCreated(container));
+
+        state.handle_event(AppEvent::ActionInProgress(
+            key.clone(),
+            ContainerAction::Remove,
+        ));
+        state.handle_event(AppEvent::ContainerDestroyed(key.clone()));
+        state.handle_event(AppEvent::ActionSuccess(key, ContainerAction::Remove));
+
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Removed nginx")
+        );
+        assert!(state.action_names.is_empty());
+    }
+
     /// An action finishing must not replace the reset prompt while a y/n is armed.
     #[test]
     fn test_action_notification_keeps_reset_prompt() {
@@ -356,13 +402,34 @@ mod tests {
         let toggle = || AppEvent::KeyInput(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
 
         state.handle_event(toggle());
+        assert!(
+            !state
+                .header_visible
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
         let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
         assert!(find_text_position(&buffer, "System").is_none());
         assert!(find_text_position(&buffer, "nginx").is_some());
 
+        // Shown again: the Docker lines are computed live and come straight
+        // back; the machine stats were dropped on hide (they'd be stale) and
+        // return with the next sample
         state.handle_event(toggle());
+        assert!(
+            state
+                .header_visible
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
         let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
-        assert!(find_text_position(&buffer, "System").is_some());
+        assert!(find_text_position(&buffer, "Docker  local").is_some());
+        assert!(find_text_position(&buffer, "System").is_none());
+
+        state.handle_event(AppEvent::SystemStats(SystemStats {
+            hostname: "workstation".to_string(),
+            ..Default::default()
+        }));
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+        assert!(find_text_position(&buffer, "System  workstation").is_some());
     }
 
     /// Docker lines carry no network (container counters double-count traffic

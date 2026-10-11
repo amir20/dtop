@@ -188,12 +188,19 @@ pub async fn fetch_older_logs(
 
         // If we reached container start, return all logs we found (don't trim)
         if reached_container_start {
+            // Still one page at most: the window reaching the container's
+            // start can hold far more than a page (a burst at startup), and
+            // whatever doesn't fit is more history, not the end of it
+            let has_more = batch_logs.len() > batch_size;
+            if has_more {
+                batch_logs.drain(..batch_logs.len() - batch_size);
+            }
             tracing::debug!(
-                "Reached container start, returning all {} logs",
+                "Reached container start, returning {} logs (more: {has_more})",
                 batch_logs.len()
             );
             let _ = tx
-                .send(AppEvent::LogBatchPrepend(key, batch_logs, false))
+                .send(AppEvent::LogBatchPrepend(key, batch_logs, has_more))
                 .await;
             return;
         }

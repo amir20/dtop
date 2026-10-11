@@ -184,13 +184,31 @@ impl AppState {
         RenderAction::Render // Force draw
     }
 
-    /// The container's name for notifications, or its ID once it is gone
-    /// (e.g. after a successful remove).
+    /// The container's name for notifications. Remembered when the action
+    /// starts, since a removed container can be gone from the list (via its
+    /// destroy event) before the action's result arrives; the ID is the last
+    /// resort.
     fn action_target_name(&self, key: &ContainerKey) -> String {
-        self.containers
+        self.action_names
             .get(key)
-            .map(|c| c.name.clone())
+            .or_else(|| self.containers.get(key).map(|c| &c.name))
+            .cloned()
             .unwrap_or_else(|| key.container_id.clone())
+    }
+
+    /// Shows background action progress, unless an unexpired error is up:
+    /// routine news ("Stopped x") shouldn't replace an error before it can be
+    /// read. A newer error still replaces an older one.
+    fn show_action_notification(&mut self, message: &str, duration: Duration, is_error: bool) {
+        let showing_error = self.notification_is_error
+            && self
+                .notification
+                .as_ref()
+                .is_some_and(|(_, expiry)| std::time::Instant::now() < *expiry);
+        if showing_error && !is_error {
+            return;
+        }
+        self.show_notification_for(message, duration, is_error);
     }
 
     pub(super) fn handle_action_in_progress(
@@ -201,9 +219,10 @@ impl AppState {
         // Stop and restart wait up to 10s for the container to exit, so say
         // something is happening. The result normally replaces it; the expiry
         // only matters if none arrives (e.g. the host dropped mid-action).
+        let name = self.action_target_name(&key);
         let (doing, _) = action.progress_words();
-        let message = format!("{doing} {}…", self.action_target_name(&key));
-        self.show_notification_for(&message, Duration::from_secs(15), false);
+        self.show_action_notification(&format!("{doing} {name}…"), Duration::from_secs(15), false);
+        self.action_names.insert(key, name);
         RenderAction::Render
     }
 
@@ -215,7 +234,8 @@ impl AppState {
         // The row itself is updated by the Docker event for the change
         let (_, done) = action.progress_words();
         let message = format!("{done} {}", self.action_target_name(&key));
-        self.show_notification_for(&message, Duration::from_secs(2), false);
+        self.action_names.remove(&key);
+        self.show_action_notification(&message, Duration::from_secs(2), false);
         RenderAction::Render
     }
 
@@ -238,7 +258,8 @@ impl AppState {
             action.display_name().to_lowercase(),
             self.action_target_name(&key)
         );
-        self.show_notification_for(&message, Duration::from_secs(6), true);
+        self.action_names.remove(&key);
+        self.show_action_notification(&message, Duration::from_secs(6), true);
         RenderAction::Render
     }
 }

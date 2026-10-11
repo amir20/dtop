@@ -61,7 +61,15 @@ impl AppState {
     }
 
     /// Shows or hides the header, pausing or resuming the samplers with it.
+    ///
+    /// Hiding drops the machine stats: the samplers stop updating them, so on
+    /// re-show they'd be presented as live however old they were. The lines
+    /// come back with the first fresh samples.
     pub fn set_show_system_header(&mut self, show: bool) {
+        if !show {
+            self.system_stats = None;
+            self.remote_system_stats.clear();
+        }
         self.show_system_header = show;
         self.header_visible
             .store(show, std::sync::atomic::Ordering::Relaxed);

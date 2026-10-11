@@ -16,6 +16,10 @@ use crate::core::types::{AppEvent, EventSender, SystemStats};
 /// How often a new sample is taken. CPU usage is averaged over this window.
 pub(crate) const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
 
+/// How often a paused sampler checks whether the header is back, so pressing
+/// 't' brings the numbers back promptly.
+pub(crate) const PAUSED_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
 /// Sends a [`AppEvent::SystemStats`] every [`SAMPLE_INTERVAL`] until the UI goes away.
 ///
 /// Blocking: run it on its own thread, like the keyboard worker. `sysinfo`
@@ -37,7 +41,7 @@ pub fn system_stats_worker(tx: EventSender, header_visible: Arc<AtomicBool>) {
             }
             // Rates across the pause would be averaged over it; prime again
             primed = false;
-            std::thread::sleep(SAMPLE_INTERVAL);
+            std::thread::sleep(PAUSED_POLL_INTERVAL);
             continue;
         }
         if !primed {

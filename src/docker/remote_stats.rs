@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::core::system_stats::{SAMPLE_INTERVAL, is_virtual_interface};
+use crate::core::system_stats::{PAUSED_POLL_INTERVAL, SAMPLE_INTERVAL, is_virtual_interface};
 use crate::core::types::{AppEvent, EventSender, HostId, SystemStats};
 use crate::docker::connection::DockerHost;
 use crate::docker::ssh::SshRunner;
@@ -83,7 +83,7 @@ pub async fn remote_system_stats_worker(
         if !header_visible.load(Ordering::Relaxed) {
             // Rates across the pause would be averaged over it; start fresh
             previous = None;
-            if !wait(&tx, SAMPLE_INTERVAL).await {
+            if !wait(&tx, PAUSED_POLL_INTERVAL).await {
                 return;
             }
             continue;

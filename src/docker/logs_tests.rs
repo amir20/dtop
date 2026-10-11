@@ -206,3 +206,28 @@ async fn older_logs_include_the_rest_of_the_boundary_second() {
     assert_eq!(numbers(&batch), [1, 2, 3]);
     assert!(!has_more, "the window reached the container's start");
 }
+
+/// A burst at the container's start can exceed a page; the page stays bounded
+/// and what didn't fit is reported as more history, then fetched next.
+#[tokio::test]
+async fn older_logs_stay_paged_at_the_container_start() {
+    let fake = FakeLogs::start("logs-page", (1..=5).collect(), vec![]);
+    let created = Some(Utc.timestamp_opt(SECOND - 60, 0).unwrap());
+
+    let fetch = |before: u32| {
+        let (tx, mut rx) = mpsc::channel(100);
+        let host = fake.host();
+        async move {
+            fetch_older_logs(host, "abc".to_string(), ts(before), ts(5), created, 2, tx).await;
+            match tokio::time::timeout(TIMEOUT, rx.recv()).await {
+                Ok(Some(AppEvent::LogBatchPrepend(_, batch, has_more))) => {
+                    (numbers(&batch), has_more)
+                }
+                other => panic!("no batch sent: {other:?}"),
+            }
+        }
+    };
+
+    assert_eq!(fetch(5).await, (vec![3, 4], true));
+    assert_eq!(fetch(3).await, (vec![1, 2], false));
+}

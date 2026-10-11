@@ -95,6 +95,8 @@ pub struct AppState {
     pub notification: Option<(String, Instant)>,
     /// Whether `notification` reports a failure (drawn in red)
     pub notification_is_error: bool,
+    /// Names of containers with an action in flight, for its result toast
+    pub(crate) action_names: HashMap<ContainerKey, String>,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -149,6 +151,7 @@ impl AppState {
             last_sort_time: Instant::now(),
             notification: None,
             notification_is_error: false,
+            action_names: HashMap::new(),
             reset_confirm_pending: false,
         }
     }

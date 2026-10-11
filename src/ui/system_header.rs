@@ -180,11 +180,14 @@ impl HeaderText {
         self.cpu = field(&mut self.buf, |buf| {
             let _ = write!(buf, "{cpu:5.1}%");
         });
-        self.cores = field(&mut self.buf, |buf| {
-            // Singular padded to the plural's width so lines stay aligned
-            let unit = if cores == 1 { "core " } else { "cores" };
-            let _ = write!(buf, " of {cores:>2} {unit}");
-        });
+        // A host that reported no CPU count gets no "of 0 cores"
+        if cores > 0 {
+            self.cores = field(&mut self.buf, |buf| {
+                // Singular padded to the plural's width so lines stay aligned
+                let unit = if cores == 1 { "core " } else { "cores" };
+                let _ = write!(buf, " of {cores:>2} {unit}");
+            });
+        }
     }
 
     fn memory(&mut self, used: u64, total: u64) {
