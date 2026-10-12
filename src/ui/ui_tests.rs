@@ -2507,4 +2507,51 @@ mod tests {
             Some("Selected containers are hidden; Esc clears the selection")
         );
     }
+
+    /// An armed Remove must not run on a different set of containers than
+    /// the one shown when it was armed.
+    #[test]
+    fn test_armed_remove_disarms_when_its_targets_change() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // `web` goes away; Remove stays in the menu, but now hits 2, not 3
+        state.handle_event(AppEvent::ContainerDestroyed(keys[2].clone()));
+        assert_eq!(state.selected_menu_action(), Some(ContainerAction::Remove));
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.armed_bulk_action, None);
+    }
+
+    #[test]
+    fn test_left_cancels_bulk_menu() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        // Marks survive cancelling the menu
+        assert_eq!(state.marked_containers.len(), 3);
+    }
+
+    /// A stray Esc can drop a large selection, so it says so.
+    #[test]
+    fn test_esc_clearing_marks_says_so() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Cleared selection of 3 containers")
+        );
+    }
 }

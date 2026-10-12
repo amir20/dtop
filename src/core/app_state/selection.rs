@@ -27,7 +27,7 @@ impl AppState {
     /// already are. Not offered while typing a search, where keys go to the
     /// input; after Enter applies the filter it marks the matching rows.
     pub(super) fn handle_toggle_mark_all(&mut self) -> RenderAction {
-        if self.view_state != ViewState::ContainerList {
+        if self.view_state != ViewState::ContainerList || self.sorted_container_keys.is_empty() {
             return RenderAction::None;
         }
         let all_marked = self

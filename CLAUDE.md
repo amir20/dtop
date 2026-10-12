@@ -599,7 +599,8 @@ The application supports interactive container management through an action menu
   a container hidden by search or the show-all toggle is never touched unseen
 - The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
   (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
-- Remove needs a second Enter (`armed_bulk_action`). When container changes reshape an open
+- Remove needs a second Enter (`armed_bulk_action`), and only runs if it still hits the same
+  containers (`armed_bulk_targets`). When container changes reshape an open
   menu, `revalidate_action_menu` keeps the cursor on the same action, or disarms if it is gone
 - Failed containers are re-marked, so retrying them is one Enter away
 - Results are tracked per batch in `AppState::bulk_progress` (batches can overlap) and reported

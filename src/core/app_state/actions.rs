@@ -73,8 +73,11 @@ impl AppState {
                 self.armed_bulk_action = None;
             }
             ViewState::ContainerList if !self.marked_containers.is_empty() => {
-                // Unmark everything
+                // Unmark everything, and say so: a stray Esc can drop a
+                // large selection
+                let count = self.marked_containers.len();
                 self.marked_containers.clear();
+                self.show_notification(&format!("Cleared selection of {}", containers_word(count)));
                 return RenderAction::Render;
             }
             ViewState::ColumnSelector => {
@@ -196,16 +199,6 @@ impl AppState {
             return RenderAction::None;
         };
 
-        // The confirming Enter must land on the action that was armed
-        let armed = self.armed_bulk_action.take();
-        if armed.is_some_and(|armed| armed != action) {
-            return RenderAction::Render;
-        }
-        if action == ContainerAction::Remove && armed.is_none() {
-            self.armed_bulk_action = Some(action);
-            return RenderAction::Render; // The menu footer asks to confirm
-        }
-
         let targets: Vec<ContainerKey> = self
             .marked_visible_keys()
             .into_iter()
@@ -215,6 +208,20 @@ impl AppState {
                 })
             })
             .collect();
+
+        // The confirming Enter must land on the armed action, and that action
+        // must still hit exactly the containers shown when it was armed;
+        // otherwise it only disarms, and the footer and counts update.
+        let armed = self.armed_bulk_action.take();
+        let armed_targets = std::mem::take(&mut self.armed_bulk_targets);
+        if armed.is_some_and(|armed| armed != action || armed_targets != targets) {
+            return RenderAction::Render;
+        }
+        if action == ContainerAction::Remove && armed.is_none() {
+            self.armed_bulk_action = Some(action);
+            self.armed_bulk_targets = targets;
+            return RenderAction::Render; // The menu footer asks to confirm
+        }
 
         let mut pending = HashSet::with_capacity(targets.len());
         let mut skipped = 0;

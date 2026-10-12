@@ -33,7 +33,7 @@ pub(crate) struct BulkProgress {
     /// Reason for the latest failure, for the summary
     pub last_error: Option<String>,
     /// When the batch was launched; stale batches are dropped
-    pub started: std::time::Instant,
+    pub started: Instant,
 }
 
 /// Application state that manages all runtime data
@@ -118,6 +118,9 @@ pub struct AppState {
     pub(crate) bulk_progress: Vec<BulkProgress>,
     /// The bulk action picked once and awaiting a confirming Enter (Remove)
     pub armed_bulk_action: Option<ContainerAction>,
+    /// The containers the armed action was shown to hit; a confirming Enter
+    /// only runs it if they haven't changed
+    pub(crate) armed_bulk_targets: Vec<ContainerKey>,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -176,6 +179,7 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             armed_bulk_action: None,
+            armed_bulk_targets: Vec::new(),
             reset_confirm_pending: false,
         }
     }
@@ -394,7 +398,13 @@ impl AppState {
             KeyCode::Char('c') => self.handle_open_column_selector(),
             KeyCode::Char('t') => self.handle_toggle_system_header(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
-            KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
+            KeyCode::Left | KeyCode::Char('h') => match &self.view_state {
+                // The menu footers offer ← to cancel
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_cancel_action_menu()
+                }
+                _ => self.handle_exit_log_view(),
+            },
             KeyCode::Char('g') => self.handle_scroll_to_top(),
             KeyCode::Char('G') => self.handle_scroll_to_bottom(),
             KeyCode::Char(' ') => match &self.view_state {
