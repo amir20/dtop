@@ -30,7 +30,7 @@ pub(crate) struct BulkProgress {
     pub pending: HashSet<ContainerKey>,
     pub total: usize,
     pub failed: usize,
-    /// Reason for the latest failure, for the summary when only one failed
+    /// Reason for the latest failure, for the summary
     pub last_error: Option<String>,
 }
 
@@ -111,8 +111,9 @@ pub struct AppState {
     pub(crate) action_names: HashMap<ContainerKey, String>,
     /// Containers marked with Space (or Ctrl+A) for a bulk action
     pub marked_containers: HashSet<ContainerKey>,
-    /// Progress of the last bulk action, reported as one summary toast
-    pub(crate) bulk_progress: Option<BulkProgress>,
+    /// Bulk actions still in flight, each reported as one summary toast.
+    /// Several can overlap, e.g. Stop on some containers, then Remove on others.
+    pub(crate) bulk_progress: Vec<BulkProgress>,
     /// Remove was picked in the bulk menu once; Enter again confirms it
     pub bulk_remove_armed: bool,
     /// Whether a reset confirmation is pending
@@ -171,7 +172,7 @@ impl AppState {
             notification_is_error: false,
             action_names: HashMap::new(),
             marked_containers: HashSet::new(),
-            bulk_progress: None,
+            bulk_progress: Vec::new(),
             bulk_remove_armed: false,
             reset_confirm_pending: false,
         }
@@ -218,6 +219,22 @@ impl AppState {
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
+        // Container changes can empty or shrink an open action menu
+        let changes_containers = matches!(
+            event,
+            AppEvent::InitialContainerList(..)
+                | AppEvent::ContainerDestroyed(_)
+                | AppEvent::ContainerStateChanged(..)
+                | AppEvent::ContainerCreated(_)
+        );
+        let action = self.dispatch_event(event);
+        if changes_containers {
+            self.revalidate_action_menu();
+        }
+        action
+    }
+
+    fn dispatch_event(&mut self, event: AppEvent) -> RenderAction {
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
                 self.handle_initial_container_list(host_id, container_list)
@@ -421,13 +438,8 @@ impl AppState {
         self.remote_system_stats.remove(&host_id);
         // Results from this host may never arrive; a bulk action waiting on
         // them would otherwise linger and swallow later toasts for its keys
-        if self
-            .bulk_progress
-            .as_ref()
-            .is_some_and(|p| p.pending.iter().any(|key| key.host_id == host_id))
-        {
-            self.bulk_progress = None;
-        }
+        self.bulk_progress
+            .retain(|p| !p.pending.iter().any(|key| key.host_id == host_id));
         self.disconnected_hosts.insert(host_id);
         RenderAction::Render // Force draw - show the reconnecting banner
     }

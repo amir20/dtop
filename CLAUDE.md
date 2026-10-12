@@ -600,9 +600,12 @@ The application supports interactive container management through an action menu
 - The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
   (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
 - Remove needs a second Enter (`bulk_remove_armed`)
-- Results are tracked in `BulkProgress` and reported as one summary toast
-  ("Stopped 4 containers", or "Stopped 3 of 4 containers (1 failed: <reason>)"); failures also get
-  their own toast. A host disconnect clears a bulk action still waiting on that host
+- Results are tracked per batch in `AppState::bulk_progress` (batches can overlap) and reported
+  as one summary toast: "Stopped 4 containers", or "Stopped 2 of 4 containers (2 failed, last:
+  <reason>)". A one-container batch leaves its own error toast up instead. Containers on a
+  disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it
+- An action menu left with no actions (its containers went away) closes itself
+  (`revalidate_action_menu`)
 
 **Implementation Details:**
 - Actions spawn async tasks that don't block the UI

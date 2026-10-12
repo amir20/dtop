@@ -92,6 +92,31 @@ impl AppState {
         RenderAction::Render // Force draw - view changed
     }
 
+    /// Closes an action menu left with nothing to offer, e.g. because its
+    /// containers were removed while it was open (it would otherwise stay
+    /// active but undrawn), and keeps its cursor in range.
+    pub(super) fn revalidate_action_menu(&mut self) {
+        if !matches!(
+            self.view_state,
+            ViewState::ActionMenu(_) | ViewState::BulkActionMenu
+        ) {
+            return;
+        }
+        let action_count = self.menu_actions().len();
+        if action_count == 0 {
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+            self.bulk_remove_armed = false;
+        } else if self
+            .action_menu_state
+            .selected()
+            .is_some_and(|i| i >= action_count)
+        {
+            self.action_menu_state.select(Some(action_count - 1));
+            self.bulk_remove_armed = false;
+        }
+    }
+
     /// Actions listed by the open action menu, single or bulk
     pub fn menu_actions(&self) -> Vec<ContainerAction> {
         match &self.view_state {
@@ -165,8 +190,11 @@ impl AppState {
             .collect();
 
         let mut pending = HashSet::with_capacity(targets.len());
+        let mut skipped = 0;
         for key in targets {
             let Some(host) = self.connected_hosts.get(&key.host_id) else {
+                // Stays marked, so it can be retried once the host is back
+                skipped += 1;
                 continue;
             };
             let host = host.clone();
@@ -188,12 +216,17 @@ impl AppState {
 
         let total = pending.len();
         let (doing, _) = action.progress_words();
+        let skipped_note = if skipped > 0 {
+            format!(" ({skipped} skipped, host disconnected)")
+        } else {
+            String::new()
+        };
         self.show_action_notification(
-            &format!("{doing} {}…", containers_word(total)),
+            &format!("{doing} {}…{skipped_note}", containers_word(total)),
             Duration::from_secs(15),
             false,
         );
-        self.bulk_progress = Some(BulkProgress {
+        self.bulk_progress.push(BulkProgress {
             action,
             pending,
             total,
@@ -212,12 +245,15 @@ impl AppState {
         action: ContainerAction,
         error: Option<&str>,
     ) -> bool {
-        let Some(progress) = self.bulk_progress.as_mut() else {
+        let Some(index) = self
+            .bulk_progress
+            .iter()
+            .position(|p| p.action == action && p.pending.contains(key))
+        else {
             return false;
         };
-        if progress.action != action || !progress.pending.remove(key) {
-            return false;
-        }
+        let progress = &mut self.bulk_progress[index];
+        progress.pending.remove(key);
         if let Some(error) = error {
             progress.failed += 1;
             progress.last_error = Some(error.to_string());
@@ -226,7 +262,7 @@ impl AppState {
             let (_, done) = action.progress_words();
             let (total, failed) = (progress.total, progress.failed);
             let last_error = progress.last_error.take();
-            self.bulk_progress = None;
+            self.bulk_progress.swap_remove(index);
             if failed > 0 && total == 1 {
                 // The container's own error toast already says what happened
             } else if failed == 0 {
@@ -236,11 +272,12 @@ impl AppState {
                     false,
                 );
             } else {
-                // A single failure's reason fits; with more, each one had
-                // its own toast
+                // There is one notification slot, so earlier failures' toasts
+                // are already gone; keep the latest reason in the summary
                 let reason = match last_error {
                     Some(error) if failed == 1 => format!(": {error}"),
-                    _ => String::new(),
+                    Some(error) => format!(", last: {error}"),
+                    None => String::new(),
                 };
                 self.show_action_notification(
                     &format!(
@@ -359,8 +396,8 @@ impl AppState {
         // Bulk members share the "Stopping N containers…" toast shown at launch
         let in_bulk = self
             .bulk_progress
-            .as_ref()
-            .is_some_and(|p| p.action == action && p.pending.contains(&key));
+            .iter()
+            .any(|p| p.action == action && p.pending.contains(&key));
         if !in_bulk {
             let (doing, _) = action.progress_words();
             self.show_action_notification(
