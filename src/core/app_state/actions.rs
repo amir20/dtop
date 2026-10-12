@@ -26,6 +26,12 @@ impl AppState {
             self.armed_bulk_action = None;
             return RenderAction::Render;
         }
+        // Marks exist but are all filtered out: opening the single menu for
+        // the highlighted row would look like it ignored the selection
+        if !self.marked_containers.is_empty() {
+            self.show_notification("Selected containers are hidden; Esc clears the selection");
+            return RenderAction::Render;
+        }
 
         // Get the selected container
         let Some(selected_idx) = self.table_state.selected() else {
@@ -235,7 +241,9 @@ impl AppState {
             return RenderAction::Render;
         }
 
-        // A container now in this batch reports here, not to an older one
+        // A container now in this batch reports here, not to an older one.
+        // The older batch shrinks to match, so its summary counts only the
+        // containers still reporting to it.
         self.bulk_progress.retain_mut(|batch| {
             let before = batch.pending.len();
             batch.pending.retain(|key| !pending.contains(key));

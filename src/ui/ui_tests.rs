@@ -2489,4 +2489,22 @@ mod tests {
             Some("Stopping api…")
         );
     }
+
+    /// Enter with every mark filtered out says so, rather than silently
+    /// opening the single-container menu.
+    #[test]
+    fn test_enter_with_only_hidden_marks_explains() {
+        let (mut state, keys) = create_bulk_state();
+        state.marked_containers.insert(keys[1].clone());
+        state.show_all_containers = false;
+        state.force_sort_containers();
+        state.table_state.select(Some(0));
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Selected containers are hidden; Esc clears the selection")
+        );
+    }
 }
