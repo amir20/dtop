@@ -14,11 +14,7 @@ impl AppState {
         }
 
         // With containers marked, Enter acts on all of them instead
-        if self
-            .marked_containers
-            .iter()
-            .any(|key| self.sorted_container_keys.contains(key))
-        {
+        if !self.marked_visible_keys().is_empty() {
             if self.bulk_actions().is_empty() {
                 self.show_notification("No actions available for the selected containers");
                 return RenderAction::Render;
@@ -214,14 +210,17 @@ impl AppState {
         // The confirming Enter must land on the armed action, and that action
         // must still hit exactly the containers shown when it was armed;
         // otherwise it only disarms, and the footer and counts update.
+        // Compared as sets: the list re-sorts every few seconds, and rows
+        // trading places is not a different target.
+        let target_set: HashSet<ContainerKey> = targets.iter().cloned().collect();
         let armed = self.armed_bulk_action.take();
         let armed_targets = std::mem::take(&mut self.armed_bulk_targets);
-        if armed.is_some_and(|armed| armed != action || armed_targets != targets) {
+        if armed.is_some_and(|armed| armed != action || armed_targets != target_set) {
             return RenderAction::Render;
         }
         if action == ContainerAction::Remove && armed.is_none() {
             self.armed_bulk_action = Some(action);
-            self.armed_bulk_targets = targets;
+            self.armed_bulk_targets = target_set;
             return RenderAction::Render; // The menu footer asks to confirm
         }
 
@@ -296,18 +295,34 @@ impl AppState {
             total,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         });
 
         RenderAction::Render
     }
 
-    /// Drops bulk batches whose results stopped arriving (e.g. a result event
+    /// Drops bulk batches whose events stopped arriving (e.g. a result event
     /// was lost), so they can't swallow later toasts for their containers.
-    /// Docker's stop/restart timeout is 10s, so a minute is generous.
+    ///
+    /// Measured from the batch's last event, not its launch: with a few
+    /// actions per host at a time, a large batch of slow stops can rightly
+    /// run for minutes, but each action starts and ends within Docker's 10s
+    /// stop timeout, so a minute without any event means something is lost.
     fn prune_stale_bulk_progress(&mut self) {
         self.bulk_progress
-            .retain(|batch| batch.started.elapsed() < BULK_RESULT_TIMEOUT);
+            .retain(|batch| batch.last_activity.elapsed() < BULK_RESULT_TIMEOUT);
+    }
+
+    /// Index of the batch `key` is still pending in for `action`, refreshing
+    /// that batch's activity time
+    fn touch_bulk_batch(&mut self, key: &ContainerKey, action: ContainerAction) -> Option<usize> {
+        self.prune_stale_bulk_progress();
+        let index = self
+            .bulk_progress
+            .iter()
+            .position(|p| p.action == action && p.pending.contains(key))?;
+        self.bulk_progress[index].last_activity = std::time::Instant::now();
+        Some(index)
     }
 
     /// Records a bulk member's result. Returns false if the container is not
@@ -318,12 +333,7 @@ impl AppState {
         action: ContainerAction,
         error: Option<&str>,
     ) -> bool {
-        self.prune_stale_bulk_progress();
-        let Some(index) = self
-            .bulk_progress
-            .iter()
-            .position(|p| p.action == action && p.pending.contains(key))
-        else {
+        let Some(index) = self.touch_bulk_batch(key, action) else {
             return false;
         };
         let progress = &mut self.bulk_progress[index];
@@ -472,11 +482,7 @@ impl AppState {
         // only matters if none arrives (e.g. the host dropped mid-action).
         let name = self.action_target_name(&key);
         // Bulk members share the "Stopping N containers…" toast shown at launch
-        self.prune_stale_bulk_progress();
-        let in_bulk = self
-            .bulk_progress
-            .iter()
-            .any(|p| p.action == action && p.pending.contains(&key));
+        let in_bulk = self.touch_bulk_batch(&key, action).is_some();
         if !in_bulk {
             let (doing, _) = action.progress_words();
             self.show_action_notification(
@@ -538,7 +544,7 @@ impl AppState {
 /// channels one SSH master carries (`MAX_CHANNELS_PER_MASTER`)
 const BULK_CONCURRENCY_PER_HOST: usize = 4;
 
-/// How long a bulk batch waits for its results before it is dropped
+/// How long a bulk batch may go without any event before it is dropped
 const BULK_RESULT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// "1 container" / "3 containers"

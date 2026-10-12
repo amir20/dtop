@@ -600,14 +600,15 @@ The application supports interactive container management through an action menu
 - The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
   (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
 - Remove needs a second Enter (`armed_bulk_action`), and only runs if it still hits the same
-  containers (`armed_bulk_targets`). When container changes reshape an open
+  containers (`armed_bulk_targets`, compared as a set since the list re-sorts). When container changes reshape an open
   menu, `revalidate_action_menu` keeps the cursor on the same action, or disarms if it is gone
 - Failed containers are re-marked, so retrying them is one Enter away
 - Results are tracked per batch in `AppState::bulk_progress` (batches can overlap) and reported
   as one summary toast: "Stopped 4 containers", or "Stopped 2 of 4 containers (2 failed, last:
   <reason>)". A one-container batch leaves its own error toast up instead. Containers on a
   disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it,
-  and batches with no result after 60s are dropped. A container launched in a new batch is
+  and batches with no event for 60s are dropped (measured from the last event, since a
+  large batch run 4 at a time can rightly take minutes). A container launched in a new batch is
   removed from any older batch
 - Each host runs at most 4 of a batch's actions at once (`BULK_CONCURRENCY_PER_HOST`), so marking
   dozens of containers doesn't burst an SSH host's shared masters

@@ -2123,7 +2123,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
         state.show_notification("Stopping 2 containers…");
 
@@ -2163,7 +2163,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
 
         state.handle_event(AppEvent::ActionError(
@@ -2201,7 +2201,7 @@ mod tests {
             total: 1,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
         state.handle_event(AppEvent::ActionError(
             keys[0].clone(),
@@ -2229,7 +2229,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
         state.handle_event(AppEvent::HostDisconnected("local".to_string()));
         assert!(state.bulk_progress.is_empty());
@@ -2313,7 +2313,7 @@ mod tests {
             total: 1,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         };
         state.bulk_progress = vec![
             batch(ContainerAction::Stop, &keys[0]),
@@ -2353,7 +2353,7 @@ mod tests {
             total: 3,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
         for (key, error) in [(&keys[0], "first"), (&keys[1], "second")] {
             state.handle_event(AppEvent::ActionError(
@@ -2446,7 +2446,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now(),
+            last_activity: std::time::Instant::now(),
         }];
         state.handle_event(AppEvent::ActionError(
             keys[0].clone(),
@@ -2477,7 +2477,7 @@ mod tests {
             total: 1,
             failed: 0,
             last_error: None,
-            started: std::time::Instant::now() - std::time::Duration::from_secs(120),
+            last_activity: std::time::Instant::now() - std::time::Duration::from_secs(120),
         }];
         state.handle_event(AppEvent::ActionInProgress(
             keys[0].clone(),
@@ -2562,6 +2562,64 @@ mod tests {
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
         assert!(matches!(state.view_state, ViewState::ActionMenu(_)));
         press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    /// A large batch outlives the timeout as long as its events keep coming;
+    /// the timeout measures silence, not age.
+    #[test]
+    fn test_long_running_bulk_batch_is_kept_while_active() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            // Launched long ago, but the first result just arrived
+            last_activity: std::time::Instant::now() - std::time::Duration::from_secs(50),
+        }];
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        // Total age is now well past the timeout from here on, but the
+        // result refreshed the batch
+        state.bulk_progress[0].last_activity -= std::time::Duration::from_secs(30);
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 2 containers")
+        );
+    }
+
+    /// Rows trading places in a re-sort between the two Enters is the same
+    /// target set, so the armed Remove still confirms.
+    #[test]
+    fn test_armed_remove_survives_a_re_sort() {
+        use crate::core::types::{ContainerAction, SortDirection};
+
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        state.sort_state.direction = SortDirection::Descending;
+        state.force_sort_containers();
+
+        // No host is connected, so nothing runs, but it was confirmed: the
+        // menu closes instead of disarming
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(state.view_state, ViewState::ContainerList);
     }
 }

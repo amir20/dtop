@@ -32,8 +32,8 @@ pub(crate) struct BulkProgress {
     pub failed: usize,
     /// Reason for the latest failure, for the summary
     pub last_error: Option<String>,
-    /// When the batch was launched; stale batches are dropped
-    pub started: Instant,
+    /// When the batch was launched or last heard from; stale batches are dropped
+    pub last_activity: Instant,
 }
 
 /// Application state that manages all runtime data
@@ -120,7 +120,7 @@ pub struct AppState {
     pub armed_bulk_action: Option<ContainerAction>,
     /// The containers the armed action was shown to hit; a confirming Enter
     /// only runs it if they haven't changed
-    pub(crate) armed_bulk_targets: Vec<ContainerKey>,
+    pub(crate) armed_bulk_targets: HashSet<ContainerKey>,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -179,7 +179,7 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             armed_bulk_action: None,
-            armed_bulk_targets: Vec::new(),
+            armed_bulk_targets: HashSet::new(),
             reset_confirm_pending: false,
         }
     }
