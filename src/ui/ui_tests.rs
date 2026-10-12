@@ -2101,9 +2101,10 @@ mod tests {
         press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        // No host is connected in tests, so nothing runs, but the menu closes
+        // No host is connected in tests, so nothing runs, but the menu closes.
+        // Only containers an action ran on are unmarked.
         assert_eq!(state.view_state, ViewState::ContainerList);
-        assert!(state.marked_containers.is_empty());
+        assert_eq!(state.marked_containers.len(), 3);
     }
 
     /// A bulk action reports one summary instead of a toast per container.
@@ -2119,6 +2120,7 @@ mod tests {
             pending: running.iter().cloned().collect(),
             total: 2,
             failed: 0,
+            last_error: None,
         });
         state.show_notification("Stopping 2 containers…");
 
@@ -2157,6 +2159,7 @@ mod tests {
             pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
             total: 2,
             failed: 0,
+            last_error: None,
         });
 
         state.handle_event(AppEvent::ActionError(
@@ -2176,7 +2179,104 @@ mod tests {
         assert!(state.notification_is_error);
         assert_eq!(
             state.notification.as_ref().map(|(m, _)| m.as_str()),
-            Some("Restarted 1 of 2 containers (1 failed)")
+            Some("Restarted 1 of 2 containers (1 failed: boom)")
+        );
+    }
+
+    /// With one container, its own error toast says it all; a summary
+    /// replacing it would hide the reason.
+    #[test]
+    fn test_single_bulk_failure_keeps_its_error() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = Some(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 1,
+            failed: 0,
+            last_error: None,
+        });
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Stop,
+            "boom".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to stop api: boom")
+        );
+        assert!(state.bulk_progress.is_none());
+    }
+
+    /// Results from a dropped host may never arrive; the bulk action must not
+    /// linger and swallow later toasts for its containers.
+    #[test]
+    fn test_host_disconnect_clears_bulk_progress() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = Some(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+        });
+        state.handle_event(AppEvent::HostDisconnected("local".to_string()));
+        assert!(state.bulk_progress.is_none());
+
+        state.handle_event(AppEvent::ActionInProgress(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping api…")
+        );
+    }
+
+    #[test]
+    fn test_space_on_last_row_marks_without_moving() {
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(keys.len() - 1));
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.contains(&keys[keys.len() - 1]));
+        assert_eq!(state.table_state.selected(), Some(keys.len() - 1));
+    }
+
+    /// Ctrl+A after a search marks only the matching rows.
+    #[test]
+    fn test_ctrl_a_marks_only_filtered_rows() {
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('/'), KeyModifiers::NONE);
+        for c in "we".chars() {
+            press(&mut state, KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.sorted_container_keys.len(), 1);
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert_eq!(state.marked_containers.len(), 1);
+        assert!(state.marked_containers.contains(&keys[2]));
+    }
+
+    /// Marks hidden by a filter are counted in the title, so they aren't
+    /// forgotten.
+    #[test]
+    fn test_title_counts_hidden_marks() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.show_all_containers = false;
+        state.force_sort_containers();
+
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 12);
+        let output = buffer_to_string(&buffer);
+        assert!(
+            output.contains("2 containers, 2 selected, 1 hidden"),
+            "{output}"
         );
     }
 

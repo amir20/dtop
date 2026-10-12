@@ -51,6 +51,7 @@ impl AppState {
     ///
     /// Bulk actions only touch these: a container hidden by the search filter
     /// or by 'a' stays marked, but is not acted on behind the user's back.
+    /// Running an action unmarks only the containers it was run on.
     pub fn marked_visible_keys(&self) -> Vec<ContainerKey> {
         self.sorted_container_keys
             .iter()

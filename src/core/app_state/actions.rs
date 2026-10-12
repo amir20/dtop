@@ -171,6 +171,7 @@ impl AppState {
             };
             let host = host.clone();
             let tx = self.event_tx.clone();
+            self.marked_containers.remove(&key);
             pending.insert(key.clone());
             tokio::spawn(async move {
                 crate::docker::actions::execute_container_action(host, key, action, tx).await;
@@ -179,7 +180,6 @@ impl AppState {
 
         self.view_state = ViewState::ContainerList;
         self.action_menu_state.select(None);
-        self.marked_containers.clear();
 
         if pending.is_empty() {
             self.show_notification("No connected containers to act on");
@@ -198,6 +198,7 @@ impl AppState {
             pending,
             total,
             failed: 0,
+            last_error: None,
         });
 
         RenderAction::Render
@@ -209,7 +210,7 @@ impl AppState {
         &mut self,
         key: &ContainerKey,
         action: ContainerAction,
-        ok: bool,
+        error: Option<&str>,
     ) -> bool {
         let Some(progress) = self.bulk_progress.as_mut() else {
             return false;
@@ -217,23 +218,33 @@ impl AppState {
         if progress.action != action || !progress.pending.remove(key) {
             return false;
         }
-        if !ok {
+        if let Some(error) = error {
             progress.failed += 1;
+            progress.last_error = Some(error.to_string());
         }
         if progress.pending.is_empty() {
             let (_, done) = action.progress_words();
             let (total, failed) = (progress.total, progress.failed);
+            let last_error = progress.last_error.take();
             self.bulk_progress = None;
-            if failed == 0 {
+            if failed > 0 && total == 1 {
+                // The container's own error toast already says what happened
+            } else if failed == 0 {
                 self.show_action_notification(
                     &format!("{done} {}", containers_word(total)),
                     Duration::from_secs(2),
                     false,
                 );
             } else {
+                // A single failure's reason fits; with more, each one had
+                // its own toast
+                let reason = match last_error {
+                    Some(error) if failed == 1 => format!(": {error}"),
+                    _ => String::new(),
+                };
                 self.show_action_notification(
                     &format!(
-                        "{done} {} of {total} containers ({failed} failed)",
+                        "{done} {} of {total} containers ({failed} failed{reason})",
                         total - failed
                     ),
                     Duration::from_secs(6),
@@ -368,7 +379,7 @@ impl AppState {
         action: ContainerAction,
     ) -> RenderAction {
         // The row itself is updated by the Docker event for the change
-        if self.record_bulk_result(&key, action, true) {
+        if self.record_bulk_result(&key, action, None) {
             self.action_names.remove(&key);
             return RenderAction::Render;
         }
@@ -402,7 +413,7 @@ impl AppState {
         self.show_action_notification(&message, Duration::from_secs(6), true);
         // Each failure gets its own toast; after the last result of a bulk
         // action, its summary replaces it.
-        self.record_bulk_result(&key, action, false);
+        self.record_bulk_result(&key, action, Some(error));
         RenderAction::Render
     }
 }

@@ -593,14 +593,16 @@ The application supports interactive container management through an action menu
 - Restarting/Removing → No actions available
 
 **Bulk Actions** (`core/app_state/selection.rs`):
-- Marks live in `AppState::marked_containers`; they are dropped with their container
+- Marks live in `AppState::marked_containers`; they are dropped with their container.
+  Running an action unmarks only the containers it ran on; the title counts hidden marks
 - Bulk actions act only on marked containers that are *listed* (`marked_visible_keys`), so
   a container hidden by search or the show-all toggle is never touched unseen
 - The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
   (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
 - Remove needs a second Enter (`bulk_remove_armed`)
 - Results are tracked in `BulkProgress` and reported as one summary toast
-  ("Stopped 4 containers", or "Stopped 3 of 4 containers (1 failed)"); failures also get their own toast
+  ("Stopped 4 containers", or "Stopped 3 of 4 containers (1 failed: <reason>)"); failures also get
+  their own toast. A host disconnect clears a bulk action still waiting on that host
 
 **Implementation Details:**
 - Actions spawn async tasks that don't block the UI

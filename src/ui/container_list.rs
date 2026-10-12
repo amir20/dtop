@@ -99,9 +99,11 @@ pub fn render_container_list(
         .iter()
         .filter(|key| app_state.marked_containers.contains(*key))
         .count();
+    let hidden_marked = app_state.marked_containers.len() - marked_count;
     let block = list_block(
         app_state.sorted_container_keys.len(),
         marked_count,
+        hidden_marked,
         stats_rows,
         styles,
     );
@@ -572,10 +574,12 @@ fn column_constraints(
 /// title row plus proportional padding make that non-obvious to compute by hand.
 ///
 /// `extra_top` rows are reserved under the title for the system stats header.
-/// `marked_count` visible containers are marked for a bulk action.
+/// `marked_count` visible containers are marked for a bulk action, and
+/// `hidden_marked` more are marked but filtered out of the list.
 fn list_block(
     container_count: usize,
     marked_count: usize,
+    hidden_marked: usize,
     extra_top: u16,
     styles: &UiStyles,
 ) -> Block<'static> {
@@ -586,9 +590,14 @@ fn list_block(
     } else {
         "containers"
     };
-    let title = if marked_count > 0 {
+    let title = if marked_count > 0 || hidden_marked > 0 {
+        let hidden = if hidden_marked > 0 {
+            format!(", {hidden_marked} hidden")
+        } else {
+            String::new()
+        };
         format!(
-            "dtop v{VERSION} - {container_count} {noun}, {marked_count} selected \
+            "dtop v{VERSION} - {container_count} {noun}, {marked_count} selected{hidden} \
              (Enter for actions, Esc to clear)"
         )
     } else {

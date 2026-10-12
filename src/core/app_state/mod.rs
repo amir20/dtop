@@ -30,6 +30,8 @@ pub(crate) struct BulkProgress {
     pub pending: HashSet<ContainerKey>,
     pub total: usize,
     pub failed: usize,
+    /// Reason for the latest failure, for the summary when only one failed
+    pub last_error: Option<String>,
 }
 
 /// Application state that manages all runtime data
@@ -417,6 +419,15 @@ impl AppState {
         // System line would keep showing a dead host's last sample as live.
         // The sampler brings it back once the host answers again.
         self.remote_system_stats.remove(&host_id);
+        // Results from this host may never arrive; a bulk action waiting on
+        // them would otherwise linger and swallow later toasts for its keys
+        if self
+            .bulk_progress
+            .as_ref()
+            .is_some_and(|p| p.pending.iter().any(|key| key.host_id == host_id))
+        {
+            self.bulk_progress = None;
+        }
         self.disconnected_hosts.insert(host_id);
         RenderAction::Render // Force draw - show the reconnecting banner
     }
