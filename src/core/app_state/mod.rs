@@ -1,12 +1,12 @@
 use ratatui::widgets::{ListState, TableState};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, HostInfo, LogState,
-    RenderAction, SortDirection, SortState, SystemStats, ViewState,
+    AppEvent, Column, ColumnConfig, Container, ContainerAction, ContainerKey, HostId, HostInfo,
+    LogState, RenderAction, SortDirection, SortState, SystemStats, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -19,8 +19,22 @@ mod log_view;
 mod navigation;
 mod preferences;
 mod search;
+mod selection;
 pub mod sorting;
 pub mod system;
+
+/// A bulk action whose per-container results are still arriving
+pub(crate) struct BulkProgress {
+    pub action: ContainerAction,
+    /// Containers whose result has not arrived yet
+    pub pending: HashSet<ContainerKey>,
+    pub total: usize,
+    pub failed: usize,
+    /// Reason for the latest failure, for the summary
+    pub last_error: Option<String>,
+    /// When the batch was launched or last heard from; stale batches are dropped
+    pub last_activity: Instant,
+}
 
 /// Application state that manages all runtime data
 pub struct AppState {
@@ -97,6 +111,16 @@ pub struct AppState {
     pub notification_is_error: bool,
     /// Names of containers with an action in flight, for its result toast
     pub(crate) action_names: HashMap<ContainerKey, String>,
+    /// Containers marked with Space (or Ctrl+A) for a bulk action
+    pub marked_containers: HashSet<ContainerKey>,
+    /// Bulk actions still in flight, each reported as one summary toast.
+    /// Several can overlap, e.g. Stop on some containers, then Remove on others.
+    pub(crate) bulk_progress: Vec<BulkProgress>,
+    /// The bulk action picked once and awaiting a confirming Enter (Remove)
+    pub armed_bulk_action: Option<ContainerAction>,
+    /// The containers the armed action was shown to hit; a confirming Enter
+    /// only runs it if they haven't changed
+    pub(crate) armed_bulk_targets: HashSet<ContainerKey>,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -152,6 +176,10 @@ impl AppState {
             notification: None,
             notification_is_error: false,
             action_names: HashMap::new(),
+            marked_containers: HashSet::new(),
+            bulk_progress: Vec::new(),
+            armed_bulk_action: None,
+            armed_bulk_targets: HashSet::new(),
             reset_confirm_pending: false,
         }
     }
@@ -197,6 +225,27 @@ impl AppState {
             _ => tracing::debug!("Handling event: {:?}", event),
         }
 
+        // Container changes can empty or shrink an open action menu
+        let changes_containers = matches!(
+            event,
+            AppEvent::InitialContainerList(..)
+                | AppEvent::ContainerDestroyed(_)
+                | AppEvent::ContainerStateChanged(..)
+                | AppEvent::ContainerCreated(_)
+        );
+        let menu_action = if changes_containers {
+            self.selected_menu_action()
+        } else {
+            None
+        };
+        let action = self.dispatch_event(event);
+        if changes_containers {
+            self.revalidate_action_menu(menu_action);
+        }
+        action
+    }
+
+    fn dispatch_event(&mut self, event: AppEvent) -> RenderAction {
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
                 self.handle_initial_container_list(host_id, container_list)
@@ -279,6 +328,7 @@ impl AppState {
                 },
                 KeyCode::Char('s') => self.handle_save_preferences(),
                 KeyCode::Char('r') => self.handle_reset_preferences_prompt(),
+                KeyCode::Char('a') => self.handle_toggle_mark_all(),
                 _ => RenderAction::None,
             };
         }
@@ -306,7 +356,9 @@ impl AppState {
             KeyCode::Up | KeyCode::Char('k') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_previous(),
                 ViewState::LogView(_) => self.handle_scroll_up(),
-                ViewState::ActionMenu(_) => self.handle_select_action_up(),
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_select_action_up()
+                }
                 // SearchMode is handled by the early return above; fallback defensively
                 ViewState::SearchMode => self.handle_select_previous(),
                 // ColumnSelector/SortSelector handled by early returns above
@@ -315,7 +367,9 @@ impl AppState {
             KeyCode::Down | KeyCode::Char('j') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_next(),
                 ViewState::LogView(_) => self.handle_scroll_down(),
-                ViewState::ActionMenu(_) => self.handle_select_action_down(),
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_select_action_down()
+                }
                 ViewState::SearchMode => self.handle_select_next(),
                 // ColumnSelector/SortSelector handled by early returns above
                 ViewState::ColumnSelector | ViewState::SortSelector => RenderAction::None,
@@ -344,10 +398,19 @@ impl AppState {
             KeyCode::Char('c') => self.handle_open_column_selector(),
             KeyCode::Char('t') => self.handle_toggle_system_header(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
-            KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
+            KeyCode::Left | KeyCode::Char('h') => match &self.view_state {
+                // The menu footers offer ← to cancel
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_cancel_action_menu()
+                }
+                _ => self.handle_exit_log_view(),
+            },
             KeyCode::Char('g') => self.handle_scroll_to_top(),
             KeyCode::Char('G') => self.handle_scroll_to_bottom(),
-            KeyCode::Char(' ') => self.handle_scroll_page_down(),
+            KeyCode::Char(' ') => match &self.view_state {
+                ViewState::ContainerList => self.handle_toggle_mark(),
+                _ => self.handle_scroll_page_down(),
+            },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
             _ => RenderAction::None,
         }
@@ -390,6 +453,10 @@ impl AppState {
         // System line would keep showing a dead host's last sample as live.
         // The sampler brings it back once the host answers again.
         self.remote_system_stats.remove(&host_id);
+        // Results from this host may never arrive; a bulk action waiting on
+        // them would otherwise linger and swallow later toasts for its keys
+        self.bulk_progress
+            .retain(|p| !p.pending.iter().any(|key| key.host_id == host_id));
         self.disconnected_hosts.insert(host_id);
         RenderAction::Render // Force draw - show the reconnecting banner
     }

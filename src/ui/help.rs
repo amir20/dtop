@@ -35,6 +35,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             "  s           Sort by                     c      Columns        t      Stats header",
         ),
         Line::from("  PgUp/PgDn   Page up/down                Home   First          End    Last"),
+        Line::from(
+            "  Space       Select container            Ctrl+A Select all*    Esc    Clear selection",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Preferences",
@@ -43,6 +46,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
                 .add_modifier(Modifier::BOLD),
         )]),
         Line::from("  Ctrl+S      Save preferences            Ctrl+R Reset to defaults"),
+        Line::from("  * Under tmux/screen with the default prefix, press the prefix, then a"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Log View Scrolling",

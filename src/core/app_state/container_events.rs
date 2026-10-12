@@ -30,6 +30,8 @@ impl AppState {
             self.containers.insert(key, container);
         }
 
+        self.prune_marks();
+
         // Force immediate sort when loading the container list
         // (this also rebuilds `sorted_container_keys`)
         self.force_sort_containers();
@@ -74,6 +76,7 @@ impl AppState {
     pub(super) fn handle_container_destroyed(&mut self, key: ContainerKey) -> RenderAction {
         self.containers.remove(&key);
         self.sorted_container_keys.retain(|k| k != &key);
+        self.marked_containers.remove(&key);
 
         // Adjust selection if needed
         self.ensure_selection();

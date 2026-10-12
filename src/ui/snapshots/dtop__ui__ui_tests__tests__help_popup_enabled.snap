@@ -4,19 +4,20 @@ expression: output
 ---
 dtop vX.X.X - 1 container ('?' for help, 'q' to quit)                                                                   
                                                                                                                         
-  ID             Name                                        CPU %   Memory  Net TX       Net RX       Created ▼        
-            ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐            
-  abc1234567│                                                                                              │rs ago      
+  ID        ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐ed ▼        
             │                                                                                              │            
+  abc1234567│                                                                                              │rs ago      
             │ Navigation                                                                                   │            
             │   ↑/↓, j/k    Navigate/scroll (1 line)    →/l    View logs      ←/h    Exit logs             │            
             │   Enter       Action menu                 Esc    Close menu     ?      Toggle help           │            
             │   a           Show all containers         /      Filter         o      Open Dozzle           │            
             │   s           Sort by                     c      Columns        t      Stats header          │            
             │   PgUp/PgDn   Page up/down                Home   First          End    Last                  │            
+            │   Space       Select container            Ctrl+A Select all*    Esc    Clear selection       │            
             │                                                                                              │            
             │ Preferences                                                                                  │            
             │   Ctrl+S      Save preferences            Ctrl+R Reset to defaults                           │            
+            │   * Under tmux/screen with the default prefix, press the prefix, then a                      │            
             │                                                                                              │            
             │ Log View Scrolling                                                                           │            
             │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            

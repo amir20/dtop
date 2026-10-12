@@ -436,6 +436,7 @@ The application has these view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 - `ActionMenu(ContainerKey)` - Action menu popup for a specific container
+- `BulkActionMenu` - Action menu popup for every marked container
 - `SearchMode` - Search mode for filtering containers by name/ID
 - `ColumnSelector` - Column visibility and ordering popup
 - `SortSelector` - Sort field selection popup
@@ -590,6 +591,29 @@ The application supports interactive container management through an action menu
 - Paused → Stop, Remove
 - Exited/Created/Dead → Start, Remove
 - Restarting/Removing → No actions available
+
+**Bulk Actions** (`core/app_state/selection.rs`):
+- Marks live in `AppState::marked_containers`; they are dropped with their container.
+  Running an action unmarks only the containers it ran on; the title counts hidden marks
+- Bulk actions act only on marked containers that are *listed* (`marked_visible_keys`), so
+  a container hidden by search or the show-all toggle is never touched unseen
+- The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
+  (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
+- Remove needs a second Enter (`armed_bulk_action`), and only runs if it still hits the same
+  containers (`armed_bulk_targets`, compared as a set since the list re-sorts). When container changes reshape an open
+  menu, `revalidate_action_menu` keeps the cursor on the same action, or disarms if it is gone
+- Failed containers are re-marked, so retrying them is one Enter away
+- Results are tracked per batch in `AppState::bulk_progress` (batches can overlap) and reported
+  as one summary toast: "Stopped 4 containers", or "Stopped 2 of 4 containers (2 failed, last:
+  <reason>)". A one-container batch leaves its own error toast up instead. Containers on a
+  disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it,
+  and batches with no event for 60s are dropped (measured from the last event, since a
+  large batch run 4 at a time can rightly take minutes). A container launched in a new batch is
+  removed from any older batch
+- Each host runs at most 4 of a batch's actions at once (`BULK_CONCURRENCY_PER_HOST`), so marking
+  dozens of containers doesn't burst an SSH host's shared masters
+- An action menu left with no actions (its containers went away) closes itself
+  (`revalidate_action_menu`)
 
 **Implementation Details:**
 - Actions spawn async tasks that don't block the UI
@@ -926,7 +950,11 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `↑/↓` - Navigate between containers
 - `PageUp/PageDown` (or `Ctrl-U`/`Ctrl-D`) - Move selection up/down by one page
 - `Home`/`End` - Jump to first/last container
-- `Enter` - Open action menu for selected container
+- `Enter` - Open action menu for selected container (or the bulk action menu when containers are marked)
+- `Space` - Mark/unmark the selected container for a bulk action (and move down)
+- `Ctrl-A` - Mark every listed container, or unmark them if all are marked (under tmux/screen
+  with the default prefix, press the prefix then `a` to send it through)
+- `Esc` - Clear marks
 - `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application
 - `o` - Open Dozzle for selected container (if configured and not in SSH session)

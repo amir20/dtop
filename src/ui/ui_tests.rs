@@ -1977,4 +1977,649 @@ mod tests {
             "the restored row should be selected again"
         );
     }
+
+    fn press(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers) {
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, modifiers)));
+    }
+
+    /// Three containers: `web` and `api` running, `db` exited. Sorted by name
+    /// so the rows read api, db, web.
+    fn create_bulk_state() -> (AppState, Vec<ContainerKey>) {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+        state.sort_state = SortState::new(Column::Name);
+        for (id, name) in [("aaa", "web"), ("bbb", "api"), ("ccc", "db")] {
+            let mut container = create_test_container(id, name, "local", 1.0, 1.0, 0.0, 0.0);
+            if name == "db" {
+                container.state = ContainerState::Exited;
+            }
+            state.handle_event(AppEvent::ContainerCreated(container));
+        }
+        let keys = state.sorted_container_keys.clone();
+        (state, keys)
+    }
+
+    #[test]
+    fn test_space_marks_container_and_moves_down() {
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(0));
+
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.contains(&keys[0]));
+        assert_eq!(state.table_state.selected(), Some(1));
+
+        // Space on a marked row unmarks it
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+    }
+
+    #[test]
+    fn test_ctrl_a_toggles_all_and_esc_clears() {
+        let (mut state, keys) = create_bulk_state();
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert_eq!(state.marked_containers.len(), keys.len());
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert!(state.marked_containers.is_empty());
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Esc, KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    #[test]
+    fn test_marks_are_dropped_with_their_container() {
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.handle_event(AppEvent::ContainerDestroyed(keys[0].clone()));
+        assert!(!state.marked_containers.contains(&keys[0]));
+        assert_eq!(state.marked_containers.len(), keys.len() - 1);
+    }
+
+    /// The bulk menu offers every action at least one marked container
+    /// supports, and never Shell.
+    #[test]
+    fn test_enter_with_marks_opens_bulk_menu() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(
+            state.bulk_actions(),
+            vec![
+                ContainerAction::Start,
+                ContainerAction::Stop,
+                ContainerAction::Restart,
+                ContainerAction::Remove,
+            ]
+        );
+
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 20);
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("Actions: 3 selected"), "{output}");
+        assert!(output.contains("Stop (2 of 3)"), "{output}");
+        assert!(output.contains("Start (1 of 3)"), "{output}");
+        assert_snapshot_with_redaction!(output);
+    }
+
+    /// Containers hidden by the search filter keep their mark but are not
+    /// acted on.
+    #[test]
+    fn test_bulk_menu_ignores_hidden_marked_containers() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.show_all_containers = false;
+        state.force_sort_containers();
+
+        assert_eq!(state.marked_visible_keys().len(), 2);
+        assert_eq!(state.marked_containers.len(), 3);
+    }
+
+    /// Remove in the bulk menu takes a second Enter; moving away disarms it.
+    #[test]
+    fn test_bulk_remove_needs_confirmation() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.marked_containers.len(), 3);
+
+        press(&mut state, KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, None);
+
+        press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        // No host is connected in tests, so nothing runs, but the menu closes.
+        // Only containers an action ran on are unmarked.
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(state.marked_containers.len(), 3);
+    }
+
+    /// A bulk action reports one summary instead of a toast per container.
+    #[test]
+    fn test_bulk_progress_summary() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        let running = [keys[0].clone(), keys[2].clone()];
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: running.iter().cloned().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+        state.show_notification("Stopping 2 containers…");
+
+        state.handle_event(AppEvent::ActionInProgress(
+            running[0].clone(),
+            ContainerAction::Stop,
+        ));
+        state.handle_event(AppEvent::ActionSuccess(
+            running[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping 2 containers…")
+        );
+
+        state.handle_event(AppEvent::ActionSuccess(
+            running[1].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 2 containers")
+        );
+        assert!(state.bulk_progress.is_empty());
+    }
+
+    #[test]
+    fn test_bulk_progress_summary_reports_failures() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Restart,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Restart,
+            "boom".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to restart api: boom")
+        );
+
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Restart,
+        ));
+        assert!(state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Restarted 1 of 2 containers (1 failed: boom)")
+        );
+    }
+
+    /// With one container, its own error toast says it all; a summary
+    /// replacing it would hide the reason.
+    #[test]
+    fn test_single_bulk_failure_keeps_its_error() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Stop,
+            "boom".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to stop api: boom")
+        );
+        assert!(state.bulk_progress.is_empty());
+    }
+
+    /// Results from a dropped host may never arrive; the bulk action must not
+    /// linger and swallow later toasts for its containers.
+    #[test]
+    fn test_host_disconnect_clears_bulk_progress() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+        state.handle_event(AppEvent::HostDisconnected("local".to_string()));
+        assert!(state.bulk_progress.is_empty());
+
+        state.handle_event(AppEvent::ActionInProgress(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping api…")
+        );
+    }
+
+    #[test]
+    fn test_space_on_last_row_marks_without_moving() {
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(keys.len() - 1));
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.contains(&keys[keys.len() - 1]));
+        assert_eq!(state.table_state.selected(), Some(keys.len() - 1));
+    }
+
+    /// Ctrl+A after a search marks only the matching rows.
+    #[test]
+    fn test_ctrl_a_marks_only_filtered_rows() {
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('/'), KeyModifiers::NONE);
+        for c in "we".chars() {
+            press(&mut state, KeyCode::Char(c), KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.sorted_container_keys.len(), 1);
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert_eq!(state.marked_containers.len(), 1);
+        assert!(state.marked_containers.contains(&keys[2]));
+    }
+
+    /// Marks hidden by a filter are counted in the title, so they aren't
+    /// forgotten.
+    #[test]
+    fn test_title_counts_hidden_marks() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.show_all_containers = false;
+        state.force_sort_containers();
+
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 12);
+        let output = buffer_to_string(&buffer);
+        assert!(
+            output.contains("2 containers, 2 selected, 1 hidden"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn test_marked_rows_render_with_count_in_title() {
+        let (mut state, keys) = create_bulk_state();
+        state.marked_containers.insert(keys[1].clone());
+        let styles = UiStyles::default();
+        let buffer = render_list(&mut state, &styles, 120, 12);
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("3 containers, 1 selected"), "{output}");
+
+        let (_, y) = find_text_position(&buffer, "db").expect("db row");
+        let (x, _) = find_text_position(&buffer, "db").unwrap();
+        assert_eq!(buffer[(x, y)].fg, styles.marked.fg.unwrap());
+    }
+
+    /// A second bulk action must not orphan the first one's summary.
+    #[test]
+    fn test_overlapping_bulk_actions_each_summarize() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        let batch = |action, key: &ContainerKey| BulkProgress {
+            action,
+            pending: [key.clone()].into_iter().collect(),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        };
+        state.bulk_progress = vec![
+            batch(ContainerAction::Stop, &keys[0]),
+            batch(ContainerAction::Remove, &keys[1]),
+        ];
+
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 1 container")
+        );
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[1].clone(),
+            ContainerAction::Remove,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Removed 1 container")
+        );
+        assert!(state.bulk_progress.is_empty());
+    }
+
+    /// Only one toast is visible at a time, so the summary keeps the latest
+    /// reason even when several failed.
+    #[test]
+    fn test_bulk_summary_with_several_failures_keeps_last_reason() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: keys.iter().cloned().collect(),
+            total: 3,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+        for (key, error) in [(&keys[0], "first"), (&keys[1], "second")] {
+            state.handle_event(AppEvent::ActionError(
+                key.clone(),
+                ContainerAction::Stop,
+                error.to_string(),
+            ));
+        }
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 1 of 3 containers (2 failed, last: second)")
+        );
+    }
+
+    /// A bulk menu whose containers all go away must close, not linger
+    /// undrawn with only Esc to escape it.
+    #[test]
+    fn test_bulk_menu_closes_when_its_containers_go_away() {
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+
+        state.handle_event(AppEvent::ContainerDestroyed(keys[0].clone()));
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(state.action_menu_state.selected(), None);
+    }
+
+    /// When the menu shrinks, its cursor stays on a real entry.
+    #[test]
+    fn test_bulk_menu_cursor_is_clamped_when_actions_shrink() {
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        // Only `db` (exited) supports Start; it goes away, leaving
+        // Stop/Restart/Remove for the two running ones
+        state.handle_event(AppEvent::ContainerDestroyed(keys[1].clone()));
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.action_menu_state.selected(), Some(2));
+    }
+
+    /// If the menu reshapes between the two Enters of a bulk Remove, the
+    /// second Enter must not run whatever now sits at that index.
+    #[test]
+    fn test_armed_remove_survives_or_disarms_when_menu_changes() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // Start goes away: the cursor follows Remove up and stays armed
+        state.handle_event(AppEvent::ContainerDestroyed(keys[1].clone()));
+        assert_eq!(state.selected_menu_action(), Some(ContainerAction::Remove));
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // An armed action that isn't under the cursor is never confirmed
+        state.action_menu_state.select(Some(0));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.armed_bulk_action, None);
+    }
+
+    /// Failures are re-marked so they can be retried.
+    #[test]
+    fn test_failed_bulk_members_are_re_marked() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        }];
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Stop,
+            "boom".to_string(),
+        ));
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.marked_containers,
+            [keys[0].clone()].into_iter().collect()
+        );
+    }
+
+    /// A batch whose results never arrive is dropped, so it can't swallow
+    /// later toasts for its containers.
+    #[test]
+    fn test_stale_bulk_batch_is_dropped() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now() - std::time::Duration::from_secs(120),
+        }];
+        state.handle_event(AppEvent::ActionInProgress(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert!(state.bulk_progress.is_empty());
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping api…")
+        );
+    }
+
+    /// Enter with every mark filtered out says so, rather than silently
+    /// opening the single-container menu.
+    #[test]
+    fn test_enter_with_only_hidden_marks_explains() {
+        let (mut state, keys) = create_bulk_state();
+        state.marked_containers.insert(keys[1].clone());
+        state.show_all_containers = false;
+        state.force_sort_containers();
+        state.table_state.select(Some(0));
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Selected containers are hidden; Esc clears the selection")
+        );
+    }
+
+    /// An armed Remove must not run on a different set of containers than
+    /// the one shown when it was armed.
+    #[test]
+    fn test_armed_remove_disarms_when_its_targets_change() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // `web` goes away; Remove stays in the menu, but now hits 2, not 3
+        state.handle_event(AppEvent::ContainerDestroyed(keys[2].clone()));
+        assert_eq!(state.selected_menu_action(), Some(ContainerAction::Remove));
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.armed_bulk_action, None);
+    }
+
+    #[test]
+    fn test_left_cancels_bulk_menu() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        // Marks survive cancelling the menu
+        assert_eq!(state.marked_containers.len(), 3);
+    }
+
+    /// A stray Esc can drop a large selection, so it says so.
+    #[test]
+    fn test_esc_clearing_marks_says_so() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Cleared selection of 3 containers")
+        );
+    }
+
+    #[test]
+    fn test_left_cancels_single_action_menu() {
+        let (mut state, _) = create_bulk_state();
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(matches!(state.view_state, ViewState::ActionMenu(_)));
+        press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    /// A large batch outlives the timeout as long as its events keep coming;
+    /// the timeout measures silence, not age.
+    #[test]
+    fn test_long_running_bulk_batch_is_kept_while_active() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            // Launched long ago, but the first result just arrived
+            last_activity: std::time::Instant::now() - std::time::Duration::from_secs(50),
+        }];
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        // Total age is now well past the timeout from here on, but the
+        // result refreshed the batch
+        state.bulk_progress[0].last_activity -= std::time::Duration::from_secs(30);
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 2 containers")
+        );
+    }
+
+    /// Rows trading places in a re-sort between the two Enters is the same
+    /// target set, so the armed Remove still confirms.
+    #[test]
+    fn test_armed_remove_survives_a_re_sort() {
+        use crate::core::types::{ContainerAction, SortDirection};
+
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        state.sort_state.direction = SortDirection::Descending;
+        state.force_sort_containers();
+
+        // No host is connected, so nothing runs, but it was confirmed: the
+        // menu closes instead of disarming
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
 }

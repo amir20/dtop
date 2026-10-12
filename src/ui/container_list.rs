@@ -67,15 +67,23 @@ pub fn render_container_list(
     let rows: Vec<Row> = app_state
         .sorted_container_keys
         .iter()
-        .filter_map(|key| app_state.containers.get(key))
-        .map(|c| {
-            create_container_row(
+        .filter_map(|key| {
+            let marked = app_state.marked_containers.contains(key);
+            app_state.containers.get(key).map(|c| (c, marked))
+        })
+        .map(|(c, marked)| {
+            let row = create_container_row(
                 c,
                 styles,
                 visible_columns,
                 show_host_column,
                 show_progress_bars,
-            )
+            );
+            if marked {
+                row.style(styles.marked)
+            } else {
+                row
+            }
         })
         .collect();
 
@@ -86,7 +94,21 @@ pub fn render_container_list(
         app_state.sort_state,
     );
     let constraints = column_constraints(visible_columns, show_host_column, show_progress_bars);
-    let block = list_block(app_state.sorted_container_keys.len(), stats_rows, styles);
+    let marked_count = app_state
+        .sorted_container_keys
+        .iter()
+        .filter(|key| app_state.marked_containers.contains(*key))
+        .count();
+    let marks = MarkCounts {
+        listed: marked_count,
+        hidden: app_state.marked_containers.len() - marked_count,
+    };
+    let block = list_block(
+        app_state.sorted_container_keys.len(),
+        marks,
+        stats_rows,
+        styles,
+    );
     // Capture the table's rect before the block is moved into the table; the
     // hyperlink overlay is positioned relative to it.
     let table_area = block.inner(area);
@@ -547,6 +569,14 @@ fn column_constraints(
         .collect()
 }
 
+/// Containers marked for a bulk action: those in the list, and those
+/// filtered out of it
+#[derive(Clone, Copy)]
+struct MarkCounts {
+    listed: usize,
+    hidden: usize,
+}
+
 /// Builds the block that wraps the table.
 ///
 /// Returned rather than inlined so the caller can ask it for `inner()` — the
@@ -554,20 +584,37 @@ fn column_constraints(
 /// title row plus proportional padding make that non-obvious to compute by hand.
 ///
 /// `extra_top` rows are reserved under the title for the system stats header.
-fn list_block(container_count: usize, extra_top: u16, styles: &UiStyles) -> Block<'static> {
+fn list_block(
+    container_count: usize,
+    marks: MarkCounts,
+    extra_top: u16,
+    styles: &UiStyles,
+) -> Block<'static> {
     let mut padding = ratatui::widgets::Padding::proportional(1);
     padding.top += extra_top;
+    let noun = if container_count == 1 {
+        "container"
+    } else {
+        "containers"
+    };
+    let title = if marks.listed > 0 || marks.hidden > 0 {
+        let hidden = if marks.hidden > 0 {
+            format!(", {} hidden", marks.hidden)
+        } else {
+            String::new()
+        };
+        format!(
+            "dtop v{VERSION} - {container_count} {noun}, {} selected{hidden} \
+             (Enter for actions, Esc to clear)",
+            marks.listed
+        )
+    } else {
+        format!("dtop v{VERSION} - {container_count} {noun} ('?' for help, 'q' to quit)")
+    };
     Block::default()
         .borders(Borders::NONE)
         .padding(padding)
-        .title(format!(
-            "dtop v{VERSION} - {container_count} {} ('?' for help, 'q' to quit)",
-            if container_count == 1 {
-                "container"
-            } else {
-                "containers"
-            }
-        ))
+        .title(title)
         .style(styles.border)
 }
 

@@ -11,6 +11,9 @@
     { key: "c", action: "Show and reorder columns" },
     { key: "a", action: "Include stopped containers" },
     { key: "t", action: "Show or hide system stats" },
+    { key: "Space", action: "Select containers for bulk actions" },
+    { key: "Ctrl+A", action: "Select every listed container" },
+    { key: "Ctrl+S", action: "Save your preferences" },
   ];
 </script>
 
@@ -23,7 +26,7 @@
       Hands stay on the keyboard
     </h2>
     <p class="text-(--c-text-muted)">
-      Nine bindings cover the whole surface. Press
+      A dozen bindings cover the whole surface. Press
       <code class="font-mono text-(--c-text)">?</code> anywhere for the overlay.
     </p>
   </header>

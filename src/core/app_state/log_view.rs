@@ -15,7 +15,7 @@ impl AppState {
                 // Show action menu for selected container
                 self.handle_show_action_menu()
             }
-            ViewState::ActionMenu(_) => {
+            ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
                 // Execute selected action
                 self.handle_execute_action()
             }

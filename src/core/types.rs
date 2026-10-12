@@ -224,6 +224,8 @@ pub enum ViewState {
     LogView(ContainerKey),
     /// Viewing action menu for a specific container
     ActionMenu(ContainerKey),
+    /// Viewing action menu for every marked container
+    BulkActionMenu,
     /// Search mode active (editing search query)
     SearchMode,
     /// Column selector popup
@@ -283,6 +285,31 @@ impl ContainerAction {
             ContainerState::Restarting | ContainerState::Removing => vec![],
             ContainerState::Unknown => vec![],
         }
+    }
+
+    /// Actions offered for several containers at once: those that at least one
+    /// of the given states supports. Shell is left out, since it can only open
+    /// one container. Each action is then run only on the containers it suits.
+    pub fn available_for_states<'a>(
+        states: impl IntoIterator<Item = &'a ContainerState>,
+    ) -> Vec<ContainerAction> {
+        const BULK: [ContainerAction; 4] = [
+            ContainerAction::Start,
+            ContainerAction::Stop,
+            ContainerAction::Restart,
+            ContainerAction::Remove,
+        ];
+        let mut supported = [false; BULK.len()];
+        for state in states {
+            let available = Self::available_for_state(state);
+            for (i, action) in BULK.iter().enumerate() {
+                supported[i] |= available.contains(action);
+            }
+        }
+        BULK.into_iter()
+            .zip(supported)
+            .filter_map(|(action, ok)| ok.then_some(action))
+            .collect()
     }
 }
 
