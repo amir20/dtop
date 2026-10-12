@@ -968,6 +968,37 @@ The codebase includes unit tests for:
 
 Run tests with `cargo test` or `cargo insta test` for snapshot tests.
 
+## Scope Discipline
+
+Small first versions win. Building is cheap here; reviewing and maintaining is not.
+
+- **Agree the scope as a changelog before any code.** For a new feature, write what
+  ships (user-visible bullets) and an explicit "Not in this release" list, and get it
+  approved. Anything not on the ship list is out of scope, however reasonable it looks.
+- **A plan is a menu, not a work order.** Build phase 1 only. Later phases start after
+  phase 1 has merged, unless the user asks for more.
+- **Reuse before you add.** A new config key, CLI flag, `AppEvent`, `ViewState`, key
+  binding, column or popup needs a one-line reason why an existing one can't do it.
+  Prefer extending an existing view (e.g. the action menu) to adding a new one.
+- **Stop at ~1,000 lines.** If a PR's non-test, non-snapshot diff passes ~1,000 lines,
+  stop and check scope with the user before continuing.
+- **One feature, one PR.** Unrelated work (docs, refactors, a fix spotted on the way)
+  gets its own PR off main, never a layer in the same branch. Avoid stacks deeper than
+  two; with a GitHub stack, merge from the bottom.
+- **Subagents and workflows get the out-of-scope list.** Every implementation prompt
+  includes "not in scope" and the rule: a deviation that adds behaviour is reported,
+  not built.
+- **Review fixes fix; they don't extend.** Addressing feedback must not add new
+  mechanisms. If a fix needs one, raise it as a scope question.
+- **The automated review always finds something.** `claude-review` re-reviews every
+  push and lists items even when it says LGTM. Fix the bugs it finds; answer nits,
+  suggestions and "consider" items once in a reply, without pushing for them. A round
+  with no bugs ends the review loop. Fixes made under review are the likeliest place
+  for new bugs, so keep them minimal.
+- **Audit size before review, not after.** When a body of work is done, report its size
+  per feature (code, tests, snapshots) next to its user impact, so cuts happen before
+  review time is spent.
+
 ## Pre-Commit Checklist
 
 **IMPORTANT: These checks MUST pass before creating any PR or commit.**
