@@ -1,0 +1,19 @@
+---
+source: src/ui/ui_tests.rs
+expression: output
+---
+dtop vX.X.X - 3 containers, 3 selected (Enter for actions, Esc to clear)                                                
+                                                                                                                        
+  ID             Name ▲                                      CPU %   Memory  Net TX       Net RX       Created          
+                                                                                                                        
+  bbb          ▶ api                                           1.0%    1.0%  0B/s         0B/s         2 hours ago      
+  ccc          ■ db                     ┌──────── Actions: 3 selected ─────────┐                       2 hours ago      
+  aaa          ▶ web                    │>  ▶  Start (1 of 3)                  │s         0B/s         2 hours ago      
+                                        │   ■  Stop (2 of 3)                   │                                        
+                                        │   ↻  Restart (2 of 3)                │                                        
+                                        │   ✕  Remove (3 of 3)                 │                                        
+                                        │                                      │                                        
+                                        │                                      │                                        
+                                        │                                      │                                        
+                                        │ ↑/↓: Navigate  Enter: Execute  Esc/← │                                        
+                                        └──────────────────────────────────────┘

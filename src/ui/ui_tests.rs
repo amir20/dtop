@@ -1977,4 +1977,220 @@ mod tests {
             "the restored row should be selected again"
         );
     }
+
+    fn press(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers) {
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, modifiers)));
+    }
+
+    /// Three containers: `web` and `api` running, `db` exited. Sorted by name
+    /// so the rows read api, db, web.
+    fn create_bulk_state() -> (AppState, Vec<ContainerKey>) {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+        state.sort_state = SortState::new(Column::Name);
+        for (id, name) in [("aaa", "web"), ("bbb", "api"), ("ccc", "db")] {
+            let mut container = create_test_container(id, name, "local", 1.0, 1.0, 0.0, 0.0);
+            if name == "db" {
+                container.state = ContainerState::Exited;
+            }
+            state.handle_event(AppEvent::ContainerCreated(container));
+        }
+        let keys = state.sorted_container_keys.clone();
+        (state, keys)
+    }
+
+    #[test]
+    fn test_space_marks_container_and_moves_down() {
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(0));
+
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.contains(&keys[0]));
+        assert_eq!(state.table_state.selected(), Some(1));
+
+        // Space on a marked row unmarks it
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Char(' '), KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+    }
+
+    #[test]
+    fn test_ctrl_a_toggles_all_and_esc_clears() {
+        let (mut state, keys) = create_bulk_state();
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert_eq!(state.marked_containers.len(), keys.len());
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        assert!(state.marked_containers.is_empty());
+
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Esc, KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    #[test]
+    fn test_marks_are_dropped_with_their_container() {
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.handle_event(AppEvent::ContainerDestroyed(keys[0].clone()));
+        assert!(!state.marked_containers.contains(&keys[0]));
+        assert_eq!(state.marked_containers.len(), keys.len() - 1);
+    }
+
+    /// The bulk menu offers every action at least one marked container
+    /// supports, and never Shell.
+    #[test]
+    fn test_enter_with_marks_opens_bulk_menu() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(
+            state.bulk_actions(),
+            vec![
+                ContainerAction::Start,
+                ContainerAction::Stop,
+                ContainerAction::Restart,
+                ContainerAction::Remove,
+            ]
+        );
+
+        let buffer = render_list(&mut state, &UiStyles::default(), 120, 20);
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("Actions: 3 selected"), "{output}");
+        assert!(output.contains("Stop (2 of 3)"), "{output}");
+        assert!(output.contains("Start (1 of 3)"), "{output}");
+        assert_snapshot_with_redaction!(output);
+    }
+
+    /// Containers hidden by the search filter keep their mark but are not
+    /// acted on.
+    #[test]
+    fn test_bulk_menu_ignores_hidden_marked_containers() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        state.show_all_containers = false;
+        state.force_sort_containers();
+
+        assert_eq!(state.marked_visible_keys().len(), 2);
+        assert_eq!(state.marked_containers.len(), 3);
+    }
+
+    /// Remove in the bulk menu takes a second Enter; moving away disarms it.
+    #[test]
+    fn test_bulk_remove_needs_confirmation() {
+        let (mut state, _) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(state.bulk_remove_armed);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.marked_containers.len(), 3);
+
+        press(&mut state, KeyCode::Up, KeyModifiers::NONE);
+        assert!(!state.bulk_remove_armed);
+
+        press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        // No host is connected in tests, so nothing runs, but the menu closes
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert!(state.marked_containers.is_empty());
+    }
+
+    /// A bulk action reports one summary instead of a toast per container.
+    #[test]
+    fn test_bulk_progress_summary() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        let running = [keys[0].clone(), keys[2].clone()];
+        state.bulk_progress = Some(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: running.iter().cloned().collect(),
+            total: 2,
+            failed: 0,
+        });
+        state.show_notification("Stopping 2 containers…");
+
+        state.handle_event(AppEvent::ActionInProgress(
+            running[0].clone(),
+            ContainerAction::Stop,
+        ));
+        state.handle_event(AppEvent::ActionSuccess(
+            running[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping 2 containers…")
+        );
+
+        state.handle_event(AppEvent::ActionSuccess(
+            running[1].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopped 2 containers")
+        );
+        assert!(state.bulk_progress.is_none());
+    }
+
+    #[test]
+    fn test_bulk_progress_summary_reports_failures() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = Some(BulkProgress {
+            action: ContainerAction::Restart,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+        });
+
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Restart,
+            "boom".to_string(),
+        ));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Failed to restart api: boom")
+        );
+
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Restart,
+        ));
+        assert!(state.notification_is_error);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Restarted 1 of 2 containers (1 failed)")
+        );
+    }
+
+    #[test]
+    fn test_marked_rows_render_with_count_in_title() {
+        let (mut state, keys) = create_bulk_state();
+        state.marked_containers.insert(keys[1].clone());
+        let styles = UiStyles::default();
+        let buffer = render_list(&mut state, &styles, 120, 12);
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("3 containers, 1 selected"), "{output}");
+
+        let (_, y) = find_text_position(&buffer, "db").expect("db row");
+        let (x, _) = find_text_position(&buffer, "db").unwrap();
+        assert_eq!(buffer[(x, y)].fg, styles.marked.fg.unwrap());
+    }
 }

@@ -436,6 +436,7 @@ The application has these view states:
 - `ContainerList` - Main view showing all containers across all hosts
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 - `ActionMenu(ContainerKey)` - Action menu popup for a specific container
+- `BulkActionMenu` - Action menu popup for every marked container
 - `SearchMode` - Search mode for filtering containers by name/ID
 - `ColumnSelector` - Column visibility and ordering popup
 - `SortSelector` - Sort field selection popup
@@ -590,6 +591,16 @@ The application supports interactive container management through an action menu
 - Paused → Stop, Remove
 - Exited/Created/Dead → Start, Remove
 - Restarting/Removing → No actions available
+
+**Bulk Actions** (`core/app_state/selection.rs`):
+- Marks live in `AppState::marked_containers`; they are dropped with their container
+- Bulk actions act only on marked containers that are *listed* (`marked_visible_keys`), so
+  a container hidden by search or the show-all toggle is never touched unseen
+- The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
+  (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
+- Remove needs a second Enter (`bulk_remove_armed`)
+- Results are tracked in `BulkProgress` and reported as one summary toast
+  ("Stopped 4 containers", or "Stopped 3 of 4 containers (1 failed)"); failures also get their own toast
 
 **Implementation Details:**
 - Actions spawn async tasks that don't block the UI
@@ -926,7 +937,10 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `↑/↓` - Navigate between containers
 - `PageUp/PageDown` (or `Ctrl-U`/`Ctrl-D`) - Move selection up/down by one page
 - `Home`/`End` - Jump to first/last container
-- `Enter` - Open action menu for selected container
+- `Enter` - Open action menu for selected container (or the bulk action menu when containers are marked)
+- `Space` - Mark/unmark the selected container for a bulk action (and move down)
+- `Ctrl-A` - Mark every listed container, or unmark them if all are marked
+- `Esc` - Clear marks
 - `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application
 - `o` - Open Dozzle for selected container (if configured and not in SSH session)

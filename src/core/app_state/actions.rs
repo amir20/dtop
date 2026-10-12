@@ -1,6 +1,7 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
-use crate::core::app_state::AppState;
+use crate::core::app_state::{AppState, BulkProgress};
 use crate::core::types::{ContainerAction, ContainerKey, RenderAction, ViewState};
 
 impl AppState {
@@ -8,6 +9,22 @@ impl AppState {
         // Only handle in ContainerList view
         if self.view_state != ViewState::ContainerList {
             return RenderAction::None;
+        }
+
+        // With containers marked, Enter acts on all of them instead
+        if self
+            .marked_containers
+            .iter()
+            .any(|key| self.sorted_container_keys.contains(key))
+        {
+            if self.bulk_actions().is_empty() {
+                self.show_notification("No actions available for the selected containers");
+                return RenderAction::Render;
+            }
+            self.view_state = ViewState::BulkActionMenu;
+            self.action_menu_state.select(Some(0));
+            self.bulk_remove_armed = false;
+            return RenderAction::Render;
         }
 
         // Get the selected container
@@ -45,8 +62,14 @@ impl AppState {
                 // Exit log view
                 return self.handle_exit_log_view();
             }
-            ViewState::ActionMenu(_) => {
+            ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
                 // Exit action menu
+                self.bulk_remove_armed = false;
+            }
+            ViewState::ContainerList if !self.marked_containers.is_empty() => {
+                // Unmark everything
+                self.marked_containers.clear();
+                return RenderAction::Render;
             }
             ViewState::ColumnSelector => {
                 // Switch back to container list view
@@ -69,20 +92,21 @@ impl AppState {
         RenderAction::Render // Force draw - view changed
     }
 
+    /// Actions listed by the open action menu, single or bulk
+    pub fn menu_actions(&self) -> Vec<ContainerAction> {
+        match &self.view_state {
+            ViewState::ActionMenu(key) => self
+                .containers
+                .get(key)
+                .map(|c| ContainerAction::available_for_state(&c.state))
+                .unwrap_or_default(),
+            ViewState::BulkActionMenu => self.bulk_actions(),
+            _ => Vec::new(),
+        }
+    }
+
     pub(super) fn handle_select_action_up(&mut self) -> RenderAction {
-        // Only handle in action menu view
-        let ViewState::ActionMenu(ref container_key) = self.view_state else {
-            return RenderAction::None;
-        };
-
-        // Get the container to determine available actions
-        let Some(container) = self.containers.get(container_key) else {
-            return RenderAction::None;
-        };
-
-        let available_actions = ContainerAction::available_for_state(&container.state);
-
-        if available_actions.is_empty() {
+        if self.menu_actions().is_empty() {
             return RenderAction::None;
         }
 
@@ -90,6 +114,7 @@ impl AppState {
         let current = self.action_menu_state.selected().unwrap_or(0);
         if current > 0 {
             self.action_menu_state.select(Some(current - 1));
+            self.bulk_remove_armed = false;
             RenderAction::Render // Force draw
         } else {
             RenderAction::None
@@ -97,33 +122,133 @@ impl AppState {
     }
 
     pub(super) fn handle_select_action_down(&mut self) -> RenderAction {
-        // Only handle in action menu view
-        let ViewState::ActionMenu(ref container_key) = self.view_state else {
-            return RenderAction::None;
-        };
-
-        // Get the container to determine available actions
-        let Some(container) = self.containers.get(container_key) else {
-            return RenderAction::None;
-        };
-
-        let available_actions = ContainerAction::available_for_state(&container.state);
-
-        if available_actions.is_empty() {
+        let action_count = self.menu_actions().len();
+        if action_count == 0 {
             return RenderAction::None;
         }
 
         // Move selection down
         let current = self.action_menu_state.selected().unwrap_or(0);
-        if current < available_actions.len() - 1 {
+        if current < action_count - 1 {
             self.action_menu_state.select(Some(current + 1));
+            self.bulk_remove_armed = false;
             RenderAction::Render // Force draw
         } else {
             RenderAction::None
         }
     }
 
+    /// Runs the picked bulk action on every marked, visible container that
+    /// supports it. Remove asks for a second Enter first.
+    pub(super) fn handle_execute_bulk_action(&mut self) -> RenderAction {
+        let Some(selected_idx) = self.action_menu_state.selected() else {
+            return RenderAction::None;
+        };
+        let Some(action) = self.bulk_actions().get(selected_idx).copied() else {
+            return RenderAction::None;
+        };
+
+        if action == ContainerAction::Remove && !self.bulk_remove_armed {
+            self.bulk_remove_armed = true;
+            return RenderAction::Render; // The menu footer asks to confirm
+        }
+        self.bulk_remove_armed = false;
+
+        let targets: Vec<ContainerKey> = self
+            .marked_visible_keys()
+            .into_iter()
+            .filter(|key| {
+                self.containers.get(key).is_some_and(|c| {
+                    ContainerAction::available_for_state(&c.state).contains(&action)
+                })
+            })
+            .collect();
+
+        let mut pending = HashSet::with_capacity(targets.len());
+        for key in targets {
+            let Some(host) = self.connected_hosts.get(&key.host_id) else {
+                continue;
+            };
+            let host = host.clone();
+            let tx = self.event_tx.clone();
+            pending.insert(key.clone());
+            tokio::spawn(async move {
+                crate::docker::actions::execute_container_action(host, key, action, tx).await;
+            });
+        }
+
+        self.view_state = ViewState::ContainerList;
+        self.action_menu_state.select(None);
+        self.marked_containers.clear();
+
+        if pending.is_empty() {
+            self.show_notification("No connected containers to act on");
+            return RenderAction::Render;
+        }
+
+        let total = pending.len();
+        let (doing, _) = action.progress_words();
+        self.show_action_notification(
+            &format!("{doing} {}…", containers_word(total)),
+            Duration::from_secs(15),
+            false,
+        );
+        self.bulk_progress = Some(BulkProgress {
+            action,
+            pending,
+            total,
+            failed: 0,
+        });
+
+        RenderAction::Render
+    }
+
+    /// Records a bulk member's result. Returns false if the container is not
+    /// part of the running bulk action.
+    fn record_bulk_result(
+        &mut self,
+        key: &ContainerKey,
+        action: ContainerAction,
+        ok: bool,
+    ) -> bool {
+        let Some(progress) = self.bulk_progress.as_mut() else {
+            return false;
+        };
+        if progress.action != action || !progress.pending.remove(key) {
+            return false;
+        }
+        if !ok {
+            progress.failed += 1;
+        }
+        if progress.pending.is_empty() {
+            let (_, done) = action.progress_words();
+            let (total, failed) = (progress.total, progress.failed);
+            self.bulk_progress = None;
+            if failed == 0 {
+                self.show_action_notification(
+                    &format!("{done} {}", containers_word(total)),
+                    Duration::from_secs(2),
+                    false,
+                );
+            } else {
+                self.show_action_notification(
+                    &format!(
+                        "{done} {} of {total} containers ({failed} failed)",
+                        total - failed
+                    ),
+                    Duration::from_secs(6),
+                    true,
+                );
+            }
+        }
+        true
+    }
+
     pub(super) fn handle_execute_action(&mut self) -> RenderAction {
+        if self.view_state == ViewState::BulkActionMenu {
+            return self.handle_execute_bulk_action();
+        }
+
         // Only handle in action menu view
         let ViewState::ActionMenu(ref container_key) = self.view_state else {
             return RenderAction::None;
@@ -220,8 +345,19 @@ impl AppState {
         // something is happening. The result normally replaces it; the expiry
         // only matters if none arrives (e.g. the host dropped mid-action).
         let name = self.action_target_name(&key);
-        let (doing, _) = action.progress_words();
-        self.show_action_notification(&format!("{doing} {name}…"), Duration::from_secs(15), false);
+        // Bulk members share the "Stopping N containers…" toast shown at launch
+        let in_bulk = self
+            .bulk_progress
+            .as_ref()
+            .is_some_and(|p| p.action == action && p.pending.contains(&key));
+        if !in_bulk {
+            let (doing, _) = action.progress_words();
+            self.show_action_notification(
+                &format!("{doing} {name}…"),
+                Duration::from_secs(15),
+                false,
+            );
+        }
         self.action_names.insert(key, name);
         RenderAction::Render
     }
@@ -232,6 +368,10 @@ impl AppState {
         action: ContainerAction,
     ) -> RenderAction {
         // The row itself is updated by the Docker event for the change
+        if self.record_bulk_result(&key, action, true) {
+            self.action_names.remove(&key);
+            return RenderAction::Render;
+        }
         let (_, done) = action.progress_words();
         let message = format!("{done} {}", self.action_target_name(&key));
         self.action_names.remove(&key);
@@ -260,6 +400,18 @@ impl AppState {
         );
         self.action_names.remove(&key);
         self.show_action_notification(&message, Duration::from_secs(6), true);
+        // Each failure gets its own toast; after the last result of a bulk
+        // action, its summary replaces it.
+        self.record_bulk_result(&key, action, false);
         RenderAction::Render
+    }
+}
+
+/// "1 container" / "3 containers"
+fn containers_word(count: usize) -> String {
+    if count == 1 {
+        "1 container".to_string()
+    } else {
+        format!("{count} containers")
     }
 }

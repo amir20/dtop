@@ -9,27 +9,58 @@ use crate::core::app_state::AppState;
 use crate::core::types::{ContainerAction, ViewState};
 use crate::ui::render::UiStyles;
 
-/// Renders a centered action menu popup for a specific container
+/// Renders a centered action menu popup for one container, or for every
+/// marked container in the bulk menu
 pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
-    // Only render if we're in ActionMenu view
-    let ViewState::ActionMenu(ref container_key) = state.view_state else {
-        return;
-    };
-
-    // Get the container info
-    let Some(container) = state.containers.get(container_key) else {
-        return;
-    };
-
     let area = f.area();
 
-    // Create a centered popup (40% width, auto height based on actions)
-    let available_actions = ContainerAction::available_for_state(&container.state);
+    // Each action's label, with how many marked containers it applies to in
+    // the bulk menu, since an action skips the containers it doesn't suit
+    let (title, labels): (String, Vec<(ContainerAction, String)>) = match state.view_state {
+        ViewState::ActionMenu(ref container_key) => {
+            let Some(container) = state.containers.get(container_key) else {
+                return;
+            };
+            let title = format!(
+                " Actions: {} ({}) ",
+                truncate_string(&container.name, 20),
+                truncate_string(&container_key.host_id, 10)
+            );
+            let labels = ContainerAction::available_for_state(&container.state)
+                .into_iter()
+                .map(|action| (action, action.display_name().to_string()))
+                .collect();
+            (title, labels)
+        }
+        ViewState::BulkActionMenu => {
+            let marked = state.marked_visible_keys();
+            let labels = state
+                .bulk_actions()
+                .into_iter()
+                .map(|action| {
+                    let applies = marked
+                        .iter()
+                        .filter_map(|key| state.containers.get(key))
+                        .filter(|c| {
+                            ContainerAction::available_for_state(&c.state).contains(&action)
+                        })
+                        .count();
+                    (
+                        action,
+                        format!("{} ({applies} of {})", action.display_name(), marked.len()),
+                    )
+                })
+                .collect();
+            (format!(" Actions: {} selected ", marked.len()), labels)
+        }
+        _ => return,
+    };
 
     // If no actions available, don't show the menu
-    if available_actions.is_empty() {
+    if labels.is_empty() {
         return;
     }
+    let available_actions = &labels;
 
     // Calculate height: title (3 lines) + actions + footer (2 lines) + padding
     let popup_height = (available_actions.len() as u16 + 6).min(area.height.saturating_sub(4));
@@ -42,13 +73,6 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
 
     // Clear the background area first to prevent bleed-through
     f.render_widget(Clear, popup_area);
-
-    // Create the title with container name
-    let title = format!(
-        " Actions: {} ({}) ",
-        truncate_string(&container.name, 20),
-        truncate_string(&container_key.host_id, 10)
-    );
 
     // Render the popup block
     let block = Block::default()
@@ -72,9 +96,9 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
     // Create list items from available actions
     let list_items: Vec<ListItem> = available_actions
         .iter()
-        .map(|action| {
+        .map(|(action, label)| {
             let icon = styles.icons.action(*action);
-            let text = format!(" {}  {}", icon, action.display_name());
+            let text = format!(" {icon}  {label}");
             ListItem::new(text).style(Style::default().fg(Color::White))
         })
         .collect();
@@ -101,8 +125,18 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
         1,
     );
 
-    let footer_style = Style::default().fg(Color::Gray);
-    let footer = ratatui::widgets::Paragraph::new("↑/↓: Navigate  Enter: Execute  Esc/←: Cancel")
+    let (footer_text, footer_style) = if state.bulk_remove_armed {
+        (
+            "Enter again to remove, Esc to cancel",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )
+    } else {
+        (
+            "↑/↓: Navigate  Enter: Execute  Esc/←: Cancel",
+            Style::default().fg(Color::Gray),
+        )
+    };
+    let footer = ratatui::widgets::Paragraph::new(footer_text)
         .style(footer_style)
         .alignment(Alignment::Center);
 

@@ -1,12 +1,12 @@
 use ratatui::widgets::{ListState, TableState};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Column, ColumnConfig, Container, ContainerKey, HostId, HostInfo, LogState,
-    RenderAction, SortDirection, SortState, SystemStats, ViewState,
+    AppEvent, Column, ColumnConfig, Container, ContainerAction, ContainerKey, HostId, HostInfo,
+    LogState, RenderAction, SortDirection, SortState, SystemStats, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -19,8 +19,18 @@ mod log_view;
 mod navigation;
 mod preferences;
 mod search;
+mod selection;
 pub mod sorting;
 pub mod system;
+
+/// A bulk action whose per-container results are still arriving
+pub(crate) struct BulkProgress {
+    pub action: ContainerAction,
+    /// Containers whose result has not arrived yet
+    pub pending: HashSet<ContainerKey>,
+    pub total: usize,
+    pub failed: usize,
+}
 
 /// Application state that manages all runtime data
 pub struct AppState {
@@ -97,6 +107,12 @@ pub struct AppState {
     pub notification_is_error: bool,
     /// Names of containers with an action in flight, for its result toast
     pub(crate) action_names: HashMap<ContainerKey, String>,
+    /// Containers marked with Space (or Ctrl+A) for a bulk action
+    pub marked_containers: HashSet<ContainerKey>,
+    /// Progress of the last bulk action, reported as one summary toast
+    pub(crate) bulk_progress: Option<BulkProgress>,
+    /// Remove was picked in the bulk menu once; Enter again confirms it
+    pub bulk_remove_armed: bool,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -152,6 +168,9 @@ impl AppState {
             notification: None,
             notification_is_error: false,
             action_names: HashMap::new(),
+            marked_containers: HashSet::new(),
+            bulk_progress: None,
+            bulk_remove_armed: false,
             reset_confirm_pending: false,
         }
     }
@@ -279,6 +298,7 @@ impl AppState {
                 },
                 KeyCode::Char('s') => self.handle_save_preferences(),
                 KeyCode::Char('r') => self.handle_reset_preferences_prompt(),
+                KeyCode::Char('a') => self.handle_toggle_mark_all(),
                 _ => RenderAction::None,
             };
         }
@@ -306,7 +326,9 @@ impl AppState {
             KeyCode::Up | KeyCode::Char('k') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_previous(),
                 ViewState::LogView(_) => self.handle_scroll_up(),
-                ViewState::ActionMenu(_) => self.handle_select_action_up(),
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_select_action_up()
+                }
                 // SearchMode is handled by the early return above; fallback defensively
                 ViewState::SearchMode => self.handle_select_previous(),
                 // ColumnSelector/SortSelector handled by early returns above
@@ -315,7 +337,9 @@ impl AppState {
             KeyCode::Down | KeyCode::Char('j') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_next(),
                 ViewState::LogView(_) => self.handle_scroll_down(),
-                ViewState::ActionMenu(_) => self.handle_select_action_down(),
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                    self.handle_select_action_down()
+                }
                 ViewState::SearchMode => self.handle_select_next(),
                 // ColumnSelector/SortSelector handled by early returns above
                 ViewState::ColumnSelector | ViewState::SortSelector => RenderAction::None,
@@ -347,7 +371,10 @@ impl AppState {
             KeyCode::Left | KeyCode::Char('h') => self.handle_exit_log_view(),
             KeyCode::Char('g') => self.handle_scroll_to_top(),
             KeyCode::Char('G') => self.handle_scroll_to_bottom(),
-            KeyCode::Char(' ') => self.handle_scroll_page_down(),
+            KeyCode::Char(' ') => match &self.view_state {
+                ViewState::ContainerList => self.handle_toggle_mark(),
+                _ => self.handle_scroll_page_down(),
+            },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
             _ => RenderAction::None,
         }

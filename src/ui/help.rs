@@ -35,6 +35,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
             "  s           Sort by                     c      Columns        t      Stats header",
         ),
         Line::from("  PgUp/PgDn   Page up/down                Home   First          End    Last"),
+        Line::from(
+            "  Space       Select container            Ctrl+A Select all     Esc    Clear selection",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Preferences",

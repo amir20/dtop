@@ -25,6 +25,8 @@ pub struct UiStyles {
     pub header: Style,
     pub border: Style,
     pub selected: Style,
+    /// Rows marked for a bulk action
+    pub marked: Style,
     pub search_bar: Style,
     pub icons: Icons,
     /// Style applied to OSC 8 hyperlinks. Deliberately only an underline: the
@@ -47,6 +49,9 @@ impl Default for UiStyles {
             border: Style::default(),
             selected: Style::default()
                 .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+            marked: Style::default()
+                .fg(Color::Magenta)
                 .add_modifier(Modifier::BOLD),
             search_bar: Style::default()
                 .fg(Color::Yellow)
@@ -107,7 +112,7 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
                 render_sort_selector(f, state, styles);
             }
         }
-        ViewState::ActionMenu(_) => {
+        ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
             // First render the container list in the background
             let show_host_column = state.has_multiple_hosts();
             render_container_list(f, size, state, styles, show_host_column);
