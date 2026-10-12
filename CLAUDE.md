@@ -599,11 +599,15 @@ The application supports interactive container management through an action menu
   a container hidden by search or the show-all toggle is never touched unseen
 - The bulk menu offers Start/Stop/Restart/Remove if any marked container supports them
   (no Shell), each labelled "(n of m)"; an action skips containers it doesn't suit
-- Remove needs a second Enter (`bulk_remove_armed`)
+- Remove needs a second Enter (`armed_bulk_action`). When container changes reshape an open
+  menu, `revalidate_action_menu` keeps the cursor on the same action, or disarms if it is gone
+- Failed containers are re-marked, so retrying them is one Enter away
 - Results are tracked per batch in `AppState::bulk_progress` (batches can overlap) and reported
   as one summary toast: "Stopped 4 containers", or "Stopped 2 of 4 containers (2 failed, last:
   <reason>)". A one-container batch leaves its own error toast up instead. Containers on a
-  disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it
+  disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it,
+  and batches with no result after 60s are dropped. A container launched in a new batch leaves
+  any older one
 - An action menu left with no actions (its containers went away) closes itself
   (`revalidate_action_menu`)
 
@@ -944,7 +948,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `Home`/`End` - Jump to first/last container
 - `Enter` - Open action menu for selected container (or the bulk action menu when containers are marked)
 - `Space` - Mark/unmark the selected container for a bulk action (and move down)
-- `Ctrl-A` - Mark every listed container, or unmark them if all are marked
+- `Ctrl-A` - Mark every listed container, or unmark them if all are marked (under tmux/screen
+  with the default prefix, press the prefix then `a` to send it through)
 - `Esc` - Clear marks
 - `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application

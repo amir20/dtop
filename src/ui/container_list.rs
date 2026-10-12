@@ -99,11 +99,13 @@ pub fn render_container_list(
         .iter()
         .filter(|key| app_state.marked_containers.contains(*key))
         .count();
-    let hidden_marked = app_state.marked_containers.len() - marked_count;
+    let marks = MarkCounts {
+        listed: marked_count,
+        hidden: app_state.marked_containers.len() - marked_count,
+    };
     let block = list_block(
         app_state.sorted_container_keys.len(),
-        marked_count,
-        hidden_marked,
+        marks,
         stats_rows,
         styles,
     );
@@ -567,6 +569,14 @@ fn column_constraints(
         .collect()
 }
 
+/// Containers marked for a bulk action: those in the list, and those
+/// filtered out of it
+#[derive(Clone, Copy)]
+struct MarkCounts {
+    listed: usize,
+    hidden: usize,
+}
+
 /// Builds the block that wraps the table.
 ///
 /// Returned rather than inlined so the caller can ask it for `inner()` — the
@@ -574,12 +584,9 @@ fn column_constraints(
 /// title row plus proportional padding make that non-obvious to compute by hand.
 ///
 /// `extra_top` rows are reserved under the title for the system stats header.
-/// `marked_count` visible containers are marked for a bulk action, and
-/// `hidden_marked` more are marked but filtered out of the list.
 fn list_block(
     container_count: usize,
-    marked_count: usize,
-    hidden_marked: usize,
+    marks: MarkCounts,
     extra_top: u16,
     styles: &UiStyles,
 ) -> Block<'static> {
@@ -590,15 +597,16 @@ fn list_block(
     } else {
         "containers"
     };
-    let title = if marked_count > 0 || hidden_marked > 0 {
-        let hidden = if hidden_marked > 0 {
-            format!(", {hidden_marked} hidden")
+    let title = if marks.listed > 0 || marks.hidden > 0 {
+        let hidden = if marks.hidden > 0 {
+            format!(", {} hidden", marks.hidden)
         } else {
             String::new()
         };
         format!(
-            "dtop v{VERSION} - {container_count} {noun}, {marked_count} selected{hidden} \
-             (Enter for actions, Esc to clear)"
+            "dtop v{VERSION} - {container_count} {noun}, {} selected{hidden} \
+             (Enter for actions, Esc to clear)",
+            marks.listed
         )
     } else {
         format!("dtop v{VERSION} - {container_count} {noun} ('?' for help, 'q' to quit)")

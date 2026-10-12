@@ -23,7 +23,7 @@ impl AppState {
             }
             self.view_state = ViewState::BulkActionMenu;
             self.action_menu_state.select(Some(0));
-            self.bulk_remove_armed = false;
+            self.armed_bulk_action = None;
             return RenderAction::Render;
         }
 
@@ -64,7 +64,7 @@ impl AppState {
             }
             ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
                 // Exit action menu
-                self.bulk_remove_armed = false;
+                self.armed_bulk_action = None;
             }
             ViewState::ContainerList if !self.marked_containers.is_empty() => {
                 // Unmark everything
@@ -92,28 +92,45 @@ impl AppState {
         RenderAction::Render // Force draw - view changed
     }
 
-    /// Closes an action menu left with nothing to offer, e.g. because its
-    /// containers were removed while it was open (it would otherwise stay
-    /// active but undrawn), and keeps its cursor in range.
-    pub(super) fn revalidate_action_menu(&mut self) {
+    /// The action under the menu cursor, if a menu is open
+    pub fn selected_menu_action(&self) -> Option<ContainerAction> {
+        let index = self.action_menu_state.selected()?;
+        self.menu_actions().get(index).copied()
+    }
+
+    /// Re-checks an open action menu after its containers changed.
+    ///
+    /// Closes it if nothing is left to offer, e.g. because its containers were
+    /// removed (it would otherwise stay active but undrawn). Otherwise keeps
+    /// the cursor on `previous`, the action it was on, since a list that lost
+    /// an entry above it would leave the same index on a different action.
+    /// If that action is gone, the cursor is clamped and an armed Remove is
+    /// disarmed, so the second Enter can't confirm something else.
+    pub(super) fn revalidate_action_menu(&mut self, previous: Option<ContainerAction>) {
         if !matches!(
             self.view_state,
             ViewState::ActionMenu(_) | ViewState::BulkActionMenu
         ) {
             return;
         }
-        let action_count = self.menu_actions().len();
-        if action_count == 0 {
+        let actions = self.menu_actions();
+        if actions.is_empty() {
             self.view_state = ViewState::ContainerList;
             self.action_menu_state.select(None);
-            self.bulk_remove_armed = false;
-        } else if self
-            .action_menu_state
-            .selected()
-            .is_some_and(|i| i >= action_count)
-        {
-            self.action_menu_state.select(Some(action_count - 1));
-            self.bulk_remove_armed = false;
+            self.armed_bulk_action = None;
+            return;
+        }
+        match previous.and_then(|action| actions.iter().position(|a| *a == action)) {
+            Some(index) => self.action_menu_state.select(Some(index)),
+            None => {
+                let index = self
+                    .action_menu_state
+                    .selected()
+                    .unwrap_or(0)
+                    .min(actions.len() - 1);
+                self.action_menu_state.select(Some(index));
+                self.armed_bulk_action = None;
+            }
         }
     }
 
@@ -139,7 +156,7 @@ impl AppState {
         let current = self.action_menu_state.selected().unwrap_or(0);
         if current > 0 {
             self.action_menu_state.select(Some(current - 1));
-            self.bulk_remove_armed = false;
+            self.armed_bulk_action = None;
             RenderAction::Render // Force draw
         } else {
             RenderAction::None
@@ -156,7 +173,7 @@ impl AppState {
         let current = self.action_menu_state.selected().unwrap_or(0);
         if current < action_count - 1 {
             self.action_menu_state.select(Some(current + 1));
-            self.bulk_remove_armed = false;
+            self.armed_bulk_action = None;
             RenderAction::Render // Force draw
         } else {
             RenderAction::None
@@ -173,11 +190,15 @@ impl AppState {
             return RenderAction::None;
         };
 
-        if action == ContainerAction::Remove && !self.bulk_remove_armed {
-            self.bulk_remove_armed = true;
+        // The confirming Enter must land on the action that was armed
+        let armed = self.armed_bulk_action.take();
+        if armed.is_some_and(|armed| armed != action) {
+            return RenderAction::Render;
+        }
+        if action == ContainerAction::Remove && armed.is_none() {
+            self.armed_bulk_action = Some(action);
             return RenderAction::Render; // The menu footer asks to confirm
         }
-        self.bulk_remove_armed = false;
 
         let targets: Vec<ContainerKey> = self
             .marked_visible_keys()
@@ -214,6 +235,14 @@ impl AppState {
             return RenderAction::Render;
         }
 
+        // A container now in this batch reports here, not to an older one
+        self.bulk_progress.retain_mut(|batch| {
+            let before = batch.pending.len();
+            batch.pending.retain(|key| !pending.contains(key));
+            batch.total -= before - batch.pending.len();
+            !batch.pending.is_empty()
+        });
+
         let total = pending.len();
         let (doing, _) = action.progress_words();
         let skipped_note = if skipped > 0 {
@@ -232,9 +261,18 @@ impl AppState {
             total,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         });
 
         RenderAction::Render
+    }
+
+    /// Drops bulk batches whose results stopped arriving (e.g. a result event
+    /// was lost), so they can't swallow later toasts for their containers.
+    /// Docker's stop/restart timeout is 10s, so a minute is generous.
+    fn prune_stale_bulk_progress(&mut self) {
+        self.bulk_progress
+            .retain(|batch| batch.started.elapsed() < BULK_RESULT_TIMEOUT);
     }
 
     /// Records a bulk member's result. Returns false if the container is not
@@ -245,6 +283,7 @@ impl AppState {
         action: ContainerAction,
         error: Option<&str>,
     ) -> bool {
+        self.prune_stale_bulk_progress();
         let Some(index) = self
             .bulk_progress
             .iter()
@@ -257,6 +296,10 @@ impl AppState {
         if let Some(error) = error {
             progress.failed += 1;
             progress.last_error = Some(error.to_string());
+            // Re-mark it, so retrying the failures is Enter away
+            if self.containers.contains_key(key) {
+                self.marked_containers.insert(key.clone());
+            }
         }
         if progress.pending.is_empty() {
             let (_, done) = action.progress_words();
@@ -394,6 +437,7 @@ impl AppState {
         // only matters if none arrives (e.g. the host dropped mid-action).
         let name = self.action_target_name(&key);
         // Bulk members share the "Stopping N containers…" toast shown at launch
+        self.prune_stale_bulk_progress();
         let in_bulk = self
             .bulk_progress
             .iter()
@@ -454,6 +498,9 @@ impl AppState {
         RenderAction::Render
     }
 }
+
+/// How long a bulk batch waits for its results before it is dropped
+const BULK_RESULT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// "1 container" / "3 containers"
 fn containers_word(count: usize) -> String {

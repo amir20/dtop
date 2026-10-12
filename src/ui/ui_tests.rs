@@ -2083,6 +2083,8 @@ mod tests {
     /// Remove in the bulk menu takes a second Enter; moving away disarms it.
     #[test]
     fn test_bulk_remove_needs_confirmation() {
+        use crate::core::types::ContainerAction;
+
         let (mut state, _) = create_bulk_state();
         press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
@@ -2091,12 +2093,12 @@ mod tests {
         }
 
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        assert!(state.bulk_remove_armed);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
         assert_eq!(state.view_state, ViewState::BulkActionMenu);
         assert_eq!(state.marked_containers.len(), 3);
 
         press(&mut state, KeyCode::Up, KeyModifiers::NONE);
-        assert!(!state.bulk_remove_armed);
+        assert_eq!(state.armed_bulk_action, None);
 
         press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
@@ -2121,6 +2123,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         }];
         state.show_notification("Stopping 2 containers…");
 
@@ -2160,6 +2163,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         }];
 
         state.handle_event(AppEvent::ActionError(
@@ -2197,6 +2201,7 @@ mod tests {
             total: 1,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         }];
         state.handle_event(AppEvent::ActionError(
             keys[0].clone(),
@@ -2224,6 +2229,7 @@ mod tests {
             total: 2,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         }];
         state.handle_event(AppEvent::HostDisconnected("local".to_string()));
         assert!(state.bulk_progress.is_empty());
@@ -2307,6 +2313,7 @@ mod tests {
             total: 1,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         };
         state.bulk_progress = vec![
             batch(ContainerAction::Stop, &keys[0]),
@@ -2346,6 +2353,7 @@ mod tests {
             total: 3,
             failed: 0,
             last_error: None,
+            started: std::time::Instant::now(),
         }];
         for (key, error) in [(&keys[0], "first"), (&keys[1], "second")] {
             state.handle_event(AppEvent::ActionError(
@@ -2396,5 +2404,89 @@ mod tests {
         state.handle_event(AppEvent::ContainerDestroyed(keys[1].clone()));
         assert_eq!(state.view_state, ViewState::BulkActionMenu);
         assert_eq!(state.action_menu_state.selected(), Some(2));
+    }
+
+    /// If the menu reshapes between the two Enters of a bulk Remove, the
+    /// second Enter must not run whatever now sits at that index.
+    #[test]
+    fn test_armed_remove_survives_or_disarms_when_menu_changes() {
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        for _ in 0..3 {
+            press(&mut state, KeyCode::Down, KeyModifiers::NONE);
+        }
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // Start goes away: the cursor follows Remove up and stays armed
+        state.handle_event(AppEvent::ContainerDestroyed(keys[1].clone()));
+        assert_eq!(state.selected_menu_action(), Some(ContainerAction::Remove));
+        assert_eq!(state.armed_bulk_action, Some(ContainerAction::Remove));
+
+        // An armed action that isn't under the cursor is never confirmed
+        state.action_menu_state.select(Some(0));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::BulkActionMenu);
+        assert_eq!(state.armed_bulk_action, None);
+    }
+
+    /// Failures are re-marked so they can be retried.
+    #[test]
+    fn test_failed_bulk_members_are_re_marked() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone(), keys[2].clone()].into_iter().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            started: std::time::Instant::now(),
+        }];
+        state.handle_event(AppEvent::ActionError(
+            keys[0].clone(),
+            ContainerAction::Stop,
+            "boom".to_string(),
+        ));
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[2].clone(),
+            ContainerAction::Stop,
+        ));
+        assert_eq!(
+            state.marked_containers,
+            [keys[0].clone()].into_iter().collect()
+        );
+    }
+
+    /// A batch whose results never arrive is dropped, so it can't swallow
+    /// later toasts for its containers.
+    #[test]
+    fn test_stale_bulk_batch_is_dropped() {
+        use crate::core::app_state::BulkProgress;
+        use crate::core::types::ContainerAction;
+
+        let (mut state, keys) = create_bulk_state();
+        state.bulk_progress = vec![BulkProgress {
+            action: ContainerAction::Stop,
+            pending: [keys[0].clone()].into_iter().collect(),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            started: std::time::Instant::now() - std::time::Duration::from_secs(120),
+        }];
+        state.handle_event(AppEvent::ActionInProgress(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert!(state.bulk_progress.is_empty());
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Stopping api…")
+        );
     }
 }

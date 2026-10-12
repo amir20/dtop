@@ -32,6 +32,8 @@ pub(crate) struct BulkProgress {
     pub failed: usize,
     /// Reason for the latest failure, for the summary
     pub last_error: Option<String>,
+    /// When the batch was launched; stale batches are dropped
+    pub started: std::time::Instant,
 }
 
 /// Application state that manages all runtime data
@@ -114,8 +116,8 @@ pub struct AppState {
     /// Bulk actions still in flight, each reported as one summary toast.
     /// Several can overlap, e.g. Stop on some containers, then Remove on others.
     pub(crate) bulk_progress: Vec<BulkProgress>,
-    /// Remove was picked in the bulk menu once; Enter again confirms it
-    pub bulk_remove_armed: bool,
+    /// The bulk action picked once and awaiting a confirming Enter (Remove)
+    pub armed_bulk_action: Option<ContainerAction>,
     /// Whether a reset confirmation is pending
     pub reset_confirm_pending: bool,
 }
@@ -173,7 +175,7 @@ impl AppState {
             action_names: HashMap::new(),
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
-            bulk_remove_armed: false,
+            armed_bulk_action: None,
             reset_confirm_pending: false,
         }
     }
@@ -227,9 +229,14 @@ impl AppState {
                 | AppEvent::ContainerStateChanged(..)
                 | AppEvent::ContainerCreated(_)
         );
+        let menu_action = if changes_containers {
+            self.selected_menu_action()
+        } else {
+            None
+        };
         let action = self.dispatch_event(event);
         if changes_containers {
-            self.revalidate_action_menu();
+            self.revalidate_action_menu(menu_action);
         }
         action
     }

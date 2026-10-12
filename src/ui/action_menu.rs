@@ -125,7 +125,7 @@ pub fn render_action_menu(f: &mut Frame, state: &mut AppState, styles: &UiStyles
         1,
     );
 
-    let (footer_text, footer_style) = if state.bulk_remove_armed {
+    let (footer_text, footer_style) = if state.armed_bulk_action.is_some() {
         (
             "Enter again to remove, Esc to cancel",
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
