@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2026-10-12
+
+### Features
+
+- *(actions)* Select containers and run actions on them in bulk (#384)
+
 ## [0.10.0] - 2026-10-11
 
 ### Features
