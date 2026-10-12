@@ -1,8 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use futures_util::StreamExt;
 use std::time::Duration;
 
 use crate::core::app_state::{AppState, BulkProgress};
-use crate::core::types::{ContainerAction, ContainerKey, RenderAction, ViewState};
+use crate::core::types::{ContainerAction, ContainerKey, HostId, RenderAction, ViewState};
 
 impl AppState {
     pub(super) fn handle_show_action_menu(&mut self) -> RenderAction {
@@ -225,18 +227,36 @@ impl AppState {
 
         let mut pending = HashSet::with_capacity(targets.len());
         let mut skipped = 0;
+        let mut by_host: HashMap<HostId, Vec<ContainerKey>> = HashMap::new();
         for key in targets {
-            let Some(host) = self.connected_hosts.get(&key.host_id) else {
+            if !self.connected_hosts.contains_key(&key.host_id) {
                 // Stays marked, so it can be retried once the host is back
                 skipped += 1;
                 continue;
-            };
-            let host = host.clone();
-            let tx = self.event_tx.clone();
+            }
             self.marked_containers.remove(&key);
             pending.insert(key.clone());
+            by_host.entry(key.host_id.clone()).or_default().push(key);
+        }
+
+        // One task per host, running a few actions at a time. Firing them all
+        // at once would burst the host's shared SSH masters (see
+        // `docker/ssh.rs`): channel opens beyond `MaxSessions` fail and evict
+        // the master, and a burst of new connections trips `MaxStartups`.
+        for (host_id, keys) in by_host {
+            let host = self.connected_hosts[&host_id].clone();
+            let tx = self.event_tx.clone();
             tokio::spawn(async move {
-                crate::docker::actions::execute_container_action(host, key, action, tx).await;
+                futures_util::stream::iter(keys)
+                    .for_each_concurrent(BULK_CONCURRENCY_PER_HOST, |key| {
+                        crate::docker::actions::execute_container_action(
+                            host.clone(),
+                            key,
+                            action,
+                            tx.clone(),
+                        )
+                    })
+                    .await;
             });
         }
 
@@ -513,6 +533,10 @@ impl AppState {
         RenderAction::Render
     }
 }
+
+/// Actions a bulk batch runs at once on each host, kept well under the
+/// channels one SSH master carries (`MAX_CHANNELS_PER_MASTER`)
+const BULK_CONCURRENCY_PER_HOST: usize = 4;
 
 /// How long a bulk batch waits for its results before it is dropped
 const BULK_RESULT_TIMEOUT: Duration = Duration::from_secs(60);

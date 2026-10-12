@@ -2554,4 +2554,14 @@ mod tests {
             Some("Cleared selection of 3 containers")
         );
     }
+
+    #[test]
+    fn test_left_cancels_single_action_menu() {
+        let (mut state, _) = create_bulk_state();
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        assert!(matches!(state.view_state, ViewState::ActionMenu(_)));
+        press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
 }

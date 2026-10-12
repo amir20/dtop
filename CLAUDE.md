@@ -607,8 +607,10 @@ The application supports interactive container management through an action menu
   as one summary toast: "Stopped 4 containers", or "Stopped 2 of 4 containers (2 failed, last:
   <reason>)". A one-container batch leaves its own error toast up instead. Containers on a
   disconnected host are skipped (and stay marked); a host disconnect drops batches waiting on it,
-  and batches with no result after 60s are dropped. A container launched in a new batch leaves
-  any older one
+  and batches with no result after 60s are dropped. A container launched in a new batch is
+  removed from any older batch
+- Each host runs at most 4 of a batch's actions at once (`BULK_CONCURRENCY_PER_HOST`), so marking
+  dozens of containers doesn't burst an SSH host's shared masters
 - An action menu left with no actions (its containers went away) closes itself
   (`revalidate_action_menu`)
 
