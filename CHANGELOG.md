@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2026-10-15
+
+### Features
+
+- *(config)* Add --config option to load a config file from any path (#389)
+
 ## [0.10.1] - 2026-10-12
 
 ### Features
