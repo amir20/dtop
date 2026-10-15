@@ -131,6 +131,12 @@ Commands:
   help    Print this message or the help of the given subcommand(s)
 
 Options:
+  -c, --config <PATH>
+          Path to a config file to use instead of the default locations
+
+          The file must exist. --host still replaces its hosts, and Ctrl-S saves
+          preferences back to it.
+
   -H, --host <HOST>
           Docker host(s) to connect to. Can be specified multiple times.
 
@@ -221,6 +227,8 @@ Options:
 2. `./.dtop.yaml` or `./.dtop.yml`
 3. `~/.config/dtop/config.yaml` or `~/.config/dtop/config.yml`
 4. `~/.dtop.yaml` or `~/.dtop.yml`
+
+To use a file somewhere else, such as a config shared by every user on a host, pass `--config /path/to/dtop.yaml`. The default locations are then skipped.
 
 > [!Note]
 > Both `yaml` and `yml` files are supported.

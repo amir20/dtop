@@ -110,6 +110,10 @@ The application supports configuration via YAML files. Config files are searched
 3. `~/.config/dtop/config.yaml` or `~/.config/dtop/config.yml`
 4. `~/.dtop.yaml` or `~/.dtop.yml`
 
+`--config <PATH>` / `-c <PATH>` loads that file instead and skips the search. It must exist
+(a missing or invalid file is an error), it is loaded even when `--host` is given (`--host`
+still replaces its hosts), and Ctrl-S saves back to it.
+
 **Command line arguments take precedence over config file values.**
 
 Example config file (`config.yaml`):
