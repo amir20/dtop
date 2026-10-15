@@ -556,7 +556,7 @@ the diff → real-backend byte path, where this class of bug is actually visible
 The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:
 - Searches multiple locations in priority order (see Configuration section above)
 - Merges config file values with CLI arguments (CLI takes precedence)
-- Uses `serde_yaml` for deserialization
+- Uses `serde_norway` (maintained `serde_yaml` fork) for deserialization
 - Uses `dirs` crate for home directory detection
 
 **Host Configuration Format:**

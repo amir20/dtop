@@ -69,7 +69,7 @@ impl Config {
         for path in config_paths {
             if path.exists() {
                 let contents = std::fs::read_to_string(&path)?;
-                let config: Config = serde_yaml::from_str(&contents)?;
+                let config: Config = serde_norway::from_str(&contents)?;
                 return Ok((config, Some(path)));
             }
         }
@@ -84,7 +84,7 @@ impl Config {
     pub fn load_from(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| format!("failed to read config {}: {e}", path.display()))?;
-        serde_yaml::from_str(&contents)
+        serde_norway::from_str(&contents)
             .map_err(|e| format!("failed to parse config {}: {e}", path.display()).into())
     }
 
@@ -255,7 +255,7 @@ hosts:
   - host: ssh://user@server1
   - host: ssh://user@server2:2222
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 3);
         assert_eq!(config.hosts[0].host, "local");
         assert_eq!(config.hosts[1].host, "ssh://user@server1");
@@ -271,7 +271,7 @@ hosts:
     dozzle: https://l.dozzle.dev/
   - host: local
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 2);
         assert_eq!(config.hosts[0].host, "ssh://root@146.190.3.114");
         assert_eq!(config.hosts[1].host, "local");
@@ -480,7 +480,7 @@ hosts:
   - host: local
 sort: cpu
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 1);
         assert_eq!(config.sort, Some("cpu".to_string()));
     }
@@ -496,7 +496,7 @@ columns:
   - cpu
   - memory
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert_eq!(config.hosts.len(), 1);
         let columns = config.columns.unwrap();
         assert_eq!(columns, vec!["status", "name", "cpu", "memory"]);
@@ -508,7 +508,7 @@ columns:
 hosts:
   - host: local
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert!(config.columns.is_none());
     }
 
@@ -528,7 +528,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
         };
-        let yaml = serde_yaml::to_string(&config).unwrap();
+        let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("columns:"));
         assert!(yaml.contains("- name"));
         assert!(yaml.contains("- cpu"));
@@ -542,7 +542,7 @@ hosts:
 sort: cpu
 sort_direction: asc
 "#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        let config: Config = serde_norway::from_str(yaml).unwrap();
         assert_eq!(config.sort, Some("cpu".to_string()));
         assert_eq!(config.sort_direction, Some("asc".to_string()));
     }
@@ -563,7 +563,7 @@ sort_direction: asc
             hyperlinks: None,
             stats_header: None,
         };
-        let yaml = serde_yaml::to_string(&config).unwrap();
+        let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("sort: memory"));
         assert!(yaml.contains("sort_direction: desc"));
     }

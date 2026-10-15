@@ -96,13 +96,8 @@
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
-            buildInputs = [
-              pkgs.openssl
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-              pkgs.darwin.apple_sdk.frameworks.Security
-              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-            ];
+            # On Darwin, Security and SystemConfiguration come from the default SDK.
+            buildInputs = [ pkgs.openssl ];
 
             # Disable auto update
             buildNoDefaultFeatures = true;
