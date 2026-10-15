@@ -80,6 +80,13 @@ struct Args {
     #[command(subcommand)]
     command: Option<Command>,
 
+    /// Path to a config file to use instead of the default locations
+    ///
+    /// The file must exist. --host still replaces its hosts, and Ctrl-S saves
+    /// preferences back to it.
+    #[arg(short = 'c', long, verbatim_doc_comment, value_name = "PATH")]
+    config: Option<std::path::PathBuf>,
+
     /// Docker host(s) to connect to. Can be specified multiple times.
     ///
     /// Examples:
@@ -206,8 +213,10 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Determine if CLI hosts were explicitly provided
     let cli_provided = !args.host.is_empty();
 
-    // Load config file only if CLI hosts not provided
-    let (config, config_path) = if cli_provided {
+    // An explicit --config is always loaded; otherwise load config file only if CLI hosts not provided
+    let (config, config_path) = if let Some(path) = args.config.clone() {
+        (Config::load_from(&path)?, Some(path))
+    } else if cli_provided {
         // User explicitly provided --host, don't load config for hosts
         (Config::default(), None)
     } else {
@@ -300,8 +309,13 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         ColumnConfig::default()
     };
     // Only pass config_path when the config file is actually being used,
-    // to avoid silently overwriting a config file the user didn't intend to use
-    let config_path_for_state = if cli_provided { None } else { config_path };
+    // to avoid silently overwriting a config file the user didn't intend to use.
+    // A file named with --config was intended, even alongside --host.
+    let config_path_for_state = if cli_provided && args.config.is_none() {
+        None
+    } else {
+        config_path
+    };
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);

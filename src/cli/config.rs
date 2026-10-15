@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Configuration for a single Docker host
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -75,6 +75,17 @@ impl Config {
         }
 
         Ok((Config::default(), None))
+    }
+
+    /// Load the config file at an explicit path (`--config`).
+    ///
+    /// Unlike the search in `load_with_path`, a missing file is an error: the user
+    /// named it, so silently falling back to defaults would hide a typo.
+    pub fn load_from(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let contents = std::fs::read_to_string(path)
+            .map_err(|e| format!("failed to read config {}: {e}", path.display()))?;
+        serde_yaml::from_str(&contents)
+            .map_err(|e| format!("failed to parse config {}: {e}", path.display()).into())
     }
 
     /// Get list of potential config file paths in priority order
@@ -555,5 +566,37 @@ sort_direction: asc
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("sort: memory"));
         assert!(yaml.contains("sort_direction: desc"));
+    }
+
+    #[test]
+    fn test_load_from_explicit_path() {
+        let path =
+            std::env::temp_dir().join(format!("dtop-config-test-{}.yml", std::process::id()));
+        std::fs::write(&path, "hosts:\n  - host: ssh://user@server1\nsort: name\n").unwrap();
+        let config = Config::load_from(&path);
+        std::fs::remove_file(&path).unwrap();
+
+        let config = config.unwrap();
+        assert_eq!(config.hosts[0].host, "ssh://user@server1");
+        assert_eq!(config.sort, Some("name".to_string()));
+    }
+
+    #[test]
+    fn test_load_from_missing_path_errors_with_path() {
+        let path = std::env::temp_dir().join("dtop-config-test-does-not-exist.yml");
+        let err = Config::load_from(&path).unwrap_err().to_string();
+        assert!(err.contains("dtop-config-test-does-not-exist.yml"), "{err}");
+    }
+
+    #[test]
+    fn test_load_from_invalid_yaml_errors_with_path() {
+        let path = std::env::temp_dir().join(format!("dtop-config-bad-{}.yml", std::process::id()));
+        std::fs::write(&path, "hosts: [unterminated\n").unwrap();
+        let err = Config::load_from(&path)
+            .map(|_| ())
+            .unwrap_err()
+            .to_string();
+        std::fs::remove_file(&path).unwrap();
+        assert!(err.contains("failed to parse config"), "{err}");
     }
 }
