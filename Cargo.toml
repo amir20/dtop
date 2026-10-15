@@ -2,7 +2,7 @@
 name = "dtop"
 version = "0.10.2"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.98"
 description = "A terminal-based Docker container monitoring tool with real-time CPU and memory metrics"
 license = "MIT"
 repository = "https://github.com/amir20/dtop"
@@ -27,7 +27,7 @@ tower-service = "0.3"
 clap = { version = "4.6", features = ["derive", "color"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9"
+serde_norway = "0.9"
 dirs = "7.0"
 chrono = "0.4"
 open = "5.4"

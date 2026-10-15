@@ -170,14 +170,14 @@ fn write_preferences(
     path: &PathBuf,
     prefs: Preferences,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use serde_yaml::Value;
+    use serde_norway::Value;
     use std::fs;
 
     // Read existing config or create empty mapping
     let mut config: Value = if path.exists() {
         let contents = fs::read_to_string(path)?;
         // Don't silently discard invalid YAML - return error so user knows
-        serde_yaml::from_str(&contents).map_err(|e| {
+        serde_norway::from_str(&contents).map_err(|e| {
             format!("Config file contains invalid YAML: {e}. Please fix or delete the file.")
         })?
     } else {
@@ -213,7 +213,7 @@ fn write_preferences(
     // Atomic write: write to temp file first, then rename
     // This prevents corruption if the process crashes mid-write
     let temp_path = path.with_extension("yaml.tmp");
-    let yaml = serde_yaml::to_string(&config)?;
+    let yaml = serde_norway::to_string(&config)?;
     fs::write(&temp_path, &yaml)?;
 
     // Rename is atomic on Unix; on Windows it's still safer than direct write
