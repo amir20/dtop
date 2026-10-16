@@ -1,6 +1,7 @@
 pub mod action_menu;
 pub mod column_selector;
 pub mod container_list;
+pub mod details;
 pub mod formatters;
 pub mod help;
 pub mod hyperlinks;

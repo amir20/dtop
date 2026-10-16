@@ -288,6 +288,7 @@ src/
 │
 ├── docker/                # Docker-related functionality
 │   ├── connection.rs     # Container manager & Docker host abstraction
+│   ├── details.rs        # Inspect for the details popup
 │   ├── logs.rs           # Log streaming
 │   ├── stats.rs          # Stats streaming and calculation
 │   └── actions.rs        # Container actions (start/stop/restart/remove)
@@ -297,6 +298,7 @@ src/
 │   ├── render.rs         # Ratatui UI rendering
 │   ├── container_list.rs # Container list table rendering
 │   ├── action_menu.rs    # Action menu popup rendering
+│   ├── details.rs        # Details popup rendering
 │   ├── help.rs           # Help popup rendering
 │   ├── icons.rs          # Icon sets (Unicode and Nerd Font)
 │   └── ui_tests.rs       # UI snapshot tests
@@ -406,6 +408,7 @@ Container-related events use structured types to identify containers across host
 - `ContainerDestroyed(ContainerKey)` - Container stopped/died (identified by host_id + container_id)
 - `ContainerStat(ContainerKey, ContainerStats)` - Stats update (identified by host_id + container_id)
 - `ContainerHealthChanged(ContainerKey, HealthStatus)` - Health status changed for a container
+- `ContainerDetails(ContainerKey, Result<ContainerDetails, String>)` - Inspect result for the details popup
 - `Quit` - User pressed 'q' or Ctrl-C
 - `Resize` - Terminal was resized
 - `SelectPrevious` - Move selection up (Up arrow in container list)
@@ -441,6 +444,7 @@ The application has these view states:
 - `LogView(ContainerKey)` - Log viewer for a specific container with real-time streaming
 - `ActionMenu(ContainerKey)` - Action menu popup for a specific container
 - `BulkActionMenu` - Action menu popup for every marked container
+- `Details(ContainerKey)` - Details popup for a container, opened from its action menu
 - `SearchMode` - Search mode for filtering containers by name/ID
 - `ColumnSelector` - Column visibility and ordering popup
 - `SortSelector` - Sort field selection popup
@@ -589,12 +593,16 @@ The application supports interactive container management through an action menu
 - **Stop**: Available for Running, Paused containers (10-second timeout)
 - **Restart**: Available for Running containers (10-second timeout)
 - **Remove**: Available for any state except Restarting/Removing (forced removal)
+- **Details**: Available in every state (listed last, never in the bulk menu). Opens a popup
+  filled by one inspect (`docker/details.rs`): image, command, created/started, last exit code
+  and OOM kill, restart policy and count, ports, mounts, networks, label count. Environment
+  variables are deliberately left out, since they often hold secrets
 
 **State-Based Availability:**
-- Running → Stop, Restart, Remove
-- Paused → Stop, Remove
-- Exited/Created/Dead → Start, Remove
-- Restarting/Removing → No actions available
+- Running → Shell, Stop, Restart, Remove, Details
+- Paused → Stop, Remove, Details
+- Exited/Created/Dead → Start, Remove, Details
+- Restarting/Removing → Details only
 
 **Bulk Actions** (`core/app_state/selection.rs`):
 - Marks live in `AppState::marked_containers`; they are dropped with their container.

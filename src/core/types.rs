@@ -81,6 +81,33 @@ pub struct Container {
     pub ports: Option<String>, // Published ports, preformatted for display ("8080→80, 53→53/udp")
 }
 
+/// What the details popup shows, read from one inspect when it opens
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ContainerDetails {
+    /// Image as referenced when the container was created
+    pub image: String,
+    /// Entrypoint and arguments, as `docker ps --no-trunc` shows them
+    pub command: String,
+    pub created: Option<DateTime<Utc>>,
+    pub started: Option<DateTime<Utc>>,
+    /// When it last stopped; `None` while it has never stopped
+    pub finished: Option<DateTime<Utc>>,
+    pub exit_code: Option<i64>,
+    pub oom_killed: bool,
+    /// Docker's error for the last start, e.g. a missing mount source
+    pub error: Option<String>,
+    /// e.g. "unless-stopped" or "on-failure (max 3)"
+    pub restart_policy: String,
+    pub restart_count: i64,
+    /// Published ports, e.g. "0.0.0.0:8080→80/tcp"
+    pub ports: Vec<String>,
+    /// e.g. "/srv/data → /data (ro)"
+    pub mounts: Vec<String>,
+    /// e.g. "bridge 172.17.0.2"
+    pub networks: Vec<String>,
+    pub label_count: usize,
+}
+
 /// Container runtime statistics (updated frequently)
 #[derive(Clone, Debug, Default)]
 pub struct ContainerStats {
@@ -166,6 +193,8 @@ pub enum AppEvent {
     ContainerStat(ContainerKey, ContainerStats),
     /// Health status changed for a container
     ContainerHealthChanged(ContainerKey, HealthStatus),
+    /// Result of inspecting a container for the details popup
+    ContainerDetails(ContainerKey, Result<ContainerDetails, String>),
     /// Restart count for a container, backfilled after the initial list is sent.
     /// The list API does not carry it, so it is inspected off the critical path.
     ContainerRestartCount(ContainerKey, i64),
@@ -227,6 +256,8 @@ pub enum ViewState {
     ActionMenu(ContainerKey),
     /// Viewing action menu for every marked container
     BulkActionMenu,
+    /// Details popup for a specific container, opened from its action menu
+    Details(ContainerKey),
     /// Search mode active (editing search query)
     SearchMode,
     /// Column selector popup
@@ -243,6 +274,7 @@ pub enum ContainerAction {
     Restart,
     Remove,
     Shell,
+    Details,
 }
 
 impl ContainerAction {
@@ -254,6 +286,7 @@ impl ContainerAction {
             ContainerAction::Restart => "Restart",
             ContainerAction::Remove => "Remove",
             ContainerAction::Shell => "Shell",
+            ContainerAction::Details => "Details",
         }
     }
 
@@ -267,12 +300,15 @@ impl ContainerAction {
             // Not reported: shells run through `RenderAction::StartShell`, not
             // the ActionInProgress/Success events. Kept so the match is total.
             ContainerAction::Shell => ("Opening shell in", "Closed shell in"),
+            // Not reported either: details open a popup, not a background action
+            ContainerAction::Details => ("Inspecting", "Inspected"),
         }
     }
 
-    /// Returns all available actions for a given container state
+    /// Returns all available actions for a given container state. Details is
+    /// offered in every state, last, since it only reads.
     pub fn available_for_state(state: &ContainerState) -> Vec<ContainerAction> {
-        match state {
+        let mut actions = match state {
             ContainerState::Running => vec![
                 ContainerAction::Shell,
                 ContainerAction::Stop,
@@ -285,7 +321,9 @@ impl ContainerAction {
             }
             ContainerState::Restarting | ContainerState::Removing => vec![],
             ContainerState::Unknown => vec![],
-        }
+        };
+        actions.push(ContainerAction::Details);
+        actions
     }
 
     /// Actions offered for several containers at once: those that at least one

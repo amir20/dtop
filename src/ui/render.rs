@@ -12,6 +12,7 @@ use crate::core::types::ViewState;
 use crate::ui::action_menu::render_action_menu;
 use crate::ui::column_selector::render_column_selector;
 use crate::ui::container_list::render_container_list;
+use crate::ui::details::render_details;
 use crate::ui::help::render_help_popup;
 use crate::ui::icons::{IconStyle, Icons};
 use crate::ui::log_view::render_log_view;
@@ -119,6 +120,11 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
 
             // Then render the action menu on top
             render_action_menu(f, state, styles);
+        }
+        ViewState::Details(_) => {
+            let show_host_column = state.has_multiple_hosts();
+            render_container_list(f, size, state, styles, show_host_column);
+            render_details(f, state, styles);
         }
     }
 

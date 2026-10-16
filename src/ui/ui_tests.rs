@@ -1400,6 +1400,82 @@ mod tests {
         assert_snapshot_with_redaction!(output);
     }
 
+    /// The details popup shows "Loading…" until its inspect arrives, ignores a
+    /// result for another container, and Esc closes it and drops its content.
+    #[test]
+    fn test_details_popup_fills_from_its_inspect_and_closes() {
+        use crate::core::types::ContainerDetails;
+
+        let mut state = create_test_app_state();
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.sorted_container_keys.push(key.clone());
+        state.table_state.select(Some(0));
+        state.view_state = ViewState::Details(key.clone());
+
+        let render = |state: &mut AppState| {
+            let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+            terminal
+                .draw(|f| render_ui(f, state, &UiStyles::default()))
+                .unwrap();
+            buffer_to_string(terminal.backend().buffer())
+        };
+        assert!(render(&mut state).contains("Loading…"));
+
+        let details = ContainerDetails {
+            image: "nginx:alpine".to_string(),
+            command: "/docker-entrypoint.sh nginx -g daemon off;".to_string(),
+            restart_policy: "unless-stopped".to_string(),
+            restart_count: 3,
+            ports: vec![
+                "0.0.0.0:8080→80/tcp".to_string(),
+                "[::]:8080→80/tcp".to_string(),
+            ],
+            mounts: vec!["web-data → /data".to_string()],
+            networks: vec!["web_default 172.18.0.2".to_string()],
+            label_count: 7,
+            ..ContainerDetails::default()
+        };
+
+        // A late result for a container whose popup is no longer open is dropped
+        let other = ContainerKey::new("local".to_string(), "def987654321".to_string());
+        state.handle_event(AppEvent::ContainerDetails(other, Ok(details.clone())));
+        assert_eq!(state.container_details, None);
+
+        state.handle_event(AppEvent::ContainerDetails(key.clone(), Ok(details)));
+        let output = render(&mut state);
+        assert!(output.contains("Details: nginx (local)"));
+        assert!(output.contains("unless-stopped, restarted 3 times"));
+        assert_snapshot_with_redaction!(output);
+
+        press(&mut state, KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(state.container_details, None);
+    }
+
+    #[test]
+    fn test_details_popup_shows_inspect_error() {
+        let mut state = create_test_app_state();
+        let key = ContainerKey::new("local".to_string(), "abc123456789".to_string());
+        state.view_state = ViewState::Details(key.clone());
+        state.handle_event(AppEvent::ContainerDetails(
+            key,
+            Err("No such container".to_string()),
+        ));
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        terminal
+            .draw(|f| render_ui(f, &mut state, &UiStyles::default()))
+            .unwrap();
+        let output = buffer_to_string(terminal.backend().buffer());
+        assert!(output.contains("Could not inspect: No such container"));
+        // ← closes it too, as the footer says
+        press(&mut state, KeyCode::Left, KeyModifiers::NONE);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
     #[test]
     fn test_action_menu_enabled() {
         let mut state = create_test_app_state();

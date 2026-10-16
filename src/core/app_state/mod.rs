@@ -5,8 +5,8 @@ use tokio::sync::mpsc;
 use tui_input::Input;
 
 use crate::core::types::{
-    AppEvent, Column, ColumnConfig, Container, ContainerAction, ContainerKey, HostId, HostInfo,
-    LogState, RenderAction, SortDirection, SortState, SystemStats, ViewState,
+    AppEvent, Column, ColumnConfig, Container, ContainerAction, ContainerDetails, ContainerKey,
+    HostId, HostInfo, LogState, RenderAction, SortDirection, SortState, SystemStats, ViewState,
 };
 use crate::docker::connection::DockerHost;
 
@@ -77,6 +77,8 @@ pub struct AppState {
     pub show_all_containers: bool,
     /// Action menu list state for selection tracking
     pub action_menu_state: ListState,
+    /// The open details popup's content: `None` while its inspect is in flight
+    pub container_details: Option<Result<ContainerDetails, String>>,
     /// Search input widget
     pub search_input: Input,
     pub column_config: ColumnConfig,
@@ -160,6 +162,7 @@ impl AppState {
             sort_state: SortState::new_with_direction(sort_field, sort_direction), // Use configured sort field and direction
             show_all_containers: show_all,
             action_menu_state: ListState::default(), // Default to no selection
+            container_details: None,
             search_input: Input::default(),
             column_config,
             column_selector_state: ListState::default(),
@@ -259,6 +262,7 @@ impl AppState {
             AppEvent::ContainerHealthChanged(key, health) => {
                 self.handle_container_health_changed(key, health)
             }
+            AppEvent::ContainerDetails(key, details) => self.handle_container_details(key, details),
             AppEvent::ContainerRestartCount(key, count) => {
                 self.handle_container_restart_count(key, count)
             }
@@ -362,7 +366,9 @@ impl AppState {
                 // SearchMode is handled by the early return above; fallback defensively
                 ViewState::SearchMode => self.handle_select_previous(),
                 // ColumnSelector/SortSelector handled by early returns above
-                ViewState::ColumnSelector | ViewState::SortSelector => RenderAction::None,
+                ViewState::ColumnSelector | ViewState::SortSelector | ViewState::Details(_) => {
+                    RenderAction::None
+                }
             },
             KeyCode::Down | KeyCode::Char('j') => match &self.view_state {
                 ViewState::ContainerList => self.handle_select_next(),
@@ -372,7 +378,9 @@ impl AppState {
                 }
                 ViewState::SearchMode => self.handle_select_next(),
                 // ColumnSelector/SortSelector handled by early returns above
-                ViewState::ColumnSelector | ViewState::SortSelector => RenderAction::None,
+                ViewState::ColumnSelector | ViewState::SortSelector | ViewState::Details(_) => {
+                    RenderAction::None
+                }
             },
             KeyCode::PageUp => match &self.view_state {
                 ViewState::ContainerList | ViewState::SearchMode => self.handle_page_up(),
@@ -399,8 +407,8 @@ impl AppState {
             KeyCode::Char('t') => self.handle_toggle_system_header(),
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
             KeyCode::Left | KeyCode::Char('h') => match &self.view_state {
-                // The menu footers offer ← to cancel
-                ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
+                // The menu and details footers offer ← to close
+                ViewState::ActionMenu(_) | ViewState::BulkActionMenu | ViewState::Details(_) => {
                     self.handle_cancel_action_menu()
                 }
                 _ => self.handle_exit_log_view(),

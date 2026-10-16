@@ -4,7 +4,9 @@ use futures_util::StreamExt;
 use std::time::Duration;
 
 use crate::core::app_state::{AppState, BulkProgress};
-use crate::core::types::{ContainerAction, ContainerKey, HostId, RenderAction, ViewState};
+use crate::core::types::{
+    ContainerAction, ContainerDetails, ContainerKey, HostId, RenderAction, ViewState,
+};
 
 impl AppState {
     pub(super) fn handle_show_action_menu(&mut self) -> RenderAction {
@@ -69,6 +71,9 @@ impl AppState {
             ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {
                 // Exit action menu
                 self.armed_bulk_action = None;
+            }
+            ViewState::Details(_) => {
+                self.container_details = None;
             }
             ViewState::ContainerList if !self.marked_containers.is_empty() => {
                 // Unmark everything, and say so: a stray Esc can drop a
@@ -423,6 +428,18 @@ impl AppState {
             return RenderAction::StartShell(container_key_clone);
         }
 
+        if action == ContainerAction::Details {
+            tokio::spawn(crate::docker::details::fetch_container_details(
+                host.clone(),
+                container_key.clone(),
+                self.event_tx.clone(),
+            ));
+            self.view_state = ViewState::Details(container_key.clone());
+            self.action_menu_state.select(None);
+            self.container_details = None;
+            return RenderAction::Render;
+        }
+
         // Spawn async task to execute the action
         let host_clone = host.clone();
         let container_key_clone = container_key.clone();
@@ -443,6 +460,20 @@ impl AppState {
         self.action_menu_state.select(None);
 
         RenderAction::Render // Force draw
+    }
+
+    /// Fills the details popup, unless it was closed (or moved to another
+    /// container) while the inspect was in flight.
+    pub(super) fn handle_container_details(
+        &mut self,
+        key: ContainerKey,
+        details: Result<ContainerDetails, String>,
+    ) -> RenderAction {
+        if self.view_state != ViewState::Details(key) {
+            return RenderAction::None;
+        }
+        self.container_details = Some(details);
+        RenderAction::Render
     }
 
     /// The container's name for notifications. Remembered when the action
