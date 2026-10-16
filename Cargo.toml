@@ -41,6 +41,8 @@ hex = "0.4"
 self_update = { version = "1.0", default-features = false, features = ["archive-tar", "compression-tar-gz", "github", "progress-bar", "rustls", "ureq"], optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+# poll() for the terminal probe that picks the icon style
+libc = "0.2"
 sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
 
 [dev-dependencies]

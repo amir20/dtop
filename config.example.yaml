@@ -24,8 +24,12 @@ hosts:
 
 # == Icons ==
 # Icon style for the UI.
-# Possible values: unicode, nerd (requires Nerd Font)
-icons: unicode
+# Possible values:
+#   auto    - Nerd Font icons on terminals that ship them built in
+#             (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+#   unicode - Standard Unicode icons (works everywhere)
+#   nerd    - Nerd Font icons (requires Nerd Font)
+icons: auto
 
 # == All ==
 # Whether to show all containers including stopped, exited, and paused.

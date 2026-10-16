@@ -131,8 +131,8 @@ hosts:
       - name=nginx
       - ancestor=ubuntu:24.04
 
-# Icon style: "unicode" (default) or "nerd" (requires Nerd Font)
-icons: unicode
+# Icon style: "auto" (default), "unicode" or "nerd" (requires Nerd Font)
+icons: auto
 
 # OSC 8 hyperlinks on container names: "auto" (default), "always", or "never"
 hyperlinks: auto
@@ -155,7 +155,16 @@ Each host entry is a struct with:
 - Future optional fields can be added as needed
 
 Global config options:
-- `icons`: Icon style to use ("unicode" or "nerd")
+- `icons`: Icon style to use ("auto", "unicode" or "nerd"). `auto` (`ui/icons.rs::IconMode::resolve`)
+  sends XTVERSION followed by DA1 right after raw mode is enabled and before the keyboard worker
+  starts (which would otherwise eat the reply). DA1 is the sentinel: every terminal answers it, so a
+  terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
+  WezTerm and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
+  over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
+  `TERM_PROGRAM`/`TERM` when there is no reply. Under tmux the probe would name tmux, so it reads
+  `#{client_termtype}` instead (tmux >= 3.3 runs XTVERSION against the outer terminal on attach);
+  Unicode under screen. A reply later than the 1s timeout reaches the keyboard worker as keystrokes
+  (only on links with a round trip over 1s); accepted rather than filtering input
 - `all`: Show all containers including stopped/exited (default: false)
 - `sort`: Default sort field for container list ("uptime", "name", "cpu", "memory")
 - `sort_direction`: Sort direction ("asc" or "desc") - if omitted, uses field's default
