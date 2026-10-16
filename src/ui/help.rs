@@ -38,6 +38,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  Space       Select container            Ctrl+A Select all*    Esc    Clear selection",
         ),
+        Line::from("  p           Select compose project"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Preferences",
