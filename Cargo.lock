@@ -787,6 +787,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "insta",
+ "libc",
  "mockall",
  "open",
  "openssh",

@@ -161,7 +161,9 @@ Options:
           Icon style to use for the UI
 
           Options:
-            unicode  - Standard Unicode icons (default, works everywhere)
+            auto     - Nerd Font icons on terminals that ship them built in
+                       (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+            unicode  - Standard Unicode icons (works everywhere)
             nerd     - Nerd Font icons (requires Nerd Font installed)
 
   -f, --filter <FILTER>
@@ -272,6 +274,8 @@ See [config.example.yaml](https://github.com/amir20/dtop/blob/main/config.exampl
 
 `dtop` supports [Nerd Fonts](https://www.nerdfonts.com/) for enhanced icon display. Nerd Fonts are fonts that have been patched to include additional glyphs and icons commonly used in terminal applications.
 
+By default (`icons: auto`), `dtop` asks the terminal what it is at startup and uses Nerd Font icons on terminals that draw them without a patched font: **Ghostty**, **WezTerm** and **kitty 0.36+**. This works over SSH too, since the question travels through the SSH session to your local terminal. Inside tmux or screen, `auto` uses Unicode icons.
+
 ### Installing Nerd Fonts
 
 1. Visit [nerdfonts.com/font-downloads](https://www.nerdfonts.com/font-downloads)
@@ -281,7 +285,7 @@ See [config.example.yaml](https://github.com/amir20/dtop/blob/main/config.exampl
 
 ### Using Nerd Font Icons
 
-Once you have a Nerd Font installed and configured in your terminal, enable Nerd Font icons in `dtop`:
+On other terminals, once you have a Nerd Font installed and configured, enable Nerd Font icons in `dtop`:
 
 ```bash
 # Via command line
@@ -292,7 +296,7 @@ icons: nerd
 ```
 
 > [!Note]
-> If icons appear as boxes or question marks, ensure your terminal is using a Nerd Font. The default `unicode` mode works with any terminal font.
+> If icons appear as boxes or question marks, ensure your terminal is using a Nerd Font, or set `icons: unicode`, which works with any terminal font.
 
 ## Supported Connections
 

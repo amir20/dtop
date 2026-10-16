@@ -38,7 +38,7 @@ use core::system_stats::system_stats_worker;
 use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
 use docker::connection::{DockerHost, container_manager};
 use ui::hyperlinks::HyperlinkMode;
-use ui::icons::IconStyle;
+use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 
@@ -111,7 +111,9 @@ struct Args {
     /// Icon style to use for the UI
     ///
     /// Options:
-    ///   unicode  - Standard Unicode icons (default, works everywhere)
+    ///   auto     - Nerd Font icons on terminals that ship them built in
+    ///              (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+    ///   unicode  - Standard Unicode icons (works everywhere)
     ///   nerd     - Nerd Font icons (requires Nerd Font installed)
     #[arg(short = 'i', long, verbatim_doc_comment)]
     icons: Option<String>,
@@ -257,17 +259,19 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         )
     };
 
-    // Determine icon style (CLI takes precedence over config)
-    let icon_style = if let Some(ref cli_icons) = args.icons {
-        // CLI explicitly provided
-        cli_icons.parse::<IconStyle>().unwrap_or_default()
-    } else if let Some(ref config_icons) = merged_config.icons {
-        // Use config file value
-        config_icons.parse::<IconStyle>().unwrap_or_default()
-    } else {
-        // Default to unicode
-        IconStyle::Unicode
-    };
+    // Determine icon mode (CLI takes precedence over config). Auto is resolved
+    // once the terminal is in raw mode.
+    let icon_mode = args
+        .icons
+        .as_deref()
+        .or(merged_config.icons.as_deref())
+        .map(|value| {
+            value.parse::<IconMode>().unwrap_or_else(|err| {
+                warn!("{err}; falling back to auto");
+                IconMode::default()
+            })
+        })
+        .unwrap_or_default();
 
     // Determine hyperlink mode (CLI takes precedence over config)
     let hyperlink_mode = args
@@ -355,11 +359,15 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Create pause flag for keyboard worker
     let keyboard_paused = Arc::new(AtomicBool::new(false));
 
-    // Spawn keyboard worker in blocking thread
-    spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
-
     // Setup terminal
     let mut terminal = setup_terminal()?;
+
+    // Ask the terminal what it is before the keyboard worker starts reading
+    // stdin, or the worker would swallow the reply
+    let icon_style = icon_mode.resolve();
+
+    // Spawn keyboard worker in blocking thread
+    spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
 
     // Run main event loop
     run_event_loop(
