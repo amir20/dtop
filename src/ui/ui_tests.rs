@@ -3,7 +3,7 @@ mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
         AppEvent, Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats,
-        HostInfo, SortState, SystemStats, ViewState,
+        HealthStatus, HostInfo, SortState, SystemStats, ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -1738,6 +1738,71 @@ mod tests {
 
         // No duplicated keys in the rendered list
         assert_eq!(state.sorted_container_keys.len(), 3);
+    }
+
+    /// Sorting by Status puts the containers that need attention first, in the
+    /// default direction, instead of ordering state names alphabetically.
+    #[test]
+    fn test_status_sort_lists_problems_first() {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+        state.sort_state = SortState::new(Column::Status);
+
+        let container = |id: &str, container_state, health| {
+            let mut c = create_test_container(id, id, "local", 0.0, 0.0, 0.0, 0.0);
+            c.state = container_state;
+            c.health = health;
+            c
+        };
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                container("created", ContainerState::Created, None),
+                container(
+                    "healthy",
+                    ContainerState::Running,
+                    Some(HealthStatus::Healthy),
+                ),
+                container("paused", ContainerState::Paused, None),
+                // Stale health on a stopped container must not count as unhealthy.
+                container(
+                    "exited",
+                    ContainerState::Exited,
+                    Some(HealthStatus::Unhealthy),
+                ),
+                container(
+                    "starting",
+                    ContainerState::Running,
+                    Some(HealthStatus::Starting),
+                ),
+                container("restarting", ContainerState::Restarting, None),
+                container(
+                    "unhealthy",
+                    ContainerState::Running,
+                    Some(HealthStatus::Unhealthy),
+                ),
+                container("dead", ContainerState::Dead, None),
+            ],
+        ));
+
+        let order: Vec<&str> = state
+            .sorted_container_keys
+            .iter()
+            .map(|k| k.container_id.as_str())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "unhealthy",
+                "restarting",
+                "dead",
+                "exited",
+                "starting",
+                "healthy",
+                "paused",
+                "created"
+            ]
+        );
     }
 
     /// A resync zeroes the host's stats, so under a stats-based sort every row
