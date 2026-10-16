@@ -150,6 +150,10 @@ fn probe_xtversion() -> Option<String> {
         };
         // SAFETY: one valid pollfd, and the count matches.
         let ready = unsafe { libc::poll(&mut fds, 1, remaining.as_millis() as libc::c_int) };
+        if ready < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+            // A signal (e.g. SIGWINCH from a resize) is not the end of the reply
+            continue;
+        }
         if ready <= 0 {
             break;
         }
