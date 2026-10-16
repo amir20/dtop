@@ -121,6 +121,7 @@ mod tests {
             restart_count: None,
             compose_project: None,
             image: None,
+            ports: None,
         }
     }
 

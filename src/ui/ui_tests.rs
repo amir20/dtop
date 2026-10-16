@@ -3,7 +3,7 @@ mod tests {
     use crate::core::app_state::AppState;
     use crate::core::types::{
         AppEvent, Column, ColumnConfig, Container, ContainerKey, ContainerState, ContainerStats,
-        HostInfo, SortState, SystemStats, ViewState,
+        HealthStatus, HostInfo, SortState, SystemStats, ViewState,
     };
     use crate::ui::render::{UiStyles, render_ui};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -110,6 +110,7 @@ mod tests {
             restart_count: None,
             compose_project: None,
             image: Some(format!("{name}:latest")),
+            ports: None,
         }
     }
 
@@ -1188,6 +1189,7 @@ mod tests {
                 restart_count: None,
                 compose_project: None,
                 image: None,
+                ports: None,
             },
             Container {
                 id: "dead12345678".to_string(),
@@ -1201,6 +1203,7 @@ mod tests {
                 restart_count: None,
                 compose_project: None,
                 image: None,
+                ports: None,
             },
         ];
 
@@ -1551,6 +1554,48 @@ mod tests {
     }
 
     #[test]
+    fn test_container_list_with_ports_column() {
+        let mut state = create_test_app_state();
+
+        let ports_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Ports)
+            .unwrap();
+        state.column_config.toggle(ports_idx);
+
+        let mut published =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        published.ports = Some("53→53/udp, 8080→80".to_string());
+        let unpublished =
+            create_test_container("def987654321", "worker", "local", 10.0, 20.0, 512.0, 1024.0);
+
+        for container in [published, unpublished] {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+        state.table_state.select(Some(0));
+
+        let styles = UiStyles::default();
+        let backend = TestBackend::new(120, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("Ports"));
+        assert!(output.contains("53→53/udp, 8080→80"));
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
     fn test_container_list_with_image_column() {
         let mut state = create_test_app_state();
 
@@ -1738,6 +1783,71 @@ mod tests {
 
         // No duplicated keys in the rendered list
         assert_eq!(state.sorted_container_keys.len(), 3);
+    }
+
+    /// Sorting by Status puts the containers that need attention first, in the
+    /// default direction, instead of ordering state names alphabetically.
+    #[test]
+    fn test_status_sort_lists_problems_first() {
+        let mut state = create_test_app_state();
+        state.show_all_containers = true;
+        state.sort_state = SortState::new(Column::Status);
+
+        let container = |id: &str, container_state, health| {
+            let mut c = create_test_container(id, id, "local", 0.0, 0.0, 0.0, 0.0);
+            c.state = container_state;
+            c.health = health;
+            c
+        };
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                container("created", ContainerState::Created, None),
+                container(
+                    "healthy",
+                    ContainerState::Running,
+                    Some(HealthStatus::Healthy),
+                ),
+                container("paused", ContainerState::Paused, None),
+                // Stale health on a stopped container must not count as unhealthy.
+                container(
+                    "exited",
+                    ContainerState::Exited,
+                    Some(HealthStatus::Unhealthy),
+                ),
+                container(
+                    "starting",
+                    ContainerState::Running,
+                    Some(HealthStatus::Starting),
+                ),
+                container("restarting", ContainerState::Restarting, None),
+                container(
+                    "unhealthy",
+                    ContainerState::Running,
+                    Some(HealthStatus::Unhealthy),
+                ),
+                container("dead", ContainerState::Dead, None),
+            ],
+        ));
+
+        let order: Vec<&str> = state
+            .sorted_container_keys
+            .iter()
+            .map(|k| k.container_id.as_str())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "unhealthy",
+                "restarting",
+                "dead",
+                "exited",
+                "starting",
+                "healthy",
+                "paused",
+                "created"
+            ]
+        );
     }
 
     /// A resync zeroes the host's stats, so under a stats-based sort every row
