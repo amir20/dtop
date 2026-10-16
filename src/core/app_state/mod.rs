@@ -412,6 +412,7 @@ impl AppState {
                 _ => self.handle_scroll_page_down(),
             },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
+            KeyCode::Char('p') => self.handle_toggle_mark_project(),
             _ => RenderAction::None,
         }
     }

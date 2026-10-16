@@ -2029,6 +2029,53 @@ mod tests {
         assert_eq!(state.view_state, ViewState::ContainerList);
     }
 
+    /// `p` marks the selected container's compose project on its own host,
+    /// leaving other projects, unprojected containers and a same-named project
+    /// on another host alone; a second `p` unmarks the project.
+    #[test]
+    fn test_p_toggles_marks_for_the_selected_compose_project() {
+        let mut state = create_test_app_state();
+        state.sort_state = SortState::new(Column::Name);
+        for (id, name, host, project) in [
+            ("aaa", "shop-api", "local", Some("shop")),
+            ("bbb", "shop-db", "local", Some("shop")),
+            ("ccc", "blog-web", "local", Some("blog")),
+            ("ddd", "loner", "local", None),
+            ("eee", "shop-remote", "server", Some("shop")),
+        ] {
+            let mut container = create_test_container(id, name, host, 1.0, 1.0, 0.0, 0.0);
+            container.compose_project = project.map(str::to_string);
+            state.handle_event(AppEvent::ContainerCreated(container));
+        }
+        let key = |host: &str, id: &str| ContainerKey::new(host.to_string(), id.to_string());
+        let row = |state: &AppState, k: &ContainerKey| {
+            state.sorted_container_keys.iter().position(|x| x == k)
+        };
+
+        state.table_state.select(row(&state, &key("local", "aaa")));
+        press(&mut state, KeyCode::Char('p'), KeyModifiers::NONE);
+        assert_eq!(
+            state.marked_containers,
+            [key("local", "aaa"), key("local", "bbb")]
+                .into_iter()
+                .collect()
+        );
+
+        press(&mut state, KeyCode::Char('p'), KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+
+        // Partly marked: p completes the project rather than clearing it
+        state.marked_containers.insert(key("local", "bbb"));
+        press(&mut state, KeyCode::Char('p'), KeyModifiers::NONE);
+        assert_eq!(state.marked_containers.len(), 2);
+
+        // A container outside any project does nothing
+        state.marked_containers.clear();
+        state.table_state.select(row(&state, &key("local", "ddd")));
+        press(&mut state, KeyCode::Char('p'), KeyModifiers::NONE);
+        assert!(state.marked_containers.is_empty());
+    }
+
     #[test]
     fn test_marks_are_dropped_with_their_container() {
         let (mut state, keys) = create_bulk_state();

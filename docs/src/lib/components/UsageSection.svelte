@@ -13,6 +13,7 @@
     { key: "t", action: "Show or hide system stats" },
     { key: "Space", action: "Select containers for bulk actions" },
     { key: "Ctrl+A", action: "Select every listed container" },
+    { key: "p", action: "Select a whole compose project" },
     { key: "Ctrl+S", action: "Save your preferences" },
   ];
 </script>
