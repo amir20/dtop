@@ -105,6 +105,7 @@ impl Icons {
                 ContainerAction::Restart => "↻",
                 ContainerAction::Remove => "✕",
                 ContainerAction::Shell => ">_",
+                ContainerAction::Details => "ℹ",
             },
             IconStyle::Nerd => match action {
                 ContainerAction::Start => "\u{f04b}",   // nf-fa-play
@@ -112,6 +113,7 @@ impl Icons {
                 ContainerAction::Restart => "\u{f01e}", // nf-fa-refresh
                 ContainerAction::Remove => "\u{f1f8}",  // nf-fa-trash
                 ContainerAction::Shell => "\u{f120}",   // nf-fa-terminal
+                ContainerAction::Details => "\u{f05a}", // nf-fa-info_circle
             },
         }
     }

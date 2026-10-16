@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod connection;
 pub mod context;
+pub mod details;
 pub mod json_formatter;
 pub mod logs;
 #[cfg(test)]

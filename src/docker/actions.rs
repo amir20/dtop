@@ -19,11 +19,9 @@ pub async fn execute_container_action(
         ContainerAction::Stop => host.stop_container(&container_key.container_id).await,
         ContainerAction::Restart => host.restart_container(&container_key.container_id).await,
         ContainerAction::Remove => host.remove_container(&container_key.container_id).await,
-        ContainerAction::Shell => {
-            // Shell is handled separately in main.rs via StartShell event
-            // This path should never be reached
-            return;
-        }
+        // Shell is handled in main.rs via StartShell, and Details opens a
+        // popup from AppState. These paths should never be reached
+        ContainerAction::Shell | ContainerAction::Details => return,
     };
 
     // Send result event
