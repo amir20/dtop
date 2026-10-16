@@ -157,6 +157,7 @@ impl AppState {
                 Column::Host => a.host_id.cmp(&b.host_id),
                 Column::Compose => a.compose_project.cmp(&b.compose_project),
                 Column::Image => a.image.cmp(&b.image),
+                Column::Ports => a.ports.cmp(&b.ports),
                 // `total_cmp` gives a deterministic total order over floats
                 // (including NaN) without needing to unwrap `partial_cmp`.
                 Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),

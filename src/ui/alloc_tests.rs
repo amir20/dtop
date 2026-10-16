@@ -48,6 +48,7 @@ mod tests {
             restart_count: Some(i as i64 % 4),
             compose_project: Some(format!("project-{}", i % 3)),
             image: Some(format!("image-{}:latest", i % 3)),
+            ports: Some(format!("{}→80", 8000 + i)),
         }
     }
 

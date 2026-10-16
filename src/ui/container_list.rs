@@ -295,6 +295,7 @@ fn create_container_row<'a>(
             Column::Host => Cell::from(container.host_id.as_str()),
             Column::Compose => Cell::from(container.compose_project.as_deref().unwrap_or("")),
             Column::Image => Cell::from(container.image.as_deref().unwrap_or("")),
+            Column::Ports => Cell::from(container.ports.as_deref().unwrap_or("")),
             Column::Cpu => {
                 if is_running {
                     let display = if show_progress_bars {
@@ -499,6 +500,7 @@ fn create_header_row(
                 Column::Host => "Host",
                 Column::Compose => "Compose",
                 Column::Image => "Image",
+                Column::Ports => "Ports",
                 Column::Cpu => "CPU %",
                 Column::Memory => "Memory %",
                 Column::Pids => "PIDs",
@@ -556,6 +558,7 @@ fn column_constraints(
             Column::Host => Constraint::Length(20),
             Column::Compose => Constraint::Length(20),
             Column::Image => Constraint::Length(30),
+            Column::Ports => Constraint::Length(20),
             Column::Cpu => Constraint::Length(cpu_width),
             Column::Memory => Constraint::Length(mem_width),
             Column::Pids => Constraint::Length(12),
