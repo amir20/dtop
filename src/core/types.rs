@@ -78,6 +78,7 @@ pub struct Container {
     pub restart_count: Option<i64>,
     pub compose_project: Option<String>, // Dozzle group, Coolify project, or Compose project
     pub image: Option<String>,           // Image the container was created from, as referenced
+    pub ports: Option<String>, // Published ports, preformatted for display ("8080→80, 53→53/udp")
 }
 
 /// Container runtime statistics (updated frequently)
@@ -480,6 +481,7 @@ pub enum Column {
     Host,
     Compose,
     Image,
+    Ports,
     Cpu,
     Memory,
     Pids,
@@ -500,6 +502,7 @@ impl Column {
             Column::Host => "Host",
             Column::Compose => "Compose",
             Column::Image => "Image",
+            Column::Ports => "Ports",
             Column::Cpu => "CPU %",
             Column::Memory => "Memory %",
             Column::Pids => "PIDs",
@@ -520,6 +523,7 @@ impl Column {
             Column::Host => "host",
             Column::Compose => "compose",
             Column::Image => "image",
+            Column::Ports => "ports",
             Column::Cpu => "cpu",
             Column::Memory => "memory",
             Column::Pids => "pids",
@@ -540,6 +544,7 @@ impl Column {
             "host" => Some(Column::Host),
             "compose" => Some(Column::Compose),
             "image" => Some(Column::Image),
+            "ports" => Some(Column::Ports),
             "cpu" => Some(Column::Cpu),
             "memory" => Some(Column::Memory),
             "pids" => Some(Column::Pids),
@@ -561,6 +566,7 @@ impl Column {
             Column::Host,
             Column::Compose,
             Column::Image,
+            Column::Ports,
             Column::Cpu,
             Column::Memory,
             Column::Pids,
@@ -580,6 +586,7 @@ impl Column {
             Column::Restarts
                 | Column::Compose
                 | Column::Image
+                | Column::Ports
                 | Column::DiskRead
                 | Column::DiskWrite
                 | Column::Pids
@@ -594,6 +601,7 @@ impl Column {
             | Column::Host
             | Column::Compose
             | Column::Image
+            | Column::Ports
             | Column::Status => SortDirection::Ascending,
             Column::Uptime
             | Column::Cpu
@@ -627,6 +635,7 @@ impl Column {
             Column::Host => "Host",
             Column::Compose => "Compose",
             Column::Image => "Image",
+            Column::Ports => "Ports",
             Column::Cpu => "CPU",
             Column::Memory => "Memory",
             Column::Pids => "PIDs",
@@ -797,13 +806,14 @@ mod tests {
         assert_eq!(Column::Uptime.label(), "Uptime");
         assert_eq!(Column::Restarts.label(), "Restarts");
         assert_eq!(Column::Image.label(), "Image");
+        assert_eq!(Column::Ports.label(), "Ports");
     }
 
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 15);
-        // All columns except Restarts, Compose, Image, DiskRead, DiskWrite, Pids should be visible by default
+        assert_eq!(config.columns.len(), 16);
+        // All columns except Restarts, Compose, Image, Ports, DiskRead, DiskWrite, Pids should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -820,7 +830,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
-        // Default has 9 visible (Restarts, Compose, Image, DiskRead, DiskWrite, Pids hidden), minus Id = 8
+        // Default has 9 visible (Restarts, Compose, Image, Ports, DiskRead, DiskWrite, Pids hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -905,7 +915,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 15);
+        assert_eq!(config.columns.len(), 16);
     }
 
     #[test]
@@ -938,6 +948,7 @@ mod tests {
         assert_eq!(Column::Uptime.id(), "uptime");
         assert_eq!(Column::Restarts.id(), "restarts");
         assert_eq!(Column::Image.id(), "image");
+        assert_eq!(Column::Ports.id(), "ports");
     }
 
     #[test]
@@ -956,6 +967,7 @@ mod tests {
         assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
         assert_eq!(Column::from_id("restarts"), Some(Column::Restarts));
         assert_eq!(Column::from_id("image"), Some(Column::Image));
+        assert_eq!(Column::from_id("ports"), Some(Column::Ports));
         assert_eq!(Column::from_id("invalid"), None);
     }
 }

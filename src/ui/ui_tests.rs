@@ -110,6 +110,7 @@ mod tests {
             restart_count: None,
             compose_project: None,
             image: Some(format!("{name}:latest")),
+            ports: None,
         }
     }
 
@@ -1188,6 +1189,7 @@ mod tests {
                 restart_count: None,
                 compose_project: None,
                 image: None,
+                ports: None,
             },
             Container {
                 id: "dead12345678".to_string(),
@@ -1201,6 +1203,7 @@ mod tests {
                 restart_count: None,
                 compose_project: None,
                 image: None,
+                ports: None,
             },
         ];
 
@@ -1547,6 +1550,48 @@ mod tests {
 
         let buffer = terminal.backend().buffer().clone();
         let output = buffer_to_string(&buffer);
+        assert_snapshot_with_redaction!(output);
+    }
+
+    #[test]
+    fn test_container_list_with_ports_column() {
+        let mut state = create_test_app_state();
+
+        let ports_idx = state
+            .column_config
+            .columns
+            .iter()
+            .position(|(c, _)| *c == Column::Ports)
+            .unwrap();
+        state.column_config.toggle(ports_idx);
+
+        let mut published =
+            create_test_container("abc123def456", "nginx", "local", 25.0, 50.0, 1024.0, 2048.0);
+        published.ports = Some("53→53/udp, 8080→80".to_string());
+        let unpublished =
+            create_test_container("def987654321", "worker", "local", 10.0, 20.0, 512.0, 1024.0);
+
+        for container in [published, unpublished] {
+            let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+            state.containers.insert(key.clone(), container);
+            state.sorted_container_keys.push(key);
+        }
+        state.table_state.select(Some(0));
+
+        let styles = UiStyles::default();
+        let backend = TestBackend::new(120, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
+
+        let buffer = terminal.backend().buffer().clone();
+        let output = buffer_to_string(&buffer);
+        assert!(output.contains("Ports"));
+        assert!(output.contains("53→53/udp, 8080→80"));
         assert_snapshot_with_redaction!(output);
     }
 
