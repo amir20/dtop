@@ -161,7 +161,10 @@ Global config options:
   terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
   WezTerm and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
   over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
-  `TERM_PROGRAM`/`TERM` when there is no reply; Unicode under tmux/screen
+  `TERM_PROGRAM`/`TERM` when there is no reply. Under tmux the probe would name tmux, so it reads
+  `#{client_termtype}` instead (tmux >= 3.3 runs XTVERSION against the outer terminal on attach);
+  Unicode under screen. A reply later than the 1s timeout reaches the keyboard worker as keystrokes
+  (only on links with a round trip over 1s); accepted rather than filtering input
 - `all`: Show all containers including stopped/exited (default: false)
 - `sort`: Default sort field for container list ("uptime", "name", "cpu", "memory")
 - `sort_direction`: Sort direction ("asc" or "desc") - if omitted, uses field's default

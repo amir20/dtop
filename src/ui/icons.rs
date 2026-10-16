@@ -46,14 +46,18 @@ impl IconMode {
             IconMode::Fixed(style) => style,
             IconMode::Auto => {
                 let env = |key: &str| std::env::var(key).ok();
-                if in_multiplexer(&env) {
-                    // A probe would name tmux/screen, not the terminal behind it,
-                    // and a session can be reattached from a different terminal.
-                    return IconStyle::Unicode;
-                }
-                let builtin = match probe_xtversion() {
-                    Some(name) => has_builtin_nerd_font(&name),
-                    None => env_has_builtin_nerd_font(&env),
+                let builtin = if in_multiplexer(&env) {
+                    // A probe would name tmux/screen, not the terminal behind it.
+                    // tmux (>= 3.3) asks the outer terminal itself on attach, so
+                    // use its answer; screen has nothing like it. Decided once:
+                    // a later reattach from another terminal isn't followed.
+                    env("TMUX").is_some()
+                        && tmux_client_termtype().is_some_and(|name| has_builtin_nerd_font(&name))
+                } else {
+                    match probe_xtversion() {
+                        Some(name) => has_builtin_nerd_font(&name),
+                        None => env_has_builtin_nerd_font(&env),
+                    }
                 };
                 if builtin {
                     IconStyle::Nerd
@@ -122,9 +126,38 @@ fn has_da1_reply(buf: &[u8]) -> bool {
         .is_some_and(|i| buf[i + 3..].contains(&b'c'))
 }
 
+/// The outer terminal's XTVERSION answer, as tmux recorded it when the client
+/// attached (`#{client_termtype}`, empty before tmux 3.3 or if it didn't answer).
+fn tmux_client_termtype() -> Option<String> {
+    let mut child = std::process::Command::new("tmux")
+        .args(["display-message", "-p", "#{client_termtype}"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    // tmux answers from memory, but don't let a wedged server hold up startup
+    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
+    while child.try_wait().ok()?.is_none() {
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let output = child.wait_with_output().ok()?;
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (output.status.success() && !name.is_empty()).then_some(name)
+}
+
 /// Asks the terminal its name with XTVERSION, followed by DA1 as a sentinel so
 /// a terminal that ignores XTVERSION costs one round trip, not the timeout.
 /// The query travels in-band, so this works when dtop runs over SSH.
+///
+/// A reply that arrives after the timeout (a link with a round trip over 1s)
+/// reaches the keyboard worker as keystrokes. Terminals that don't support these
+/// queries never answer at all, so only such slow links are affected.
 #[cfg(unix)]
 fn probe_xtversion() -> Option<String> {
     use std::io::{IsTerminal, Read, Write};
