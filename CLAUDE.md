@@ -966,6 +966,8 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `Space` - Mark/unmark the selected container for a bulk action (and move down)
 - `Ctrl-A` - Mark every listed container, or unmark them if all are marked (under tmux/screen
   with the default prefix, press the prefix then `a` to send it through)
+- `p` - Mark every listed container in the selected container's compose project on the same host,
+  or unmark them if all are marked
 - `Esc` - Clear marks
 - `→/l` - View logs for selected container
 - `q` or `Ctrl-C` - Quit application

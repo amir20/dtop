@@ -1,11 +1,34 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{
-    Column, ContainerState, RenderAction, SortDirection, SortState, ViewState,
+    Column, Container, ContainerState, HealthStatus, RenderAction, SortDirection, SortState,
+    ViewState,
 };
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
 const SORT_THROTTLE_DURATION: Duration = Duration::from_secs(3);
+
+/// Ranks a container by how much attention it needs, for the Status sort.
+/// Lower is worse, so the default (ascending) direction lists problems first.
+///
+/// Health only counts while the container runs: an exited container keeps its
+/// last health status, which no longer says anything about it.
+fn status_severity(container: &Container) -> u8 {
+    match container.state {
+        ContainerState::Running => match container.health {
+            Some(HealthStatus::Unhealthy) => 0,
+            Some(HealthStatus::Starting) => 4,
+            Some(HealthStatus::Healthy) | None => 5,
+        },
+        ContainerState::Restarting => 1,
+        ContainerState::Dead => 2,
+        ContainerState::Exited => 3,
+        ContainerState::Removing => 6,
+        ContainerState::Paused => 7,
+        ContainerState::Created => 8,
+        ContainerState::Unknown => 9,
+    }
+}
 
 impl AppState {
     /// Opens the sort selector popup
@@ -157,6 +180,7 @@ impl AppState {
                 Column::Host => a.host_id.cmp(&b.host_id),
                 Column::Compose => a.compose_project.cmp(&b.compose_project),
                 Column::Image => a.image.cmp(&b.image),
+                Column::Ports => a.ports.cmp(&b.ports),
                 // `total_cmp` gives a deterministic total order over floats
                 // (including NaN) without needing to unwrap `partial_cmp`.
                 Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),
@@ -178,11 +202,7 @@ impl AppState {
                     .stats
                     .disk_write_bytes_per_sec
                     .total_cmp(&b.stats.disk_write_bytes_per_sec),
-                Column::Status => {
-                    let a_state = format!("{:?}", a.state);
-                    let b_state = format!("{:?}", b.state);
-                    a_state.cmp(&b_state)
-                }
+                Column::Status => status_severity(a).cmp(&status_severity(b)),
                 Column::Restarts => a.restart_count.cmp(&b.restart_count),
             };
             let ord = if direction == SortDirection::Descending {

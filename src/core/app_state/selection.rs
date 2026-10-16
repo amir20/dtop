@@ -45,6 +45,50 @@ impl AppState {
         RenderAction::Render
     }
 
+    /// p: marks every listed container in the highlighted container's compose
+    /// project, or unmarks them if they all already are. Does nothing for a
+    /// container outside any project. Like Ctrl+A, only listed containers are
+    /// touched, so a project member hidden by search or 'a' is left alone.
+    pub(super) fn handle_toggle_mark_project(&mut self) -> RenderAction {
+        if self.view_state != ViewState::ContainerList {
+            return RenderAction::None;
+        }
+        let Some((host_id, project)) = self
+            .table_state
+            .selected()
+            .and_then(|i| self.sorted_container_keys.get(i))
+            .and_then(|key| self.containers.get(key))
+            .and_then(|c| Some((c.host_id.clone(), c.compose_project.clone()?)))
+        else {
+            return RenderAction::None;
+        };
+        // Projects are per host: the same project name on two hosts is two
+        // unrelated stacks.
+        let members: Vec<ContainerKey> = self
+            .sorted_container_keys
+            .iter()
+            .filter(|key| {
+                key.host_id == host_id
+                    && self
+                        .containers
+                        .get(*key)
+                        .is_some_and(|c| c.compose_project.as_ref() == Some(&project))
+            })
+            .cloned()
+            .collect();
+        if members
+            .iter()
+            .all(|key| self.marked_containers.contains(key))
+        {
+            for key in &members {
+                self.marked_containers.remove(key);
+            }
+        } else {
+            self.marked_containers.extend(members);
+        }
+        RenderAction::Render
+    }
+
     /// Marked containers that are currently listed, in display order.
     ///
     /// Bulk actions only touch these: a container hidden by the search filter

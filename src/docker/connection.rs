@@ -3,6 +3,7 @@ use bollard::{API_DEFAULT_VERSION, Docker};
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::time::Duration;
 
 use crate::core::types::{
@@ -43,6 +44,29 @@ fn display_metadata(
         "com.docker.compose.project",
     ]);
     (name, project)
+}
+
+/// Formats published ports for the Ports column, e.g. `8080→80, 53→53/udp`.
+///
+/// Takes `(host port, container port, protocol)` triples, from either the list
+/// or the inspect response. Docker reports a port published on both IPv4 and
+/// IPv6 once per address, so duplicates are dropped. TCP, the common case, gets
+/// no suffix. `None` when nothing is published.
+fn format_ports(ports: impl IntoIterator<Item = (u16, u16, String)>) -> Option<String> {
+    let mut ports: Vec<_> = ports.into_iter().collect();
+    ports.sort_unstable();
+    ports.dedup();
+    let mut formatted = String::new();
+    for (public, private, protocol) in ports {
+        if !formatted.is_empty() {
+            formatted.push_str(", ");
+        }
+        let _ = write!(formatted, "{public}→{private}");
+        if !protocol.is_empty() && protocol != "tcp" {
+            let _ = write!(formatted, "/{protocol}");
+        }
+    }
+    (!formatted.is_empty()).then_some(formatted)
 }
 
 /// How many restart-count inspects may be in flight at once while backfilling.
@@ -145,6 +169,13 @@ impl DockerHost {
                 .and_then(|names| names.first().map(String::as_str))
                 .unwrap_or_default();
             let (name, compose_project) = display_metadata(docker_name, container.labels.as_ref());
+            let ports = format_ports(container.ports.iter().flatten().filter_map(|port| {
+                Some((
+                    port.public_port?,
+                    port.private_port,
+                    port.typ.map(|typ| typ.to_string()).unwrap_or_default(),
+                ))
+            }));
             let state = container
                 .state
                 .as_ref()
@@ -178,6 +209,7 @@ impl DockerHost {
                 restart_count: None,
                 compose_project,
                 image: container.image.clone(),
+                ports,
             };
 
             initial_containers.push(container_info);
@@ -503,6 +535,25 @@ impl DockerHost {
                 .as_ref()
                 .and_then(|config| config.image.clone());
 
+            // Keys are "<container port>/<protocol>"; an unpublished port has
+            // no bindings, and a binding without a host port is skipped.
+            let ports = format_ports(
+                inspect
+                    .network_settings
+                    .as_ref()
+                    .and_then(|settings| settings.ports.as_ref())
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|(spec, bindings)| {
+                        let (private, protocol) = spec.split_once('/').unwrap_or((spec, "tcp"));
+                        let private = private.parse::<u16>().ok();
+                        bindings.iter().flatten().filter_map(move |binding| {
+                            let public = binding.host_port.as_deref()?.parse().ok()?;
+                            Some((public, private?, protocol.to_string()))
+                        })
+                    }),
+            );
+
             if !Self::is_monitored(&truncated_id, active_containers) {
                 // New container or restarted container — create/update and start monitoring
                 let container = Container {
@@ -517,6 +568,7 @@ impl DockerHost {
                     restart_count,
                     compose_project,
                     image,
+                    ports,
                 };
 
                 let _ = tx.send(AppEvent::ContainerCreated(container)).await;
@@ -884,6 +936,21 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_ports_dedups_sorts_and_suffixes_non_tcp() {
+        let tcp = |public, private| (public, private, "tcp".to_string());
+        assert_eq!(
+            format_ports([
+                tcp(8080, 80),
+                (53, 53, "udp".to_string()),
+                tcp(8080, 80), // same port on IPv6
+                (443, 443, String::new()),
+            ]),
+            Some("53→53/udp, 443→443, 8080→80".to_string())
+        );
+        assert_eq!(format_ports([]), None);
+    }
 
     #[test]
     fn display_metadata_resolves_label_precedence_and_empty_fallbacks() {
