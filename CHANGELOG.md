@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.3] - 2026-10-16
+
+### Features
+
+- *(ui)* Add Ports column showing published ports (#391)
+- *(sort)* Order Status sort by how much attention a container needs (#392)
+- *(selection)* Add p to mark the selected container's compose project (#393)
+- *(actions)* Add a Details popup to the action menu (#394)
+
 ## [0.10.2] - 2026-10-15
 
 ### Features
