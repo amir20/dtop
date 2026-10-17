@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.4] - 2026-10-17
+
+### Features
+
+- *(icons)* Add icons: auto to use Nerd Font icons on terminals that bundle them (#395)
+
 ## [0.10.3] - 2026-10-16
 
 ### Features
