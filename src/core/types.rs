@@ -421,6 +421,13 @@ pub struct LogState {
     /// Pre-formatted lines for rendering (cached to avoid reformatting every frame)
     pub formatted_lines: Vec<Line<'static>>,
 
+    /// Display width of each formatted line, so wrapping math doesn't re-measure
+    /// every line's unicode width on every frame
+    pub line_widths: Vec<usize>,
+
+    /// Total wrapped rows as (viewport width, rows); None after a prepend or reset
+    rows_cache: Option<(usize, usize)>,
+
     /// Current scroll offset in visual lines (not entry count)
     pub scroll_offset: usize,
 
@@ -453,6 +460,8 @@ impl LogState {
             container_key,
             log_entries: Vec::new(),
             formatted_lines: Vec::new(),
+            line_widths: Vec::new(),
+            rows_cache: None,
             scroll_offset: 0,
             stream_handle: None,
             oldest_timestamp: None,
@@ -469,7 +478,60 @@ impl LogState {
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_entries(&mut self, entries: Vec<crate::docker::logs::LogEntry>) {
         self.formatted_lines = entries.iter().map(|e| e.format()).collect();
+        self.line_widths = self.formatted_lines.iter().map(Line::width).collect();
+        self.rows_cache = None;
         self.log_entries = entries;
+    }
+
+    /// Append a streamed entry, keeping the formatted line, width and row caches in step.
+    pub fn push_entry(&mut self, entry: crate::docker::logs::LogEntry) {
+        let line = entry.format();
+        let line_width = line.width();
+        if let Some((width, total)) = &mut self.rows_cache {
+            *total += wrapped_rows(line_width, *width);
+        }
+        self.formatted_lines.push(line);
+        self.line_widths.push(line_width);
+        self.log_entries.push(entry);
+    }
+
+    /// Insert older entries before the loaded ones. Returns how many wrapped rows
+    /// they occupy at `width`, so the caller can keep the scroll position.
+    pub fn prepend_entries(
+        &mut self,
+        mut entries: Vec<crate::docker::logs::LogEntry>,
+        width: usize,
+    ) -> usize {
+        let mut lines: Vec<Line<'static>> = entries.iter().map(|e| e.format()).collect();
+        let mut widths: Vec<usize> = lines.iter().map(Line::width).collect();
+        let rows = widths.iter().map(|&w| wrapped_rows(w, width)).sum();
+
+        entries.append(&mut self.log_entries);
+        self.log_entries = entries;
+        lines.append(&mut self.formatted_lines);
+        self.formatted_lines = lines;
+        widths.append(&mut self.line_widths);
+        self.line_widths = widths;
+        self.rows_cache = None;
+
+        rows
+    }
+
+    /// Total wrapped rows of all loaded lines at `width`. Recomputed only when the
+    /// width changes or older lines were prepended; streamed lines update it in place.
+    pub fn total_rows(&mut self, width: usize) -> usize {
+        match self.rows_cache {
+            Some((cached_width, total)) if cached_width == width => total,
+            _ => {
+                let total = self
+                    .line_widths
+                    .iter()
+                    .map(|&w| wrapped_rows(w, width))
+                    .sum();
+                self.rows_cache = Some((width, total));
+                total
+            }
+        }
     }
 
     /// Calculate what percentage of log history the current visible page represents.
@@ -507,6 +569,15 @@ impl LogState {
         let percentage = (visible_offset / total_duration) * 100.0;
 
         Some(percentage.clamp(0.0, 100.0))
+    }
+}
+
+/// Terminal rows a line `line_width` columns wide takes when wrapped to `width`.
+pub fn wrapped_rows(line_width: usize, width: usize) -> usize {
+    if width == 0 || line_width <= width {
+        1
+    } else {
+        line_width.div_ceil(width)
     }
 }
 
@@ -1007,5 +1078,39 @@ mod tests {
         assert_eq!(Column::from_id("image"), Some(Column::Image));
         assert_eq!(Column::from_id("ports"), Some(Column::Ports));
         assert_eq!(Column::from_id("invalid"), None);
+    }
+
+    #[test]
+    fn test_log_state_total_rows_tracks_pushes_and_prepends() {
+        use crate::docker::logs::LogEntry;
+        // The timestamp prefix is part of each formatted line, so build the
+        // expected total from the same widths the cache sees
+        let entry = |msg: &str| LogEntry::parse(&format!("2025-10-29T10:15:30Z {msg}")).unwrap();
+        let recount = |state: &LogState, width: usize| -> usize {
+            state
+                .formatted_lines
+                .iter()
+                .map(|l| wrapped_rows(l.width(), width))
+                .sum()
+        };
+
+        let mut state = LogState::new(ContainerKey::new("local".into(), "abc".into()), None);
+        state.set_entries(vec![entry("short"), entry(&"x".repeat(100))]);
+        assert_eq!(state.total_rows(40), recount(&state, 40));
+
+        // Streamed lines update the cached total in place
+        state.push_entry(entry(&"y".repeat(75)));
+        assert_eq!(state.total_rows(40), recount(&state, 40));
+
+        // A width change recomputes
+        assert_eq!(state.total_rows(25), recount(&state, 25));
+
+        // Prepending invalidates, and reports the rows it added
+        let before = state.total_rows(25);
+        let added = state.prepend_entries(vec![entry(&"z".repeat(60))], 25);
+        assert_eq!(state.total_rows(25), before + added);
+        assert_eq!(state.total_rows(25), recount(&state, 25));
+        assert_eq!(state.line_widths.len(), state.formatted_lines.len());
+        assert_eq!(state.log_entries.len(), state.formatted_lines.len());
     }
 }
