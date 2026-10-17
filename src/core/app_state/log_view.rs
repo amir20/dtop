@@ -225,19 +225,13 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Extract timestamp before moving log_entry
-        let timestamp = log_entry.timestamp;
-
-        // Format and cache the line before storing the entry
-        state.formatted_lines.push(log_entry.format());
-
-        // Store the raw log entry (already owned, no clone needed)
-        state.log_entries.push(log_entry);
-
         // Update newest timestamp for progress calculation
-        state.newest_timestamp = Some(timestamp);
+        state.newest_timestamp = Some(log_entry.timestamp);
+        state.push_entry(log_entry);
 
-        RenderAction::Render
+        // Picked up by the regular 500ms draw. Forcing a draw per line made a
+        // chatty container redraw as fast as lines arrived.
+        RenderAction::None
     }
 
     pub(super) fn handle_log_batch_prepend(
@@ -271,18 +265,7 @@ impl AppState {
         let newest = log_entries.last().map(|e| e.timestamp);
         let num_entries = log_entries.len();
 
-        // Format prepended entries and build the new formatted_lines cache
-        let mut new_formatted: Vec<ratatui::text::Line<'static>> =
-            log_entries.iter().map(|e| e.format()).collect();
-
-        // Prepend raw log entries to the beginning
-        let mut new_entries = log_entries;
-        new_entries.append(&mut state.log_entries);
-        state.log_entries = new_entries;
-
-        // Prepend formatted lines
-        new_formatted.append(&mut state.formatted_lines);
-        state.formatted_lines = new_formatted;
+        let visual_lines_prepended = state.prepend_entries(log_entries, self.last_viewport_width);
 
         state.oldest_timestamp = oldest;
         state.has_more_history = has_more_history;
@@ -296,20 +279,8 @@ impl AppState {
 
         // Adjust scroll offset to maintain visual position during pagination.
         // scroll_offset is in visual lines, so compute how many visual lines
-        // the prepended entries occupy using the cached formatted lines.
+        // the prepended entries occupy.
         if !is_initial_load {
-            let width = self.last_viewport_width;
-            let visual_lines_prepended: usize = state.formatted_lines[..num_entries]
-                .iter()
-                .map(|line| {
-                    let w = line.width();
-                    if width == 0 || w <= width {
-                        1
-                    } else {
-                        w.div_ceil(width)
-                    }
-                })
-                .sum();
             state.scroll_offset += visual_lines_prepended;
         }
 

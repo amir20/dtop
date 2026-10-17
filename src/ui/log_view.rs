@@ -5,36 +5,24 @@ use ratatui::{
 };
 
 use crate::core::app_state::AppState;
-use crate::core::types::ContainerKey;
+use crate::core::types::{ContainerKey, wrapped_rows};
 
 use super::render::UiStyles;
-
-/// Calculate how many terminal rows a Line occupies when wrapped to the given width.
-fn wrapped_line_height(line: &Line, width: usize) -> usize {
-    if width == 0 {
-        return 1;
-    }
-    let line_width = line.width();
-    if line_width <= width {
-        return 1;
-    }
-    line_width.div_ceil(width)
-}
 
 /// Find the entry index and sub-line offset for a given visual line position.
 /// Returns (entry_index, sub_line_offset) where sub_line_offset is the number
 /// of visual lines into the entry that the scroll position falls.
-fn find_visible_start(lines: &[Line], visual_line: usize, width: usize) -> (usize, usize) {
+fn find_visible_start(line_widths: &[usize], visual_line: usize, width: usize) -> (usize, usize) {
     let mut accumulated = 0;
-    for (i, line) in lines.iter().enumerate() {
-        let rows = wrapped_line_height(line, width);
+    for (i, &line_width) in line_widths.iter().enumerate() {
+        let rows = wrapped_rows(line_width, width);
         if accumulated + rows > visual_line {
             return (i, visual_line - accumulated);
         }
         accumulated += rows;
     }
     // Past the end — return last entry with no sub-offset
-    (lines.len().saturating_sub(1), 0)
+    (line_widths.len().saturating_sub(1), 0)
 }
 
 /// Renders the log view for a specific container
@@ -69,14 +57,8 @@ pub fn render_log_view(
     state.last_viewport_height = visible_height;
     state.last_viewport_width = inner_width;
 
-    // Use cached formatted lines (maintained by event handlers)
-    let all_lines = &log_state.formatted_lines;
-
-    // Calculate total visual lines — O(n) but cheap (no allocations, just width comparisons)
-    let total_rows: usize = all_lines
-        .iter()
-        .map(|line| wrapped_line_height(line, inner_width))
-        .sum();
+    // Cached, and updated in place as lines stream in
+    let total_rows = log_state.total_rows(inner_width);
 
     // Max scroll: enough so that the last visual line is at the bottom of the viewport
     let max_scroll = total_rows.saturating_sub(visible_height);
@@ -97,7 +79,7 @@ pub fn render_log_view(
     // Find the first visible entry and sub-line offset within it.
     // This also gives us the entry index for progress calculation.
     let (first_entry_idx, sub_line_offset) =
-        find_visible_start(all_lines, actual_scroll, inner_width);
+        find_visible_start(&log_state.line_widths, actual_scroll, inner_width);
 
     // Determine status indicator
     let status_indicator = if log_state.fetching_older {
@@ -121,10 +103,12 @@ pub fn render_log_view(
     let mut visible_lines: Vec<Line> = Vec::new();
     let mut rows_collected = 0;
 
-    for line in &all_lines[first_entry_idx..] {
-        let rows = wrapped_line_height(line, inner_width);
+    let visible = log_state.formatted_lines[first_entry_idx..]
+        .iter()
+        .zip(&log_state.line_widths[first_entry_idx..]);
+    for (line, &line_width) in visible {
         visible_lines.push(line.clone());
-        rows_collected += rows;
+        rows_collected += wrapped_rows(line_width, inner_width);
         if rows_collected >= needed_rows {
             break;
         }
