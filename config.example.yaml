@@ -11,10 +11,11 @@
 # Docker host(s) to connect to. You can specify multiple hosts to monitor
 # them simultaneously.
 # Possible values for host: local, ssh://user@host, tcp://host:port, tls://host:port
-# Optional fields per host: dozzle (URL), filter (list of Docker filters)
+# Optional fields per host: name (display name), dozzle (URL), filter (list of Docker filters)
 hosts:
   - host: local
   # - host: ssh://user@server1
+  #   name: prod-1
   #   dozzle: https://dozzle.server1.com/
   #   filter:
   #     - status=running

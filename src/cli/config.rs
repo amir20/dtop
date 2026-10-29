@@ -7,6 +7,10 @@ pub struct HostConfig {
     /// Docker host connection string (e.g., "local", "ssh://user@host")
     pub host: String,
 
+    /// Optional display name for this host (defaults to a name derived from `host`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
     /// Optional Dozzle URL for this host
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dozzle: Option<String>,
@@ -14,9 +18,6 @@ pub struct HostConfig {
     /// Optional filters for this host (e.g., ["status=running", "name=nginx"])
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<Vec<String>>,
-    // Future fields can be added here as optional fields
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub custom_name: Option<String>,
 }
 
 /// Configuration that can be loaded from a YAML file
@@ -129,6 +130,7 @@ impl Config {
                 .into_iter()
                 .map(|host| HostConfig {
                     host,
+                    name: None,
                     dozzle: None,
                     filter: if cli_filters.is_empty() {
                         None
@@ -177,6 +179,7 @@ mod tests {
         let config = Config {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -205,6 +208,7 @@ mod tests {
         let config = Config {
             hosts: vec![HostConfig {
                 host: "ssh://user@server1".to_string(),
+                name: None,
                 dozzle: Some("https://dozzle.example.com".to_string()),
                 filter: None,
             }],
@@ -283,9 +287,24 @@ hosts:
     }
 
     #[test]
+    fn test_yaml_deserialization_with_name() {
+        let yaml = r#"
+hosts:
+  - host: unix:///run/user/1000/podman/podman.sock
+    name: podman
+  - host: ssh://root@146.190.3.114
+"#;
+        let config: Config = serde_norway::from_str(yaml).unwrap();
+        assert_eq!(config.hosts.len(), 2);
+        assert_eq!(config.hosts[0].name.as_deref(), Some("podman"));
+        assert_eq!(config.hosts[1].name, None);
+    }
+
+    #[test]
     fn test_host_config_without_dozzle() {
         let host = HostConfig {
             host: "local".to_string(),
+            name: None,
             dozzle: None,
             filter: None,
         };
@@ -298,6 +317,7 @@ hosts:
     fn test_host_config_with_dozzle() {
         let host = HostConfig {
             host: "ssh://user@host".to_string(),
+            name: None,
             dozzle: Some("https://dozzle.example.com".to_string()),
             filter: None,
         };
@@ -310,6 +330,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: Some(vec!["status=running".to_string()]),
             }],
@@ -337,6 +358,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: Some(vec!["status=running".to_string()]),
             }],
@@ -363,6 +385,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -385,6 +408,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -407,6 +431,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -429,6 +454,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -456,6 +482,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -517,6 +544,7 @@ hosts:
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],
@@ -552,6 +580,7 @@ sort_direction: asc
         let config = Config {
             hosts: vec![HostConfig {
                 host: "local".to_string(),
+                name: None,
                 dozzle: None,
                 filter: None,
             }],

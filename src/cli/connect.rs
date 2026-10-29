@@ -50,7 +50,7 @@ pub async fn establish_connections(
                         error!("{}", e);
 
                         // Create host_id for the error event
-                        let host_id = create_host_id(&host_config.host);
+                        let host_id = host_display_id(&host_config);
 
                         // Send error event to UI
                         let _ = error_tx
@@ -166,9 +166,10 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     };
 
     // Create host ID and DockerHost instance
-    let host_id = create_host_id(host_spec);
-    let docker_host =
-        DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters).with_ssh(ssh);
+    let host_id = host_display_id(host_config);
+    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters)
+        .with_spec(host_spec)
+        .with_ssh(ssh);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
@@ -199,6 +200,14 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     }
 }
 
+/// Returns the configured display name for a host, falling back to one derived from its spec.
+pub fn host_display_id(host_config: &HostConfig) -> String {
+    match host_config.name.as_deref().map(str::trim) {
+        Some(name) if !name.is_empty() => name.to_string(),
+        _ => create_host_id(&host_config.host),
+    }
+}
+
 /// Creates a unique host identifier from the host specification.
 /// For SSH URLs, includes the username to distinguish `ssh://root@server` from `ssh://deploy@server`.
 pub fn create_host_id(host_spec: &str) -> String {
@@ -214,5 +223,45 @@ pub fn create_host_id(host_spec: &str) -> String {
         }
     } else {
         host_spec.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_host_display_id_prefers_name() {
+        let mut host = HostConfig {
+            host: "ssh://root@146.190.3.114".to_string(),
+            name: Some("prod".to_string()),
+            dozzle: None,
+            filter: None,
+        };
+        assert_eq!(host_display_id(&host), "prod");
+
+        // Blank names fall back to the id derived from the host spec
+        host.name = Some("  ".to_string());
+        assert_eq!(host_display_id(&host), "root@146.190.3.114");
+        host.name = None;
+        assert_eq!(host_display_id(&host), "root@146.190.3.114");
+    }
+
+    #[test]
+    fn test_named_host_keeps_locality_from_spec() {
+        use crate::docker::connection::DockerHost;
+        use bollard::{API_DEFAULT_VERSION, Docker};
+
+        // The HTTP client connects lazily, so no daemon is needed
+        let docker =
+            Docker::connect_with_http("http://127.0.0.1:1", 1, API_DEFAULT_VERSION).unwrap();
+        let named_local =
+            DockerHost::new("podman".to_string(), docker.clone(), None, HashMap::new())
+                .with_spec("unix:///run/user/1000/podman/podman.sock");
+        assert!(named_local.is_local);
+
+        let named_remote = DockerHost::new("local".to_string(), docker, None, HashMap::new())
+            .with_spec("ssh://user@server1");
+        assert!(!named_remote.is_local);
     }
 }

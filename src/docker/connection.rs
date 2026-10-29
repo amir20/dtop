@@ -85,6 +85,11 @@ fn next_reconnect_delay(current: Duration) -> Duration {
     (current * 2).min(MAX_RECONNECT_DELAY)
 }
 
+/// Returns true for host specs that point at a daemon on this machine.
+pub fn is_local_spec(host_spec: &str) -> bool {
+    host_spec == "local" || host_spec.starts_with("unix://")
+}
+
 /// Represents a Docker host connection with its identifier
 #[derive(Clone, Debug)]
 pub struct DockerHost {
@@ -94,6 +99,9 @@ pub struct DockerHost {
     pub filters: HashMap<String, Vec<String>>,
     /// Set for `ssh://` hosts; used to sample the remote machine's own stats
     pub ssh: Option<SshRunner>,
+    /// Whether the daemon runs on this machine, which permits local cgroup fallbacks.
+    /// Derived from the host spec rather than `host_id`, which may be a custom name.
+    pub is_local: bool,
 }
 
 impl DockerHost {
@@ -103,13 +111,21 @@ impl DockerHost {
         dozzle_url: Option<String>,
         filters: HashMap<String, Vec<String>>,
     ) -> Self {
+        let is_local = is_local_spec(&host_id);
         Self {
             host_id,
             docker,
             dozzle_url,
             filters,
             ssh: None,
+            is_local,
         }
+    }
+
+    /// Overrides locality using the host spec, for hosts whose `host_id` is a custom name.
+    pub fn with_spec(mut self, host_spec: &str) -> Self {
+        self.is_local = is_local_spec(host_spec);
+        self
     }
 
     pub fn with_ssh(mut self, ssh: Option<SshRunner>) -> Self {
