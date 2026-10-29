@@ -65,7 +65,7 @@ impl FakeLogs {
 
     fn host(&self) -> DockerHost {
         let docker = connect_docker(&format!("unix://{}", self.path.display())).expect("connect");
-        DockerHost::new("test".to_string(), docker, None, HashMap::new())
+        DockerHost::new("test".to_string(), docker, None, HashMap::new(), false)
     }
 }
 

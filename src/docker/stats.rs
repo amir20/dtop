@@ -124,7 +124,7 @@ async fn stream_stats_once(
     let mut prev_disk_write: Option<u64> = None;
 
     // Check if host is local before permitting local cgroups v2 filesystem fallbacks
-    let is_local_host = host.host_id == "local" || host.host_id.starts_with("unix://");
+    let is_local_host = host.is_local;
 
     while let Some(result) = stats_stream.next().await {
         match result {

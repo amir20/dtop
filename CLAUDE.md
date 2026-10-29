@@ -150,6 +150,7 @@ sort: uptime
 
 Each host entry is a struct with:
 - `host`: Docker connection string (required)
+- `name`: Optional display name shown in the header and Host column (defaults to a name derived from `host`, e.g. `user@server1`)
 - `dozzle`: Optional URL to Dozzle instance
 - `filter`: Optional list of Docker filters (e.g., ["status=running", "name=nginx"])
 - Future optional fields can be added as needed

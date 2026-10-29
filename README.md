@@ -241,12 +241,14 @@ Here's an example configuration:
 # Monitor production servers with filters and Dozzle integration
 hosts:
   - host: ssh://user@prod-server1
+    name: prod-1 # optional label shown in the UI (defaults to user@prod-server1)
     dozzle: https://dozzle.prod-server1.com/
     filter:
       - status=running
       - label=environment=production
 
   - host: ssh://user@prod-server2
+    name: prod-2
     dozzle: https://dozzle.prod-server2.com/
     filter:
       - status=running

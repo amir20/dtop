@@ -8,7 +8,9 @@ use url::Url;
 use crate::cli::config::{Config, HostConfig};
 use crate::cli::filters::parse_filters;
 use crate::core::types::AppEvent;
-use crate::docker::connection::{DockerHost, connect_docker_with_runner, container_manager};
+use crate::docker::connection::{
+    DockerHost, connect_docker_with_runner, container_manager, is_local_spec,
+};
 use crate::docker::remote_stats::spawn_for_host;
 
 /// Result of establishing connections to Docker hosts
@@ -26,6 +28,7 @@ pub async fn establish_connections(
     config: &Config,
     event_tx: mpsc::Sender<AppEvent>,
 ) -> Result<ConnectionResult, Box<dyn std::error::Error>> {
+    check_unique_host_ids(&config.hosts)?;
     let total_hosts = config.hosts.len();
 
     // Create a channel for receiving successful connections
@@ -50,7 +53,7 @@ pub async fn establish_connections(
                         error!("{}", e);
 
                         // Create host_id for the error event
-                        let host_id = create_host_id(&host_config.host);
+                        let host_id = host_display_id(&host_config);
 
                         // Send error event to UI
                         let _ = error_tx
@@ -166,9 +169,15 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     };
 
     // Create host ID and DockerHost instance
-    let host_id = create_host_id(host_spec);
-    let docker_host =
-        DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters).with_ssh(ssh);
+    let host_id = host_display_id(host_config);
+    let docker_host = DockerHost::new(
+        host_id,
+        docker,
+        host_config.dozzle.clone(),
+        filters,
+        is_local_spec(host_spec),
+    )
+    .with_ssh(ssh);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
@@ -199,6 +208,31 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
     }
 }
 
+/// Returns the configured display name for a host, falling back to one derived from its spec.
+pub fn host_display_id(host_config: &HostConfig) -> String {
+    match host_config.name.as_deref().map(str::trim) {
+        Some(name) if !name.is_empty() => name.to_string(),
+        _ => create_host_id(&host_config.host),
+    }
+}
+
+/// Rejects configs where two hosts get the same id. Everything is keyed by host id,
+/// so two such hosts would be merged: one's containers would replace the other's,
+/// and actions on them could reach the wrong daemon.
+fn check_unique_host_ids(hosts: &[HostConfig]) -> Result<(), String> {
+    let mut seen = HashMap::with_capacity(hosts.len());
+    for host in hosts {
+        if let Some(other) = seen.insert(host_display_id(host), &host.host) {
+            return Err(format!(
+                "Hosts '{other}' and '{}' share the id '{}'. Give one of them a different `name` in the config file.",
+                host.host,
+                host_display_id(host)
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Creates a unique host identifier from the host specification.
 /// For SSH URLs, includes the username to distinguish `ssh://root@server` from `ssh://deploy@server`.
 pub fn create_host_id(host_spec: &str) -> String {
@@ -214,5 +248,58 @@ pub fn create_host_id(host_spec: &str) -> String {
         }
     } else {
         host_spec.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_host_display_id_prefers_name() {
+        let mut host = HostConfig {
+            host: "ssh://root@146.190.3.114".to_string(),
+            name: Some("prod".to_string()),
+            dozzle: None,
+            filter: None,
+        };
+        assert_eq!(host_display_id(&host), "prod");
+
+        // Blank names fall back to the id derived from the host spec
+        host.name = Some("  ".to_string());
+        assert_eq!(host_display_id(&host), "root@146.190.3.114");
+        host.name = None;
+        assert_eq!(host_display_id(&host), "root@146.190.3.114");
+    }
+
+    #[test]
+    fn test_duplicate_host_ids_are_rejected() {
+        let host = |spec: &str, name: Option<&str>| HostConfig {
+            host: spec.to_string(),
+            name: name.map(str::to_string),
+            dozzle: None,
+            filter: None,
+        };
+
+        assert!(
+            check_unique_host_ids(&[
+                host("local", None),
+                host("unix:///run/podman.sock", Some("podman")),
+            ])
+            .is_ok()
+        );
+        // A name can collide with another host's derived id
+        let err =
+            check_unique_host_ids(&[host("local", None), host("ssh://root@box", Some("local"))])
+                .unwrap_err();
+        assert!(err.contains("share the id 'local'"), "{err}");
+        // Or with another name
+        assert!(
+            check_unique_host_ids(&[
+                host("ssh://a@one", Some("prod")),
+                host("ssh://b@two", Some("prod")),
+            ])
+            .is_err()
+        );
     }
 }

@@ -142,9 +142,22 @@ mod tests {
         terminal.backend().buffer().clone()
     }
 
+    /// A connected host that never touches a daemon (the HTTP client connects lazily).
+    fn connect_test_host(state: &mut AppState, host_id: &str, is_local: bool) {
+        use crate::docker::connection::DockerHost;
+        use bollard::{API_DEFAULT_VERSION, Docker};
+
+        let docker =
+            Docker::connect_with_http("http://127.0.0.1:1", 1, API_DEFAULT_VERSION).unwrap();
+        let host = DockerHost::new(host_id.to_string(), docker, None, HashMap::new(), is_local);
+        state.handle_event(AppEvent::HostConnected(host));
+    }
+
     /// State with a local machine sample and two Docker hosts, for the stats header.
     fn create_system_stats_state() -> AppState {
         let mut state = create_test_app_state();
+        connect_test_host(&mut state, "local", true);
+        connect_test_host(&mut state, "user@server1", false);
         let mut stopped =
             create_test_container("ccc000000003", "old-job", "local", 0.0, 0.0, 0.0, 0.0);
         stopped.state = ContainerState::Exited;
@@ -257,6 +270,29 @@ mod tests {
         assert_eq!(row("workstation"), Some(2));
         assert_eq!(row("Docker  local"), Some(3));
         assert_eq!(row("Docker  a-host"), Some(4));
+    }
+
+    /// Host ids can be custom names: a renamed local host still goes first, and a
+    /// remote host named `local` doesn't.
+    #[test]
+    fn test_system_stats_header_pins_local_by_locality_not_id() {
+        let mut state = create_system_stats_state();
+        connect_test_host(&mut state, "zz-laptop", true);
+        state.handle_event(AppEvent::HostInfo(
+            "zz-laptop".to_string(),
+            HostInfo {
+                cpus: 2,
+                memory_total_bytes: 1024 * 1024 * 1024,
+            },
+        ));
+        // Replaces the local `local` with a remote host of the same id
+        connect_test_host(&mut state, "local", false);
+        let buffer = render_list(&mut state, &UiStyles::default(), 150, 20);
+
+        let row = |label: &str| find_text_position(&buffer, label).map(|(_, y)| y);
+        assert_eq!(row("workstation"), Some(2));
+        assert_eq!(row("Docker  zz-laptop"), Some(3));
+        assert_eq!(row("Docker  local"), Some(4));
     }
 
     /// A failed action used to be dropped silently; it must say what failed.
