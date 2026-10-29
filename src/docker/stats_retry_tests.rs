@@ -181,7 +181,7 @@ async fn test_stats_stream_reconnects_after_the_daemon_breaks_it() {
     let docker = connect_docker(&format!("unix://{}", path.display())).expect("connect");
     // Not "local": that host id enables the cgroups v2 filesystem fallback,
     // which has nothing to do with what is under test here.
-    let host = DockerHost::new("fake".to_string(), docker, None, HashMap::new());
+    let host = DockerHost::new("fake".to_string(), docker, None, HashMap::new(), false);
 
     let (tx, mut rx) = mpsc::channel(64);
     let task = tokio::spawn(stream_container_stats(
@@ -211,7 +211,7 @@ async fn test_stats_stream_stops_retrying_when_the_ui_goes_away() {
     let daemon = FlakyStatsDaemon::start(&path);
 
     let docker = connect_docker(&format!("unix://{}", path.display())).expect("connect");
-    let host = DockerHost::new("fake".to_string(), docker, None, HashMap::new());
+    let host = DockerHost::new("fake".to_string(), docker, None, HashMap::new(), false);
 
     let (tx, mut rx) = mpsc::channel(64);
     let task = tokio::spawn(stream_container_stats(

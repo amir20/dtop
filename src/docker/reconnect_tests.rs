@@ -224,7 +224,7 @@ fn dead_socket(path: &Path) {
 
 fn docker_host(path: &Path) -> DockerHost {
     let docker = connect_docker(&format!("unix://{}", path.display())).expect("connect to socket");
-    DockerHost::new("test".to_string(), docker, None, HashMap::new())
+    DockerHost::new("test".to_string(), docker, None, HashMap::new(), false)
 }
 
 /// The whole point of the fix: a daemon that goes away and comes back should

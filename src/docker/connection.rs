@@ -86,8 +86,19 @@ fn next_reconnect_delay(current: Duration) -> Duration {
 }
 
 /// Returns true for host specs that point at a daemon on this machine.
+///
+/// Only `local` qualifies, and only while it resolves to the default socket or a
+/// `unix://` one: `DOCKER_HOST` or a context can point it at a remote daemon. An
+/// explicit `unix://` host may be a socket forwarded from another machine, so it
+/// doesn't count (the same rule `main.rs` uses for the local system stats).
 pub fn is_local_spec(host_spec: &str) -> bool {
-    host_spec == "local" || host_spec.starts_with("unix://")
+    host_spec == "local"
+        && is_local_endpoint(crate::docker::context::resolve_local_endpoint().as_deref())
+}
+
+/// Whether the endpoint `local` resolved to (`None` for the default socket) is on this machine.
+fn is_local_endpoint(endpoint: Option<&str>) -> bool {
+    endpoint.is_none_or(|e| e == "local" || e.starts_with("unix://"))
 }
 
 /// Represents a Docker host connection with its identifier
@@ -99,8 +110,9 @@ pub struct DockerHost {
     pub filters: HashMap<String, Vec<String>>,
     /// Set for `ssh://` hosts; used to sample the remote machine's own stats
     pub ssh: Option<SshRunner>,
-    /// Whether the daemon runs on this machine, which permits local cgroup fallbacks.
-    /// Derived from the host spec rather than `host_id`, which may be a custom name.
+    /// Whether the daemon runs on this machine, which permits local cgroup fallbacks
+    /// and puts its Docker line under the local System line. Comes from the host spec
+    /// (see [`is_local_spec`]), never from `host_id`, which may be a custom name.
     pub is_local: bool,
 }
 
@@ -110,8 +122,8 @@ impl DockerHost {
         docker: Docker,
         dozzle_url: Option<String>,
         filters: HashMap<String, Vec<String>>,
+        is_local: bool,
     ) -> Self {
-        let is_local = is_local_spec(&host_id);
         Self {
             host_id,
             docker,
@@ -120,12 +132,6 @@ impl DockerHost {
             ssh: None,
             is_local,
         }
-    }
-
-    /// Overrides locality using the host spec, for hosts whose `host_id` is a custom name.
-    pub fn with_spec(mut self, host_spec: &str) -> Self {
-        self.is_local = is_local_spec(host_spec);
-        self
     }
 
     pub fn with_ssh(mut self, ssh: Option<SshRunner>) -> Self {
@@ -952,6 +958,16 @@ pub fn connect_docker(host: &str) -> Result<Docker, Box<dyn std::error::Error>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_endpoints_on_this_machine_are_local() {
+        assert!(is_local_endpoint(None));
+        assert!(is_local_endpoint(Some("unix:///var/run/docker.sock")));
+        assert!(!is_local_endpoint(Some("tcp://10.0.0.5:2375")));
+        assert!(!is_local_endpoint(Some("ssh://user@remote")));
+        assert!(!is_local_spec("unix:///tmp/forwarded.sock"));
+        assert!(!is_local_spec("ssh://user@server1"));
+    }
 
     #[test]
     fn format_ports_dedups_sorts_and_suffixes_non_tcp() {

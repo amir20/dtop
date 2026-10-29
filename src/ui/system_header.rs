@@ -351,7 +351,7 @@ fn push_bar<'a>(spans: &mut Vec<Span<'a>>, percent: f64, bar_width: usize, style
     spans.push(Span::raw(" "));
 }
 
-/// Builds the header's lines: the local machine and `local` host first, then
+/// Builds the header's lines: the local machine and the hosts on it first, then
 /// each other host's machine and containers together. Host IDs come from two
 /// sorted maps, merged in order without collecting them.
 fn header_texts(state: &AppState) -> Vec<HeaderText> {
@@ -384,13 +384,29 @@ fn header_texts(state: &AppState) -> Vec<HeaderText> {
         }
     };
 
-    // `local` first so its Docker line sits under the local machine's line
-    if state.remote_system_stats.contains_key("local") || state.host_info.contains_key("local") {
-        add_host("local");
+    // Hosts on this machine first so their Docker lines sit under the local
+    // machine's line. Ids can be custom names, so this asks the host, not the id.
+    let is_local = |host_id: &str| {
+        state
+            .connected_hosts
+            .get(host_id)
+            .is_some_and(|host| host.is_local)
+    };
+    for host_id in sorted_host_ids(state).filter(|id| is_local(id)) {
+        add_host(host_id);
     }
+    for host_id in sorted_host_ids(state).filter(|id| !is_local(id)) {
+        add_host(host_id);
+    }
+    texts
+}
+
+/// Every host id in the header, sorted and deduplicated, merged from the two
+/// sorted maps without collecting them.
+fn sorted_host_ids(state: &AppState) -> impl Iterator<Item = &str> {
     let mut remote = state.remote_system_stats.keys().peekable();
     let mut docker = state.host_info.keys().peekable();
-    loop {
+    std::iter::from_fn(move || {
         let next = match (remote.peek(), docker.peek()) {
             (Some(r), Some(d)) if r == d => {
                 docker.next();
@@ -399,15 +415,10 @@ fn header_texts(state: &AppState) -> Vec<HeaderText> {
             (Some(r), Some(d)) if r < d => remote.next(),
             (Some(_), None) => remote.next(),
             (_, Some(_)) => docker.next(),
-            (None, None) => break,
+            (None, None) => None,
         };
-        if let Some(host_id) = next
-            && host_id != "local"
-        {
-            add_host(host_id);
-        }
-    }
-    texts
+        next.map(String::as_str)
+    })
 }
 
 /// Renders the header into `area`, which must be [`header_height`] rows tall.

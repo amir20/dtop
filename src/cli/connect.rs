@@ -8,7 +8,9 @@ use url::Url;
 use crate::cli::config::{Config, HostConfig};
 use crate::cli::filters::parse_filters;
 use crate::core::types::AppEvent;
-use crate::docker::connection::{DockerHost, connect_docker_with_runner, container_manager};
+use crate::docker::connection::{
+    DockerHost, connect_docker_with_runner, container_manager, is_local_spec,
+};
 use crate::docker::remote_stats::spawn_for_host;
 
 /// Result of establishing connections to Docker hosts
@@ -26,6 +28,7 @@ pub async fn establish_connections(
     config: &Config,
     event_tx: mpsc::Sender<AppEvent>,
 ) -> Result<ConnectionResult, Box<dyn std::error::Error>> {
+    check_unique_host_ids(&config.hosts)?;
     let total_hosts = config.hosts.len();
 
     // Create a channel for receiving successful connections
@@ -167,9 +170,14 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
 
     // Create host ID and DockerHost instance
     let host_id = host_display_id(host_config);
-    let docker_host = DockerHost::new(host_id, docker, host_config.dozzle.clone(), filters)
-        .with_spec(host_spec)
-        .with_ssh(ssh);
+    let docker_host = DockerHost::new(
+        host_id,
+        docker,
+        host_config.dozzle.clone(),
+        filters,
+        is_local_spec(host_spec),
+    )
+    .with_ssh(ssh);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
@@ -206,6 +214,23 @@ pub fn host_display_id(host_config: &HostConfig) -> String {
         Some(name) if !name.is_empty() => name.to_string(),
         _ => create_host_id(&host_config.host),
     }
+}
+
+/// Rejects configs where two hosts get the same id. Everything is keyed by host id,
+/// so two such hosts would be merged: one's containers would replace the other's,
+/// and actions on them could reach the wrong daemon.
+fn check_unique_host_ids(hosts: &[HostConfig]) -> Result<(), String> {
+    let mut seen = HashMap::with_capacity(hosts.len());
+    for host in hosts {
+        if let Some(other) = seen.insert(host_display_id(host), &host.host) {
+            return Err(format!(
+                "Hosts '{other}' and '{}' share the id '{}'. Give one of them a different `name` in the config file.",
+                host.host,
+                host_display_id(host)
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Creates a unique host identifier from the host specification.
@@ -248,20 +273,33 @@ mod tests {
     }
 
     #[test]
-    fn test_named_host_keeps_locality_from_spec() {
-        use crate::docker::connection::DockerHost;
-        use bollard::{API_DEFAULT_VERSION, Docker};
+    fn test_duplicate_host_ids_are_rejected() {
+        let host = |spec: &str, name: Option<&str>| HostConfig {
+            host: spec.to_string(),
+            name: name.map(str::to_string),
+            dozzle: None,
+            filter: None,
+        };
 
-        // The HTTP client connects lazily, so no daemon is needed
-        let docker =
-            Docker::connect_with_http("http://127.0.0.1:1", 1, API_DEFAULT_VERSION).unwrap();
-        let named_local =
-            DockerHost::new("podman".to_string(), docker.clone(), None, HashMap::new())
-                .with_spec("unix:///run/user/1000/podman/podman.sock");
-        assert!(named_local.is_local);
-
-        let named_remote = DockerHost::new("local".to_string(), docker, None, HashMap::new())
-            .with_spec("ssh://user@server1");
-        assert!(!named_remote.is_local);
+        assert!(
+            check_unique_host_ids(&[
+                host("local", None),
+                host("unix:///run/podman.sock", Some("podman")),
+            ])
+            .is_ok()
+        );
+        // A name can collide with another host's derived id
+        let err =
+            check_unique_host_ids(&[host("local", None), host("ssh://root@box", Some("local"))])
+                .unwrap_err();
+        assert!(err.contains("share the id 'local'"), "{err}");
+        // Or with another name
+        assert!(
+            check_unique_host_ids(&[
+                host("ssh://a@one", Some("prod")),
+                host("ssh://b@two", Some("prod")),
+            ])
+            .is_err()
+        );
     }
 }
