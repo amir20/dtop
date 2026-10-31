@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.5] - 2026-10-31
+
+### Features
+
+- *(config)* Add optional per-host `name` for display labels (#407)
+
+### Performance
+
+- *(logs)* Stop redrawing per log line and cache wrapped row counts (#399)
+
 ## [0.10.4] - 2026-10-17
 
 ### Features
