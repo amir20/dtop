@@ -43,7 +43,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 # poll() for the terminal probe that picks the icon style
 libc = "0.2"
-sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system", "network"] }
 
 [dev-dependencies]
 insta = { version = "1.48", features = ["filters"] }
