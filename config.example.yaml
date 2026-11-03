@@ -27,7 +27,7 @@ hosts:
 # Icon style for the UI.
 # Possible values:
 #   auto    - Nerd Font icons on terminals that ship them built in
-#             (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+#             (Ghostty, WezTerm, Rex, kitty >= 0.36), Unicode elsewhere (default)
 #   unicode - Standard Unicode icons (works everywhere)
 #   nerd    - Nerd Font icons (requires Nerd Font)
 icons: auto

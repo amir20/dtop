@@ -88,6 +88,11 @@ fn has_builtin_nerd_font(name: &str) -> bool {
     if lower.starts_with("ghostty") || lower.starts_with("wezterm") {
         return true;
     }
+    // Rex renders with Ghostty's engine and bundles Symbols Nerd Font.
+    // It replies `rex <version>`; don't match names that merely start "rex".
+    if lower == "rex" || lower.starts_with("rex ") {
+        return true;
+    }
     // kitty replies `kitty(0.36.4)`; built-in Nerd Font symbols came in 0.36.
     if let Some(version) = lower.strip_prefix("kitty(") {
         let mut parts = version
@@ -106,6 +111,7 @@ fn env_has_builtin_nerd_font(env: &impl Fn(&str) -> Option<String>) -> bool {
     let term_program = env("TERM_PROGRAM").unwrap_or_default();
     term_program.eq_ignore_ascii_case("ghostty")
         || term_program.eq_ignore_ascii_case("WezTerm")
+        || term_program.eq_ignore_ascii_case("rex")
         || env("TERM").is_some_and(|t| t == "xterm-ghostty")
 }
 
@@ -350,6 +356,9 @@ mod tests {
     fn test_builtin_nerd_font_terminals() {
         assert!(has_builtin_nerd_font("ghostty 1.3.2-main+b1d9492cf"));
         assert!(has_builtin_nerd_font("WezTerm 20240203-110809-5046fc22"));
+        // Captured from Rex: `\x1bP>|rex 0.0.1793645657-gd018d2\x1b\\`
+        assert!(has_builtin_nerd_font("rex 0.0.1793645657-gd018d2"));
+        assert!(!has_builtin_nerd_font("rexterm 1.0"));
         assert!(has_builtin_nerd_font("kitty(0.36.4)"));
         assert!(has_builtin_nerd_font("kitty(1.0.0)"));
         assert!(!has_builtin_nerd_font("kitty(0.35.2)"));
@@ -372,6 +381,7 @@ mod tests {
             "TERM",
             "xterm-ghostty"
         )])));
+        assert!(env_has_builtin_nerd_font(&env(&[("TERM_PROGRAM", "rex")])));
         assert!(!env_has_builtin_nerd_font(&env(&[
             ("TERM", "xterm-256color"),
             ("TERM_PROGRAM", "iTerm.app"),
