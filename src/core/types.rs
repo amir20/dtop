@@ -619,7 +619,7 @@ impl Column {
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk R",
             Column::DiskWrite => "Disk W",
-            Column::Uptime => "Uptime",
+            Column::Uptime => "Created",
             Column::Restarts => "Restarts",
         }
     }
@@ -752,7 +752,7 @@ impl Column {
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk Read",
             Column::DiskWrite => "Disk Write",
-            Column::Uptime => "Uptime",
+            Column::Uptime => "Created",
             Column::Restarts => "Restarts",
         }
     }
@@ -912,7 +912,7 @@ mod tests {
         assert_eq!(Column::NetRx.label(), "Net RX");
         assert_eq!(Column::DiskRead.label(), "Disk R");
         assert_eq!(Column::DiskWrite.label(), "Disk W");
-        assert_eq!(Column::Uptime.label(), "Uptime");
+        assert_eq!(Column::Uptime.label(), "Created");
         assert_eq!(Column::Restarts.label(), "Restarts");
         assert_eq!(Column::Image.label(), "Image");
         assert_eq!(Column::Ports.label(), "Ports");
