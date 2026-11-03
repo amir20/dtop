@@ -160,7 +160,7 @@ Global config options:
   sends XTVERSION followed by DA1 right after raw mode is enabled and before the keyboard worker
   starts (which would otherwise eat the reply). DA1 is the sentinel: every terminal answers it, so a
   terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
-  WezTerm and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
+  WezTerm, Rex and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
   over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
   `TERM_PROGRAM`/`TERM` when there is no reply. Under tmux the probe would name tmux, so it reads
   `#{client_termtype}` instead (tmux >= 3.3 runs XTVERSION against the outer terminal on attach);

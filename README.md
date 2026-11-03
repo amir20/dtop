@@ -162,7 +162,7 @@ Options:
 
           Options:
             auto     - Nerd Font icons on terminals that ship them built in
-                       (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+                       (Ghostty, WezTerm, Rex, kitty >= 0.36), Unicode elsewhere (default)
             unicode  - Standard Unicode icons (works everywhere)
             nerd     - Nerd Font icons (requires Nerd Font installed)
 
@@ -276,7 +276,7 @@ See [config.example.yaml](https://github.com/amir20/dtop/blob/main/config.exampl
 
 `dtop` supports [Nerd Fonts](https://www.nerdfonts.com/) for enhanced icon display. Nerd Fonts are fonts that have been patched to include additional glyphs and icons commonly used in terminal applications.
 
-By default (`icons: auto`), `dtop` asks the terminal what it is at startup and uses Nerd Font icons on terminals that draw them without a patched font: **Ghostty**, **WezTerm** and **kitty 0.36+**. This works over SSH too, since the question travels through the SSH session to your local terminal. Inside tmux (3.3+), `dtop` uses the terminal name tmux recorded when you attached, so tmux in Ghostty gets Nerd Font icons too. The choice is made at startup, so reattaching from a different terminal doesn't change it. Inside screen, `auto` uses Unicode icons.
+By default (`icons: auto`), `dtop` asks the terminal what it is at startup and uses Nerd Font icons on terminals that draw them without a patched font: **Ghostty**, **WezTerm**, **Rex** and **kitty 0.36+**. This works over SSH too, since the question travels through the SSH session to your local terminal. Inside tmux (3.3+), `dtop` uses the terminal name tmux recorded when you attached, so tmux in Ghostty gets Nerd Font icons too. The choice is made at startup, so reattaching from a different terminal doesn't change it. Inside screen, `auto` uses Unicode icons.
 
 ### Installing Nerd Fonts
 
