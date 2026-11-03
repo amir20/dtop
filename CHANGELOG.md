@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.6] - 2026-11-03
+
+### Bug Fixes
+
+- *(icons)* Detect Rex as a terminal with built-in Nerd Font glyphs (#409)
+- *(ui)* Label the creation-time column "Created" in the column and sort popups (#410)
+
 ## [0.10.5] - 2026-10-31
 
 ### Features
