@@ -24,7 +24,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "0.10.5";
+        version = "0.10.6";
 
         # Binary release configuration
         platformMap = {
@@ -35,10 +35,10 @@
         };
 
         hashes = {
-          "x86_64-linux" = "sha256-Qh3Mfy25z09yJds7KLmaJauxr4lYhsjBPON5SjneAaM=";
-          "aarch64-linux" = "sha256-uGbYrHXfw/3SQhc0zdnbYFSmBiwbE4m0RS5vd/OWwnU=";
-          "x86_64-darwin" = "sha256-VsCGMfEGHjr3kWU/+y4yrnyvxBpJfNHe2CQay//5hpY=";
-          "aarch64-darwin" = "sha256-U1qWJ6moBZEbj3WYYxb61ebs3RIvxVhHPTW6FphQx/M=";
+          "x86_64-linux" = "sha256-enuCoGGQ3cCyYO8evMw7k/n/5LDqlyvIhdwAAP513zk=";
+          "aarch64-linux" = "sha256-IbVgG8rpqxiZG/fGzb2dA3gjRpsJUj8X7p9zOOqISLA=";
+          "x86_64-darwin" = "sha256-0BwJdhfl6vEFzd6DNxH4YMinwH5nrt04cNdkju/5Wtw=";
+          "aarch64-darwin" = "sha256-0V3WfNlsLGIo63D3jgSr6TxfpAAEnryz8t21eg8Rwmw=";
         };
 
         platform = platformMap.${system} or (throw "Unsupported system: ${system}");
