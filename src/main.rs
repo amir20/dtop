@@ -43,6 +43,7 @@ use docker::connection::{DockerHost, container_manager};
 use ui::hyperlinks::HyperlinkMode;
 use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
+use ui::program_status::ProgramStatus;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 use ui::window_title::{POP_TITLE, PUSH_TITLE, WindowTitle};
 
@@ -374,7 +375,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
 
     // Run main event loop
-    run_event_loop(
+    let result = run_event_loop(
         &mut terminal,
         &mut rx,
         tx.clone(),
@@ -392,12 +393,14 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             header_visible,
         },
     )
-    .await?;
+    .await;
 
-    // Restore terminal
-    cleanup_terminal(&mut terminal)?;
-
-    Ok(())
+    // Restore the terminal (and clear dtop's status records) even when the
+    // loop failed, then report the failure
+    // The loop's own error is the one worth reporting
+    let cleanup = cleanup_terminal(&mut terminal);
+    result?;
+    cleanup
 }
 
 /// Sets up the terminal for TUI rendering
@@ -415,6 +418,10 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn st
 fn cleanup_terminal(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // dtop's `error` status records would otherwise outlive the process.
+    // Best-effort: if stdout is gone (e.g. the SSH session dropped), the
+    // restore steps below must still run.
+    let _ = write_raw(terminal, &ProgramStatus::clear_all());
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     write!(terminal.backend_mut(), "{POP_TITLE}")?;
@@ -469,13 +476,15 @@ async fn run_event_loop(
 
     let mut window_title = WindowTitle::default();
 
+    let mut program_status = ProgramStatus::default();
+
     while !state.should_quit {
         let title = window_title.update(&state);
         if !title.is_empty() {
-            let backend = terminal.backend_mut();
-            backend.write_all(title.as_bytes())?;
-            backend.flush()?;
+            write_raw(terminal, &title)?;
         }
+
+        report_program_status(terminal, &mut program_status, &state)?;
 
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
@@ -535,6 +544,31 @@ fn draw(
     // End the update even if the draw failed, or the terminal stops painting
     execute!(terminal.backend_mut(), EndSynchronizedUpdate)?;
     drawn
+}
+
+/// Tells the terminal what dtop is doing, if that changed (OSC 7501)
+fn report_program_status(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    program_status: &mut ProgramStatus,
+    state: &AppState,
+) -> io::Result<()> {
+    let update = program_status.update(state);
+    if update.is_empty() {
+        return Ok(());
+    }
+    write_raw(terminal, &update)
+}
+
+/// Writes escape sequences straight to the terminal, outside ratatui's buffer:
+/// they print nothing, and a cell can't carry them without corrupting the row.
+/// Only called between draws, when ratatui has already flushed its frame.
+fn write_raw(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    sequences: &str,
+) -> io::Result<()> {
+    let backend = terminal.backend_mut();
+    backend.write_all(sequences.as_bytes())?;
+    backend.flush()
 }
 
 /// Processes all pending events from the event channel

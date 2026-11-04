@@ -8,6 +8,7 @@ pub mod hyperlinks;
 pub mod icons;
 pub mod input;
 pub mod log_view;
+pub mod program_status;
 pub mod render;
 pub mod sort_selector;
 pub mod system_header;

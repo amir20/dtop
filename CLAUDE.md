@@ -574,6 +574,30 @@ is pushed onto the terminal's title stack (`CSI 22;0t`) at startup. On exit dtop
 title and then pops it (`CSI 23;0t`): terminals without a title stack (Rex) then show their
 default rather than dtop's last title.
 
+### Program Status (OSC 7501)
+
+`ui/program_status.rs` tells the terminal what dtop is doing with the
+[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status),
+so a terminal that supports it (Rex) can flag dtop's tab while you look elsewhere.
+Unsupporting terminals ignore the sequence, so it is always sent and has no setting.
+
+- Root record: `working` (with progress) while a bulk action runs, then `done` or `error`
+  with the toast's summary (`AppState::last_bulk_outcome`); `idle` before the first one.
+  The outcome stays until the next bulk action on purpose: per the protocol, `done`/`error`
+  mean "not seen yet", and the terminal (not the program) decides when the user has seen it.
+  A batch dropped without finishing (host disconnect, 60s of silence) leaves no outcome: the
+  root falls back to the previous one, and the disconnect has its own `host/` record.
+- Ids are sanitized to the protocol's segment grammar; a sanitized or truncated segment gets
+  a hash of the original appended, so `user@box` and `user_box` don't share a record.
+- `host/<host>`: `error` while the host is disconnected.
+- `container/<host>/<id>`: `error` while a *running* container is unhealthy.
+- The event loop writes only changed records, straight to the backend outside ratatui's
+  buffer (a cell can't carry an escape sequence, see OSC 8 above). `cleanup_terminal` clears
+  every record, since `error` records outlive the process; it runs even when the event loop
+  fails.
+- Exits with a non-zero code are not reported: `docker stop` on an image that ignores
+  SIGTERM exits 137, which would flag every routine stop.
+
 ### Configuration Loading
 
 The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:
