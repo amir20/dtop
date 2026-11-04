@@ -2,6 +2,7 @@ use crate::core::app_state::AppState;
 use crate::core::types::{
     Column, Container, ContainerKey, ContainerState, HealthStatus, SortState,
 };
+use crate::ui::app_logos;
 use crate::ui::formatters::{format_bytes_per_sec, format_time_elapsed, write_bytes};
 use crate::ui::hyperlinks::Hyperlink;
 use crate::ui::render::UiStyles;
@@ -10,6 +11,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Flex, Layout, Rect},
     style::{Color, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, Cell, Row, Table},
 };
 use std::collections::HashMap;
@@ -214,9 +216,17 @@ fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
     let Some(name_rect) = column_rects.get(name_index) else {
         return;
     };
-    if name_rect.width == 0 {
+    // The name starts after its logo, when logos are drawn
+    let logo_width = if styles.app_logos {
+        app_logos::LOGO_WIDTH
+    } else {
+        0
+    };
+    if name_rect.width <= logo_width {
         return;
     }
+    let name_x = table_area.x + name_rect.x + logo_width;
+    let name_width = name_rect.width - logo_width;
 
     let first_row_y = table_area.y + HEADER_ROWS;
     let bottom = table_area.bottom();
@@ -236,7 +246,7 @@ fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
 
         // Clip exactly like `Cell` does, so a linked name truncates the same
         // way an unlinked one does.
-        let (label, label_width) = clip_to_width(&container.name, name_rect.width);
+        let (label, label_width) = clip_to_width(&container.name, name_width);
         if label_width == 0 {
             continue;
         }
@@ -249,7 +259,7 @@ fn render_dozzle_links(f: &mut Frame, ctx: &LinkOverlay<'_>) {
 
         f.render_widget(
             Hyperlink::new(label, url).style(styles.link),
-            Rect::new(table_area.x + name_rect.x, y, label_width, 1),
+            Rect::new(name_x, y, label_width, 1),
         );
     }
 }
@@ -269,6 +279,24 @@ pub(crate) fn clip_to_width(text: &str, max_width: u16) -> (&str, u16) {
     }
 
     (text, width as u16)
+}
+
+/// The Name cell with the image's app logo before the name, or a blank of the
+/// same width so names stay aligned
+fn name_with_logo<'a>(container: &'a Container, styles: &UiStyles) -> Cell<'a> {
+    let logo = container
+        .image
+        .as_deref()
+        .and_then(|image| app_logos::logo_for_image(image, styles.light_background));
+    let logo_span = match logo {
+        Some(logo) => Span::styled(app_logos::PLACEHOLDER, Style::default().fg(logo.color())),
+        None => Span::raw("  "),
+    };
+    Cell::from(Line::from(vec![
+        logo_span,
+        Span::raw(" "),
+        Span::raw(container.name.as_str()),
+    ]))
 }
 
 /// Creates a table row for a single container
@@ -291,6 +319,7 @@ fn create_container_row<'a>(
                     get_status_icon(&container.state, &container.health, styles);
                 Cell::from(icon).style(icon_style)
             }
+            Column::Name if styles.app_logos => name_with_logo(container, styles),
             Column::Name => Cell::from(container.name.as_str()),
             Column::Host => Cell::from(container.host_id.as_str()),
             Column::Compose => Cell::from(container.compose_project.as_deref().unwrap_or("")),

@@ -1,4 +1,6 @@
 pub mod action_menu;
+pub mod app_logos;
+mod app_logos_data;
 pub mod column_selector;
 pub mod container_list;
 pub mod details;

@@ -548,6 +548,55 @@ mod tests {
         container
     }
 
+    /// With logos on, the Name cell starts with the logo's two placeholder cells
+    /// (colored with its image id), then a space, then the name; a container
+    /// without a logo gets blanks so names stay aligned. The Dozzle hyperlink
+    /// must move along with the name.
+    #[test]
+    fn test_app_logo_precedes_name_and_link_follows() {
+        use crate::ui::app_logos;
+
+        let mut state = create_test_app_state();
+        let mut with_logo = dozzle_container("aaaaaaaaaaaa", "web", "http://localhost:8080");
+        with_logo.image = Some("nginx:alpine".to_string());
+        let mut without =
+            create_test_container("bbbbbbbbbbbb", "zz-custom", "local", 1.0, 1.0, 0.0, 0.0);
+        without.image = Some("mycompany/internal".to_string());
+        state.handle_event(AppEvent::ContainerCreated(with_logo));
+        state.handle_event(AppEvent::ContainerCreated(without));
+        state.sort_state = SortState::new(Column::Name);
+        state.force_sort_containers();
+
+        let width = 162;
+        let plain = render_list(&mut state, &UiStyles::default(), width, 20);
+        let styles = UiStyles::default()
+            .with_app_logos(true)
+            .with_hyperlinks(true);
+        let logos = render_list(&mut state, &styles, width, 20);
+
+        let row = 4u16;
+        let name_x = (0..width)
+            .find(|&x| plain[(x, row)].symbol() == "w")
+            .expect("name in plain render");
+        let logo = app_logos::logo_for_image("nginx:alpine", false).unwrap();
+
+        assert!(logos[(name_x, row)].symbol().starts_with('\u{10EEEE}'));
+        assert!(logos[(name_x + 1, row)].symbol().starts_with('\u{10EEEE}'));
+        assert_eq!(logos[(name_x, row)].fg, logo.color());
+        assert_eq!(logos[(name_x + 2, row)].symbol(), " ");
+        // The link opens on the name's first cell, past the logo
+        let first = logos[(name_x + app_logos::LOGO_WIDTH, row)].symbol();
+        assert!(
+            first.contains("\u{1b}]8;;") && first.ends_with('w'),
+            "{first:?}"
+        );
+
+        // No logo: blanks, and the name in the same column as the logo'd one
+        let next = row + 1;
+        assert_eq!(logos[(name_x, next)].symbol(), " ");
+        assert_eq!(logos[(name_x + app_logos::LOGO_WIDTH, next)].symbol(), "z");
+    }
+
     /// The OSC 8 hyperlink must land on exactly the cell where the Name column
     /// starts. Rather than hardcoding an x-offset (which would silently rot if
     /// the column set or widths change), this locates the name in a plain render

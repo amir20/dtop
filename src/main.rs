@@ -41,6 +41,7 @@ use core::app_state::AppState;
 use core::system_stats::system_stats_worker;
 use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
 use docker::connection::{DockerHost, container_manager};
+use ui::app_logos;
 use ui::hyperlinks::HyperlinkMode;
 use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
@@ -54,6 +55,8 @@ struct EventLoopConfig {
     icon_style: IconStyle,
     /// Terminal background color, if it answered OSC 11
     background: Option<(u8, u8, u8)>,
+    /// Whether the terminal draws kitty Unicode placeholders, for app logos
+    app_logos: bool,
     hyperlinks: bool,
     show_all: bool,
     sort_field: Column,
@@ -389,6 +392,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         EventLoopConfig {
             icon_style,
             background: reply.background,
+            app_logos: app_logos::terminal_supports_logos(reply.name.as_deref()),
             hyperlinks,
             show_all,
             sort_field,
@@ -475,12 +479,14 @@ async fn run_event_loop(
     // Pre-allocate styles to avoid recreation every frame
     let styles = UiStyles::with_icon_style(config.icon_style)
         .with_hyperlinks(config.hyperlinks)
-        .with_background(config.background);
+        .with_background(config.background)
+        .with_app_logos(config.app_logos);
+    let mut logos = app_logos::Uploads::new(config.app_logos, styles.light_background);
 
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
     // half a second even when the container list arrives immediately.
-    draw(terminal, &mut state, &styles)?;
+    draw(terminal, &mut state, &styles, &mut logos)?;
 
     let mut window_title = WindowTitle::default();
 
@@ -527,24 +533,27 @@ async fn run_event_loop(
 
                     // Force full redraw after returning from shell
                     terminal.clear()?;
-                    draw(terminal, &mut state, &styles)?;
+                    draw(terminal, &mut state, &styles, &mut logos)?;
                     last_draw = std::time::Instant::now();
                 }
             }
             RenderAction::Render => {
                 // Force draw requested
-                draw(terminal, &mut state, &styles)?;
+                draw(terminal, &mut state, &styles, &mut logos)?;
                 last_draw = std::time::Instant::now();
             }
             RenderAction::None => {
                 // Check if we should draw based on interval
                 if last_draw.elapsed() >= draw_interval {
-                    draw(terminal, &mut state, &styles)?;
+                    draw(terminal, &mut state, &styles, &mut logos)?;
                     last_draw = std::time::Instant::now();
                 }
             }
         }
     }
+
+    // Free the logos' images; the terminal would otherwise keep them
+    let _ = write_raw(terminal, &logos.delete_all());
 
     Ok(())
 }
@@ -552,11 +561,19 @@ async fn run_event_loop(
 /// Draws one frame inside a synchronized update (mode 2026), so the terminal
 /// paints it whole instead of showing a half-redrawn screen (tearing, or
 /// flicker over a slow SSH link). Terminals without it ignore both sequences.
+///
+/// New containers' app logos are uploaded first, so each logo is in the
+/// terminal before its placeholder cells are drawn.
 fn draw(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut AppState,
     styles: &UiStyles,
+    logos: &mut app_logos::Uploads,
 ) -> io::Result<()> {
+    let uploads = logos.pending(state);
+    if !uploads.is_empty() {
+        write_raw(terminal, &uploads)?;
+    }
     queue!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
     let drawn = terminal.draw(|f| render_ui(f, state, styles)).map(|_| ());
     // End the update even if the draw failed, or the terminal stops painting

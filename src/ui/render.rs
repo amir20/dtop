@@ -37,6 +37,10 @@ pub struct UiStyles {
     pub link: Style,
     /// Whether to render OSC 8 hyperlinks (resolved from `HyperlinkMode`).
     pub hyperlinks: bool,
+    /// Whether to draw app logos before container names (`ui/app_logos.rs`)
+    pub app_logos: bool,
+    /// Whether the terminal's background is light, for picking logo artwork
+    pub light_background: bool,
 }
 
 impl Default for UiStyles {
@@ -61,6 +65,8 @@ impl Default for UiStyles {
             icons: Icons::default(),
             link: Style::default().add_modifier(Modifier::UNDERLINED),
             hyperlinks: false,
+            app_logos: false,
+            light_background: false,
         }
     }
 }
@@ -80,12 +86,19 @@ impl UiStyles {
         self
     }
 
+    /// Enable or disable app logos before container names
+    pub fn with_app_logos(mut self, enabled: bool) -> Self {
+        self.app_logos = enabled;
+        self
+    }
+
     /// Adapts the selection highlight to the terminal's background, if known.
     /// The default dark gray bar holds the theme's default text, which is dark
     /// on a light theme and can't be read there. No fixed text color fixes that
     /// (light themes' "white" is often a mid gray), so on a light background the
     /// bar is the background itself, slightly darkened, under the usual text.
     pub fn with_background(mut self, background: Option<(u8, u8, u8)>) -> Self {
+        self.light_background = background.is_some_and(is_light);
         if let Some((r, g, b)) = background.filter(|&bg| is_light(bg)) {
             let darken = |c: u8| (u16::from(c) * 85 / 100) as u8;
             self.selected = self

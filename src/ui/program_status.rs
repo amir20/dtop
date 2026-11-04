@@ -202,11 +202,11 @@ fn report(
     }
     if let Some(title) = title {
         body.push_str(":title=");
-        body.push_str(&base64(&clean_text(title, MAX_TITLE_BYTES)));
+        body.push_str(&base64(clean_text(title, MAX_TITLE_BYTES)));
     }
     if let Some(msg) = msg {
         body.push_str(":msg=");
-        body.push_str(&base64(&clean_text(msg, MAX_MSG_BYTES)));
+        body.push_str(&base64(clean_text(msg, MAX_MSG_BYTES)));
     }
     body
 }
@@ -259,10 +259,10 @@ fn id_segment(text: &str) -> String {
     segment
 }
 
-/// Standard base64 with padding
-fn base64(text: &str) -> String {
+/// Standard base64 with padding (also used for the logos' kitty graphics uploads)
+pub(crate) fn base64(data: impl AsRef<[u8]>) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = text.as_bytes();
+    let bytes = data.as_ref();
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let n = (u32::from(chunk[0]) << 16)

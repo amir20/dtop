@@ -609,6 +609,27 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
 - Exits with a non-zero code are not reported: `docker stop` on an image that ignores
   SIGTERM exits 137, which would flag every routine stop.
 
+### App Logos
+
+On terminals that draw kitty graphics Unicode placeholders (kitty >= 0.28, Ghostty, Rex),
+the Name column shows the image's app logo before each name, from Dozzle's icon set. Detected
+from the startup probe's XTVERSION name (`app_logos::terminal_supports_logos`), so it's off
+under tmux/screen, and always on where supported (no setting).
+
+- `assets/app-logos/*.png` and `src/ui/app_logos_data.rs` are **generated** by
+  `scripts/import-dozzle-icons.py <dozzle checkout>` (needs `rsvg-convert` and Pillow). Run it
+  by hand when Dozzle's icons change; builds only embed the output with `include_bytes!`. The
+  PNGs are 32x32, lossless (~620 KB for ~490 logos).
+- Matching (`logo_for_image`) ports Dozzle's `iconSlugForImage`, with Dozzle's alias,
+  distributor, generic-name and suffix tables generated alongside the logos. It runs for every
+  visible row each frame, so it doesn't allocate (sorted tables, normalized-char comparisons).
+  `-dark`/`-light` artwork is picked from the probed background.
+- Each logo is uploaded once (`app_logos::Uploads`, before each draw) as a virtual placement
+  2x1 cells, then drawn as two U+10EEEE placeholder cells whose foreground color is the image
+  id (`0xD70000 + index`, kept clear of ids other programs use). To ratatui they're plain text,
+  so redraws, scrolling and popups just work. The hyperlink overlay starts `LOGO_WIDTH` cells
+  into the Name column when logos are on. Images are deleted on normal exit.
+
 ### Configuration Loading
 
 The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:
