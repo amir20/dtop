@@ -115,7 +115,7 @@ pub struct DockerHost {
     /// (see [`is_local_spec`]), never from `host_id`, which may be a custom name.
     pub is_local: bool,
     /// The `--host` spec this host was connected with (e.g. `ssh://me@nas`),
-    /// so a `--rex-panes` pane can run dtop against the same host. Empty when
+    /// so a `--panes` pane can run dtop against the same host. Empty when
     /// unknown, which turns panes off for this host.
     pub spec: String,
 }

@@ -182,10 +182,10 @@ struct Args {
     #[arg(short = 'a', long = "all", verbatim_doc_comment)]
     all: bool,
 
-    /// Open Shell and Logs in a Rex pane beside dtop instead of taking over
-    /// its screen. Only applies when running inside Rex with its CLI on PATH.
+    /// Open Shell and Logs in a terminal pane beside dtop instead of taking
+    /// over its screen. Applies inside Rex, with its CLI on PATH.
     #[arg(long)]
-    rex_panes: bool,
+    panes: bool,
 
     /// Default sort field for container list
     ///
@@ -207,12 +207,12 @@ enum Command {
     /// Update dtop to the latest version
     #[cfg(feature = "self-update")]
     Update,
-    /// Open a shell in a container, then exit (used by --rex-panes)
+    /// Open a shell in a container, then exit (used by --panes)
     Shell {
         /// Container ID (or a prefix of it)
         container: String,
     },
-    /// Show a container's logs in dtop's log view, then exit (used by --rex-panes)
+    /// Show a container's logs in dtop's log view, then exit (used by --panes)
     Logs {
         /// Container ID (or a prefix of it)
         container: String,
@@ -366,7 +366,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             // A pane closes when dtop exits, so hold the error on screen
             eprintln!("{e}\n\nPress Enter to close");
             let _ = io::stdin().read_line(&mut String::new());
-            return Err(e.to_string().into());
+            // Already shown; returning the error would print it again
+            std::process::exit(1);
         }
         return Ok(());
     }
@@ -449,7 +450,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             config_path: config_path_for_state,
             stats_header,
             header_visible,
-            rex_panes: ui::rex_panes::RexPanes::detect(args.rex_panes),
+            rex_panes: ui::rex_panes::RexPanes::detect(args.panes),
             logs_only,
         },
     )

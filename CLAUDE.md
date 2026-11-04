@@ -21,9 +21,9 @@ cargo run -- --all                           # Show all containers (including st
 cargo run -- -a                              # Short version of --all
 cargo run -- --sort name                     # Sort containers by name
 cargo run -- -s cpu                          # Sort containers by CPU usage
-cargo run -- --rex-panes                     # In Rex: open Shell and Logs in a pane beside dtop
-cargo run -- shell <id>                      # Shell into a container, then exit (used by --rex-panes)
-cargo run -- logs <id>                       # Log view for one container, then exit (used by --rex-panes)
+cargo run -- --panes                     # In Rex: open Shell and Logs in a pane beside dtop
+cargo run -- shell <id>                      # Shell into a container, then exit (used by --panes)
+cargo run -- logs <id>                       # Log view for one container, then exit (used by --panes)
 
 # Self-update
 cargo run -- update                          # Update dtop to the latest version
@@ -642,7 +642,7 @@ under tmux/screen. On by default where supported; `app_logos: false` in config t
 
 ### Rex Panes
 
-`--rex-panes` (`ui/rex_panes.rs`) opens Shell and Logs in a Rex pane split right of dtop's,
+`--panes` (`ui/rex_panes.rs`) opens Shell and Logs in a Rex pane split right of dtop's,
 instead of taking over dtop's screen. On only when the flag is set, `REX_SESSION`/`REX_BLOCK`
 are set and `rex` is on `PATH` (so not when dtop runs over SSH); otherwise dtop behaves as before.
 

@@ -604,7 +604,7 @@ fn containers_word(count: usize) -> String {
 }
 
 impl AppState {
-    /// With `--rex-panes`, opens Shell or Logs in a Rex pane beside dtop.
+    /// With `--panes`, opens Shell or Logs in a Rex pane beside dtop.
     /// `None` when panes are off or can't be used, so the caller does what it
     /// did before.
     pub(super) fn open_in_rex_pane(

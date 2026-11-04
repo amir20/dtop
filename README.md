@@ -129,20 +129,20 @@ Usage: dtop [OPTIONS] [COMMAND]
 
 Commands:
   update  Update dtop to the latest version
-  shell   Open a shell in a container, then exit (used by --rex-panes)
-  logs    Show a container's logs in dtop's log view, then exit (used by --rex-panes)
+  shell   Open a shell in a container, then exit (used by --panes)
+  logs    Show a container's logs in dtop's log view, then exit (used by --panes)
   help    Print this message or the help of the given subcommand(s)
 
 Options:
   -c, --config <PATH>
           Path to a config file to use instead of the default locations
-          
+
           The file must exist. --host still replaces its hosts, and Ctrl-S saves
           preferences back to it.
 
   -H, --host <HOST>
           Docker host(s) to connect to. Can be specified multiple times.
-          
+
           Examples:
             --host local                    (Connect to local Docker daemon / active Docker context)
             --host unix:///path/docker.sock (Connect to a specific Unix socket)
@@ -151,84 +151,72 @@ Options:
             --host tcp://host:2375          (Connect via TCP to remote Docker daemon)
             --host tls://host:2376          (Connect via TLS)
             --host local --host ssh://user@server1 --host tls://server2:2376  (Multiple hosts)
-          
+
           For TLS connections, set DOCKER_CERT_PATH to a directory containing:
             key.pem, cert.pem, and ca.pem
-          
+
           "local" follows the Docker CLI's endpoint resolution: it honors DOCKER_HOST,
           DOCKER_CONTEXT, and the active `docker context` from ~/.docker/config.json.
-          
+
           If not specified, will use config file or default to "local"
 
   -i, --icons <ICONS>
           Icon style to use for the UI
-          
+
           Options:
             auto     - Nerd Font icons on terminals that ship them built in
-                       (Ghostty, WezTerm, kitty >= 0.36), Unicode elsewhere (default)
+                       (Ghostty, WezTerm, Rex, kitty >= 0.36), Unicode elsewhere (default)
             unicode  - Standard Unicode icons (works everywhere)
             nerd     - Nerd Font icons (requires Nerd Font installed)
 
-      --hyperlinks <MODE>
-          Render container names as clickable OSC 8 hyperlinks to Dozzle
-          
-          Only applies to hosts with a `dozzle` URL configured. Unlike the 'o' key,
-          this works over SSH because the link is resolved by your local terminal.
-          
-          Options:
-            auto    - Enable on terminals known to support OSC 8 (default)
-            always  - Always render links (use inside tmux with
-                      `set -ga terminal-features "*:hyperlinks"`)
-            never   - Never render links
-
   -f, --filter <FILTER>
           Filter containers (can be specified multiple times)
-          
+
           Examples:
             --filter status=running
             --filter name=nginx
             --filter label=com.example.version=1.0
             --filter ancestor=ubuntu:24.04
-          
+
           Multiple filters of the same type use OR logic:
             --filter status=running --filter status=paused
-          
+
           Different filter types use AND logic:
             --filter status=running --filter name=nginx
-          
+
           Available filters:
             id, name, label, status, ancestor, before, since,
             volume, network, publish, expose, health, exited
-          
+
           Note: Some filters only work with container listing, not events.
           Warnings will be shown if a filter is incompatible with events.
 
   -a, --all
           Show all containers (default shows only running containers)
-          
+
           By default, dtop only shows running containers.
           Use this flag to show all containers including stopped, exited, and paused containers.
-          
+
           Note: This flag can only enable showing all containers, not disable it.
           If your config file has 'all: true', you'll need to edit the config file
           or press 'a' in the UI to toggle back to showing only running containers.
-          
+
           This is equivalent to pressing 'a' in the UI to toggle show all.
 
-      --rex-panes
-          Open Shell and Logs in a Rex pane beside dtop instead of taking over its screen. Only applies when running inside Rex with its CLI on PATH
+      --panes
+          Open Shell and Logs in a terminal pane beside dtop instead of taking over its screen. Applies inside Rex, with its CLI on PATH
 
   -s, --sort <SORT>
           Default sort field for container list
-          
+
           Options:
             uptime  - Sort by container uptime/creation time (default, newest first)
             name    - Sort by container name (alphabetically)
             cpu     - Sort by CPU usage (highest first)
             memory  - Sort by memory usage (highest first)
-          
+
           You can also use short forms: u, n, c, m
-          
+
           The sort direction can be toggled in the UI by pressing the same key again.
 
   -h, --help
@@ -329,11 +317,11 @@ icons: nerd
 
 ### Shells and logs in panes
 
-With `--rex-panes`, Shell (from the action menu) and Logs (`→`) open in a new Rex pane to the right of dtop, so the container list stays on screen:
+With `--panes`, Shell (from the action menu) and Logs (`→`) open in a new Rex pane to the right of dtop, so the container list stays on screen:
 
 ```bash
-dtop --rex-panes
-dtop --rex-panes --host ssh://user@nas
+dtop --panes
+dtop --panes --host ssh://user@nas
 ```
 
 The pane runs dtop again (`dtop --host <host> shell <id>` or `dtop --host <host> logs <id>`), so it works on every host dtop can reach, SSH and TLS included, with no Docker CLI needed. Closing the shell, or leaving the log view with `Esc`, closes the pane. This needs the `rex` CLI on your `PATH`, so it applies when dtop runs on the same machine as Rex; anywhere else dtop opens shells and logs in place as usual.

@@ -1,4 +1,4 @@
-//! Opens Shell and Logs in a Rex pane beside dtop (`--rex-panes`), instead of
+//! Opens Shell and Logs in a Rex pane beside dtop (`--panes`), instead of
 //! taking over dtop's screen.
 //!
 //! Rex sets `REX_SESSION` and `REX_BLOCK` in every pane it opens; with those and
@@ -55,7 +55,8 @@ impl RexPanes {
     }
 
     /// Opens `kind` for a container in a pane split right of dtop's. Returns
-    /// `None` if dtop's own path is unknown, so the caller falls back.
+    /// `None` if it couldn't (dtop's own path unknown, or `rex split` failed),
+    /// so the caller falls back to the in-place view.
     pub fn open(
         &self,
         kind: PaneKind,
@@ -65,24 +66,28 @@ impl RexPanes {
     ) -> Option<()> {
         let exe = std::env::current_exe().ok()?;
         let args = self.split_args(kind, &exe.to_string_lossy(), host_spec, container_id, label);
-        // `rex split` returns once the pane exists; waited on in a thread so a
-        // slow server can't stall the UI, and so the child is reaped
-        std::thread::spawn(move || {
-            let result = Command::new("rex")
-                .args(&args)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .output();
-            match result {
-                Ok(out) if !out.status.success() => tracing::warn!(
+        // `rex split` returns as soon as the pane exists, so waiting on it
+        // costs a moment and tells us whether to fall back
+        let result = Command::new("rex")
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output();
+        match result {
+            Ok(out) if out.status.success() => {}
+            Ok(out) => {
+                tracing::warn!(
                     "rex split failed: {}",
                     String::from_utf8_lossy(&out.stderr).trim()
-                ),
-                Err(e) => tracing::warn!("rex split failed: {e}"),
-                Ok(_) => {}
+                );
+                return None;
             }
-        });
+            Err(e) => {
+                tracing::warn!("rex split failed: {e}");
+                return None;
+            }
+        }
         Some(())
     }
 
