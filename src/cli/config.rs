@@ -54,6 +54,10 @@ pub struct Config {
     /// Show the system stats header above the container list (default: true)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stats_header: Option<bool>,
+
+    /// Show app logos next to container names on terminals that support them (default: true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_logos: Option<bool>,
 }
 
 impl Config {
@@ -190,6 +194,7 @@ mod tests {
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -219,6 +224,7 @@ mod tests {
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -243,6 +249,7 @@ mod tests {
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -265,6 +272,13 @@ hosts:
         assert_eq!(config.hosts[1].host, "ssh://user@server1");
         assert_eq!(config.hosts[2].host, "ssh://user@server2:2222");
         assert_eq!(config.hosts[0].dozzle, None);
+        assert_eq!(config.app_logos, None);
+    }
+
+    #[test]
+    fn test_yaml_app_logos_off() {
+        let config: Config = serde_norway::from_str("app_logos: false").unwrap();
+        assert_eq!(config.app_logos, Some(false));
     }
 
     #[test]
@@ -341,6 +355,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let cli_filters = vec!["name=nginx".to_string()];
@@ -369,6 +384,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -396,6 +412,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -419,6 +436,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -442,6 +460,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -465,6 +484,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -493,6 +513,7 @@ hosts:
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
 
         let merged =
@@ -555,6 +576,7 @@ hosts:
             columns: Some(vec!["name".to_string(), "cpu".to_string()]),
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("columns:"));
@@ -591,6 +613,7 @@ sort_direction: asc
             columns: None,
             hyperlinks: None,
             stats_header: None,
+            app_logos: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("sort: memory"));
