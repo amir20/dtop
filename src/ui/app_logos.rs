@@ -11,6 +11,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use ratatui::style::Color;
 
 use crate::core::app_state::AppState;
@@ -77,7 +79,7 @@ impl Logo {
     /// placement, chunked as the protocol requires. `q=2` keeps the terminal
     /// from answering, since nothing reads replies after startup.
     pub fn upload(self) -> String {
-        let data = super::program_status::base64(LOGOS[self.0].1);
+        let data = BASE64.encode(LOGOS[self.0].1);
         let mut out = String::with_capacity(data.len() + 64);
         let chunks: Vec<&str> = data
             .as_bytes()
