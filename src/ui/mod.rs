@@ -12,6 +12,7 @@ pub mod input;
 pub mod log_view;
 pub mod program_status;
 pub mod render;
+pub mod rex_panes;
 pub mod sort_selector;
 pub mod system_header;
 pub mod terminal_probe;

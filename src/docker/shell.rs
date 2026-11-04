@@ -68,6 +68,7 @@ pub async fn run_shell_session(
     };
 
     debug!("Starting exec session...");
+    let started = std::time::Instant::now();
     let exec_result = host
         .docker
         .start_exec(&exec_id, Some(start_config))
@@ -202,6 +203,19 @@ pub async fn run_shell_session(
         }
     }
 
+    // 126/127 right away: the container has no usable shell (e.g. a distroless
+    // image), and the runtime's message was already printed as output. A real
+    // session can also end with 127 (a missing command, then `exit`), but not
+    // within a second of starting
+    let exit_code = host
+        .docker
+        .inspect_exec(&exec_id)
+        .await
+        .ok()
+        .and_then(|exec| exec.exit_code);
+    let no_shell = matches!(exit_code, Some(126 | 127))
+        && started.elapsed() < std::time::Duration::from_secs(1);
+
     // Restore terminal state
     terminal::disable_raw_mode()?;
     execute!(
@@ -212,6 +226,9 @@ pub async fn run_shell_session(
     )?;
     terminal::enable_raw_mode()?;
 
+    if no_shell {
+        return Err("No shell found in the container".into());
+    }
     Ok(())
 }
 

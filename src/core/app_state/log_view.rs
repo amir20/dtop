@@ -1,6 +1,7 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerKey, LogState, RenderAction, ViewState};
 use crate::docker::logs::{LogEntry, fetch_older_logs};
+use crate::ui::rex_panes::PaneKind;
 
 impl AppState {
     pub(super) fn handle_enter_pressed(&mut self) -> RenderAction {
@@ -37,10 +38,35 @@ impl AppState {
             return RenderAction::None;
         };
 
-        let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
+        let Some(container_key) = self.sorted_container_keys.get(selected_idx).cloned() else {
             return RenderAction::None;
         };
 
+        if let Some(action) = self.open_in_rex_pane(PaneKind::Logs, &container_key) {
+            return action;
+        }
+
+        self.open_log_view(&container_key)
+    }
+
+    /// `dtop logs <id>`: opens the log view once the container is listed
+    pub(super) fn open_pending_logs(&mut self) -> Option<RenderAction> {
+        let wanted = self.logs_only.as_deref()?;
+        if self.quit_with_log_view {
+            return None;
+        }
+        let key = self
+            .containers
+            .keys()
+            .find(|key| {
+                key.container_id.starts_with(wanted) || wanted.starts_with(&key.container_id)
+            })?
+            .clone();
+        self.quit_with_log_view = true;
+        Some(self.open_log_view(&key))
+    }
+
+    fn open_log_view(&mut self, container_key: &ContainerKey) -> RenderAction {
         // Get container creation time for progress calculation
         let container_created_at = self.containers.get(container_key).and_then(|c| c.created);
 
@@ -84,6 +110,11 @@ impl AppState {
             && let Some(handle) = state.stream_handle.take()
         {
             handle.abort();
+        }
+
+        // `dtop logs <id>` exists only for this log view
+        if self.quit_with_log_view {
+            self.should_quit = true;
         }
 
         // Switch back to container list view
@@ -346,5 +377,81 @@ impl AppState {
         }
 
         RenderAction::None // Don't render yet, wait for LogBatchPrepend
+    }
+}
+
+#[cfg(test)]
+mod logs_only_tests {
+    use super::*;
+    use crate::core::types::{AppEvent, Column, ColumnConfig, Container, ContainerState};
+    use std::collections::HashMap;
+    use tokio::sync::mpsc;
+
+    fn state() -> AppState {
+        let (tx, _rx) = mpsc::channel(10);
+        AppState::new(
+            HashMap::new(),
+            tx,
+            false,
+            Column::Uptime,
+            None,
+            ColumnConfig::default(),
+            None,
+        )
+    }
+
+    fn container(id: &str, state: ContainerState) -> Container {
+        Container {
+            id: id.to_string(),
+            name: id.to_string(),
+            state,
+            health: None,
+            created: None,
+            stats: Default::default(),
+            host_id: "nas".to_string(),
+            dozzle_url: None,
+            restart_count: None,
+            compose_project: None,
+            image: None,
+            ports: None,
+        }
+    }
+
+    /// `dtop logs <id>` opens that container's log view once it is listed, even
+    /// when it is stopped and show-all is off, and leaving the view quits
+    #[test]
+    fn logs_only_opens_the_container_then_quits_with_the_view() {
+        let mut state = state();
+        state.logs_only = Some("abc123".to_string());
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![
+                container("fff000aaa111", ContainerState::Running),
+                container("abc123def456", ContainerState::Exited),
+            ],
+        ));
+        let key = ContainerKey::new("nas".to_string(), "abc123def456".to_string());
+        assert_eq!(state.view_state, ViewState::LogView(key));
+        assert!(!state.should_quit);
+
+        state.handle_exit_log_view();
+        assert!(state.should_quit);
+    }
+
+    /// Without `logs_only`, leaving the log view goes back to the list
+    #[test]
+    fn leaving_the_log_view_normally_does_not_quit() {
+        let mut state = state();
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![container("abc123def456", ContainerState::Running)],
+        ));
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        state.view_state = ViewState::LogView(ContainerKey::new(
+            "nas".to_string(),
+            "abc123def456".to_string(),
+        ));
+        state.handle_exit_log_view();
+        assert!(!state.should_quit);
     }
 }

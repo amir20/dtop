@@ -21,6 +21,9 @@ cargo run -- --all                           # Show all containers (including st
 cargo run -- -a                              # Short version of --all
 cargo run -- --sort name                     # Sort containers by name
 cargo run -- -s cpu                          # Sort containers by CPU usage
+cargo run -- --panes                     # In Rex: open Shell and Logs in a pane beside dtop
+cargo run -- shell <id>                      # Shell into a container, then exit (used by --panes)
+cargo run -- logs <id>                       # Log view for one container, then exit (used by --panes)
 
 # Self-update
 cargo run -- update                          # Update dtop to the latest version
@@ -640,6 +643,24 @@ under tmux/screen. On by default where supported; `app_logos: false` in config t
   into the Name column when logos are on. Images are deleted on exit (`cleanup_terminal`, so also
   when the event loop fails), and re-uploaded after a shell session, since re-entering the
   alternate screen drops them.
+
+### Rex Panes
+
+`--panes` (`ui/rex_panes.rs`) opens Shell and Logs in a Rex pane split right of dtop's,
+instead of taking over dtop's screen. On only when the flag is set, `REX_SESSION`/`REX_BLOCK`
+are set and `rex` is on `PATH` (so not when dtop runs over SSH); otherwise dtop behaves as before.
+
+- The pane runs dtop again: `dtop --host <spec> shell <id>` or `dtop --host <spec> logs <id>`,
+  via `rex split`. Going through dtop rather than the docker CLI keeps every host type working
+  (dtop's own SSH transport, TLS). `DockerHost::spec` is the `--host` string a host was connected
+  with; a host without one falls back to the in-place shell/log view.
+- `dtop shell <id>` runs `run_shell_session` without the TUI. A failed shell (exec exit 126/127,
+  e.g. a distroless image) holds its error until Enter, since the pane closes when dtop exits.
+- `dtop logs <id>` is the normal TUI with `AppState::logs_only` set: the log view opens when the
+  container (matched by ID prefix) is first listed, and leaving it quits.
+- The pane's dtop gets only `--host`, so the config file's host name, filters and display
+  settings don't apply there. Each pane opens its own connection (a fork can't reuse the
+  parent's, since Rex starts the pane's process).
 
 ### Configuration Loading
 

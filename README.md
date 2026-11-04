@@ -19,6 +19,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - 🌍 **Multi-host support** - Monitor containers across multiple hosts
 - 🔍 **Dozzle** - Supports opening Dozzle links via keyboard shortcuts
 - 📝 **Log streaming** - View container logs in real-time
+- 🦖 **Native [Rex](https://www.superlogical.com/rex) support** - App logos, tab status, and shells and logs in their own panes
 
 ## Roadmap
 
@@ -128,6 +129,8 @@ Usage: dtop [OPTIONS] [COMMAND]
 
 Commands:
   update  Update dtop to the latest version
+  shell   Open a shell in a container, then exit (used by --panes)
+  logs    Show a container's logs in dtop's log view, then exit (used by --panes)
   help    Print this message or the help of the given subcommand(s)
 
 Options:
@@ -199,6 +202,9 @@ Options:
           or press 'a' in the UI to toggle back to showing only running containers.
 
           This is equivalent to pressing 'a' in the UI to toggle show all.
+
+      --panes
+          Open Shell and Logs in a terminal pane beside dtop instead of taking over its screen. Applies inside Rex, with its CLI on PATH
 
   -s, --sort <SORT>
           Default sort field for container list
@@ -299,6 +305,26 @@ icons: nerd
 
 > [!Note]
 > If icons appear as boxes or question marks, ensure your terminal is using a Nerd Font, or set `icons: unicode`, which works with any terminal font.
+
+## Rex
+
+`dtop` has native support for [Rex](https://www.superlogical.com/rex). Everything below is detected at startup, and works over SSH since it travels through the SSH session to your local terminal.
+
+- **App logos** - each container's image logo is drawn next to its name (also kitty 0.28+ and Ghostty). Turn them off with `app_logos: false`.
+- **Tab status** - Rex flags dtop's tab while a bulk action runs, when it finishes or fails, when a host disconnects, and when a running container turns unhealthy ([Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status)).
+- **Tab title** - `dtop`, `dtop · <host>`, or the container whose logs you're reading.
+- **Nerd Font icons and clickable names** - with `icons: auto` and `hyperlinks: auto`.
+
+### Shells and logs in panes
+
+With `--panes`, Shell (from the action menu) and Logs (`→`) open in a new Rex pane to the right of dtop, so the container list stays on screen:
+
+```bash
+dtop --panes
+dtop --panes --host ssh://user@nas
+```
+
+The pane runs dtop again (`dtop --host <host> shell <id>` or `dtop --host <host> logs <id>`), so it works on every host dtop can reach, SSH and TLS included, with no Docker CLI needed. Closing the shell, or leaving the log view with `Esc`, closes the pane. This needs the `rex` CLI on your `PATH`, so it applies when dtop runs on the same machine as Rex; anywhere else dtop opens shells and logs in place as usual.
 
 ## Supported Connections
 
