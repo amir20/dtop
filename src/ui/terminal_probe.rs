@@ -90,7 +90,8 @@ fn parse_xtversion(buf: &[u8]) -> Option<String> {
 }
 
 /// Extracts the color from an OSC 11 reply (`ESC ] 11 ; rgb:RRRR/GGGG/BBBB ST`).
-/// Each component has 1 to 4 hex digits, scaled here to 8 bits.
+/// Each component has 1 to 4 hex digits, scaled here to 8 bits. Other forms
+/// (e.g. `rgba:`) count as no answer, which keeps the default dark gray bar.
 fn parse_osc11(buf: &[u8]) -> Option<(u8, u8, u8)> {
     let start = buf.windows(9).position(|w| w == b"\x1b]11;rgb:")? + 9;
     let rest = &buf[start..];

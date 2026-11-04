@@ -336,3 +336,25 @@ fn render_notification(f: &mut Frame, state: &AppState) {
 
     f.render_widget(notification_widget, notification_area);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn light_background_lightens_the_selection_bar() {
+        let styles = UiStyles::default().with_background(Some((255, 255, 255)));
+        assert_eq!(styles.selected.bg, Some(Color::Rgb(216, 216, 216)));
+        // The theme's text colors are kept, so the CPU/memory colors still show
+        assert_eq!(styles.selected.fg, None);
+    }
+
+    #[test]
+    fn dark_or_unknown_background_keeps_the_dark_gray_bar() {
+        for background in [Some((30, 30, 30)), None] {
+            let styles = UiStyles::default().with_background(background);
+            assert_eq!(styles.selected, UiStyles::default().selected);
+            assert_eq!(styles.selected.bg, Some(Color::DarkGray));
+        }
+    }
+}

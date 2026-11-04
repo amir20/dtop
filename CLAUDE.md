@@ -162,7 +162,8 @@ Global config options:
   keyboard worker starts (which would otherwise eat the reply). The probe runs for every icon mode,
   since the background is used too: on a light background (`is_light`) the selected row is the
   background darkened 15% (`UiStyles::with_background`) instead of dark gray, which on a light theme
-  holds dark text that can't be read. DA1 is the sentinel: every terminal answers it, so a
+  holds dark text that can't be read. That bar is a truecolor `Color::Rgb`; a terminal that
+  answers OSC 11 but lacks truecolor may approximate it. DA1 is the sentinel: every terminal answers it, so a
   terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
   WezTerm, Rex and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
   over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
