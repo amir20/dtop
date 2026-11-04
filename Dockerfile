@@ -21,6 +21,8 @@ RUN RUST_TARGET=$([ "$TARGETPLATFORM" = "linux/amd64" ] && echo "x86_64-unknown-
 WORKDIR /usr/src/dtop
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+# App logos, embedded with include_bytes!
+COPY assets ./assets
 
 # Build and strip binary
 RUN set -ex; \
