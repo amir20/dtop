@@ -48,7 +48,7 @@ const SERVER_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
 /// default (`ControlPersist=yes`) its masters would then run forever. A running
 /// dtop keeps its masters busy, and one that does idle out is evicted and
 /// replaced on the next channel open, like any dead master.
-const MASTER_IDLE_EXIT_SECS: usize = 30;
+const MASTER_IDLE_EXIT_SECS: std::num::NonZeroUsize = std::num::NonZeroUsize::new(30).unwrap();
 
 /// How long [`SshRunner::run_sh`] waits for a command before giving up on it.
 const RUN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -107,29 +107,48 @@ impl SshRunner {
     /// answer within [`RUN_TIMEOUT`]); a script that ran and failed comes back
     /// as `Ok` with a failed status.
     ///
-    /// Unlike the Docker connector this never evicts a master: one failed
-    /// channel doesn't prove the master is dead, and evicting it every sample
-    /// would churn the connection every stats stream shares. A master that
-    /// really died breaks those streams too, and the reconnect that follows
-    /// replaces it through the connector.
+    /// A failed channel alone doesn't prove the master is dead, and evicting on
+    /// every failed sample would churn the connection every stats stream
+    /// shares. So the master is evicted (and the command retried once on a
+    /// fresh one) only when it fails `ssh -O check`, e.g. after it idled out
+    /// ([`MASTER_IDLE_EXIT_SECS`]) while the header was hidden. Nothing else
+    /// would notice that, since no stream was using it.
     pub async fn run_sh(&self, script: &str) -> io::Result<std::process::Output> {
-        let lease = self
-            .pool
-            .acquire(|| launch_master(&self.destination))
-            .await
-            .map_err(io::Error::other)?;
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            let lease = self
+                .pool
+                .acquire(|| launch_master(&self.destination))
+                .await
+                .map_err(io::Error::other)?;
 
-        let mut command = Arc::clone(&lease.session).arc_command("sh");
-        command.arg("-c").arg(script);
+            let mut command = Arc::clone(&lease.session).arc_command("sh");
+            command.arg("-c").arg(script);
 
-        // A hung command would otherwise hold one of the master's channel
-        // slots, which it shares with the stats streams, indefinitely
-        match tokio::time::timeout(RUN_TIMEOUT, command.output()).await {
-            Ok(output) => output.map_err(io::Error::other),
-            Err(_) => Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                format!("no answer within {RUN_TIMEOUT:?}"),
-            )),
+            // A hung command would otherwise hold one of the master's channel
+            // slots, which it shares with the stats streams, indefinitely
+            let err = match tokio::time::timeout(RUN_TIMEOUT, command.output()).await {
+                Ok(Ok(output)) => return Ok(output),
+                Ok(Err(err)) => err,
+                Err(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!("no answer within {RUN_TIMEOUT:?}"),
+                    ));
+                }
+            };
+
+            if attempt == 1 && lease.session.check().await.is_err() {
+                tracing::debug!(
+                    "SSH master {} is gone, evicting it: {}",
+                    lease.master_id,
+                    err
+                );
+                self.pool.evict(lease.master_id).await;
+                continue;
+            }
+            return Err(io::Error::other(err));
         }
     }
 }
@@ -237,9 +256,7 @@ struct SshConnector {
 async fn launch_master(destination: &str) -> Result<Arc<openssh::Session>, openssh::Error> {
     let mut builder = openssh::SessionBuilder::default();
     builder.server_alive_interval(SERVER_ALIVE_INTERVAL);
-    builder.control_persist(openssh::ControlPersist::IdleFor(
-        std::num::NonZeroUsize::new(MASTER_IDLE_EXIT_SECS).expect("non-zero"),
-    ));
+    builder.control_persist(openssh::ControlPersist::IdleFor(MASTER_IDLE_EXIT_SECS));
 
     let (builder, destination) = builder.resolve(destination);
     let tempdir = builder.launch_master(destination).await?;
