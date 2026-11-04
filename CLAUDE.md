@@ -785,7 +785,9 @@ connections instead of 31.
   reconnect loop in `connection.rs` heal an SSH host.
 - Masters are launched with `ServerAliveInterval=15s` so a dead master surfaces as an
   error instead of hanging. Dropping the last reference runs `ssh -O exit`, so masters
-  are cleaned up on quit.
+  are cleaned up on quit. A dtop that is killed instead (pane closed, SIGHUP, crash) can't
+  do that, so masters also use `ControlPersist=30s`: they exit 30s after their last
+  channel closes rather than running forever.
 - `SshRunner` (returned by `connect_with_ssh`, stored on `DockerHost::ssh`) runs short
   commands on the host over the same pool, borrowing one channel per command. It is
   what the remote system stats sampler uses. Usually that's a free slot on an existing
@@ -833,8 +835,9 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
        `SshRunner`, see SSH Transport). CPU and network rates are deltas between two
        reads. A host is dropped only after 3 reads in a row find no `/proc`
        (not Linux); every other failure (connection, killed `cat`, bad output) is
-       retried forever with a 10s → 60s backoff. `run_sh` times out after 10s and never evicts a master (a dead
-       one is replaced by the Docker reconnect). Cleared on `HostDisconnected`.
+       retried forever with a 10s → 60s backoff. `run_sh` times out after 10s. On a channel error it evicts
+       the master and retries once, but only if `ssh -O check` says the master is gone (e.g.
+       it idled out while the header was hidden), so a live master isn't churned. Cleared on `HostDisconnected`.
      - `Docker` lines: CPU and memory summed over the host's *running*
        containers (`AppState::docker_totals`), measured against `NCPU`/`MemTotal`
        from `docker info` (container CPU is per-core, so the sum is divided by the
