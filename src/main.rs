@@ -40,6 +40,7 @@ use docker::connection::{DockerHost, container_manager};
 use ui::hyperlinks::HyperlinkMode;
 use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
+use ui::program_status::ProgramStatus;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 
 /// Configuration for the event loop
@@ -462,7 +463,11 @@ async fn run_event_loop(
         render_ui(f, &mut state, &styles);
     })?;
 
+    let mut program_status = ProgramStatus::default();
+
     while !state.should_quit {
+        report_program_status(terminal, &mut program_status, &state)?;
+
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
 
@@ -511,7 +516,34 @@ async fn run_event_loop(
         }
     }
 
+    write_raw(terminal, &ProgramStatus::clear_all())?;
+
     Ok(())
+}
+
+/// Tells the terminal what dtop is doing, if that changed (OSC 7501)
+fn report_program_status(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    program_status: &mut ProgramStatus,
+    state: &AppState,
+) -> io::Result<()> {
+    let update = program_status.update(state);
+    if update.is_empty() {
+        return Ok(());
+    }
+    write_raw(terminal, &update)
+}
+
+/// Writes escape sequences straight to the terminal, outside ratatui's buffer:
+/// they print nothing, and a cell can't carry them without corrupting the row
+fn write_raw(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    sequences: &str,
+) -> io::Result<()> {
+    use std::io::Write;
+    let backend = terminal.backend_mut();
+    backend.write_all(sequences.as_bytes())?;
+    backend.flush()
 }
 
 /// Processes all pending events from the event channel

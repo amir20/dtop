@@ -565,6 +565,23 @@ which triggers exactly the row-swallowing bug above.
 guard against regressing this; note that the second is the only test that exercises
 the diff → real-backend byte path, where this class of bug is actually visible.
 
+### Program Status (OSC 7501)
+
+`ui/program_status.rs` tells the terminal what dtop is doing with the
+[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status),
+so a terminal that supports it (Rex) can flag dtop's tab while you look elsewhere.
+Unsupporting terminals ignore the sequence, so it is always sent and has no setting.
+
+- Root record: `working` (with progress) while a bulk action runs, then `done` or `error`
+  with the toast's summary (`AppState::last_bulk_outcome`); `idle` before the first one.
+- `host/<host>`: `error` while the host is disconnected.
+- `container/<host>/<id>`: `error` while a *running* container is unhealthy.
+- The event loop writes only changed records, straight to the backend outside ratatui's
+  buffer (a cell can't carry an escape sequence, see OSC 8 above), and clears every record
+  on quit, since `error` records outlive the process.
+- Exits with a non-zero code are not reported: `docker stop` on an image that ignores
+  SIGTERM exits 137, which would flag every routine stop.
+
 ### Configuration Loading
 
 The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:
