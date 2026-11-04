@@ -313,7 +313,9 @@ impl AppState {
     /// actions per host at a time, a large batch of slow stops can rightly
     /// run for minutes, but each action starts and ends within Docker's 10s
     /// stop timeout, so a minute without any event means something is lost.
-    fn prune_stale_bulk_progress(&mut self) {
+    /// Also run on every event-loop pass, so a lost last result doesn't leave
+    /// the terminal's progress report stuck at "working".
+    pub fn prune_stale_bulk_progress(&mut self) {
         self.bulk_progress
             .retain(|batch| batch.last_activity.elapsed() < BULK_RESULT_TIMEOUT);
     }
