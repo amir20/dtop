@@ -17,8 +17,11 @@ static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingA
 use clap::Parser;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    execute, queue,
+    terminal::{
+        BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode,
+    },
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
@@ -462,9 +465,7 @@ async fn run_event_loop(
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
     // half a second even when the container list arrives immediately.
-    terminal.draw(|f| {
-        render_ui(f, &mut state, &styles);
-    })?;
+    draw(terminal, &mut state, &styles)?;
 
     let mut window_title = WindowTitle::default();
 
@@ -499,25 +500,19 @@ async fn run_event_loop(
 
                     // Force full redraw after returning from shell
                     terminal.clear()?;
-                    terminal.draw(|f| {
-                        render_ui(f, &mut state, &styles);
-                    })?;
+                    draw(terminal, &mut state, &styles)?;
                     last_draw = std::time::Instant::now();
                 }
             }
             RenderAction::Render => {
                 // Force draw requested
-                terminal.draw(|f| {
-                    render_ui(f, &mut state, &styles);
-                })?;
+                draw(terminal, &mut state, &styles)?;
                 last_draw = std::time::Instant::now();
             }
             RenderAction::None => {
                 // Check if we should draw based on interval
                 if last_draw.elapsed() >= draw_interval {
-                    terminal.draw(|f| {
-                        render_ui(f, &mut state, &styles);
-                    })?;
+                    draw(terminal, &mut state, &styles)?;
                     last_draw = std::time::Instant::now();
                 }
             }
@@ -525,6 +520,21 @@ async fn run_event_loop(
     }
 
     Ok(())
+}
+
+/// Draws one frame inside a synchronized update (mode 2026), so the terminal
+/// paints it whole instead of showing a half-redrawn screen (tearing, or
+/// flicker over a slow SSH link). Terminals without it ignore both sequences.
+fn draw(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut AppState,
+    styles: &UiStyles,
+) -> io::Result<()> {
+    queue!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
+    let drawn = terminal.draw(|f| render_ui(f, state, styles)).map(|_| ());
+    // End the update even if the draw failed, or the terminal stops painting
+    execute!(terminal.backend_mut(), EndSynchronizedUpdate)?;
+    drawn
 }
 
 /// Processes all pending events from the event channel
