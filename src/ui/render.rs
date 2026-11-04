@@ -98,8 +98,9 @@ impl UiStyles {
     /// (light themes' "white" is often a mid gray), so on a light background the
     /// bar is the background itself, slightly darkened, under the usual text.
     pub fn with_background(mut self, background: Option<(u8, u8, u8)>) -> Self {
-        self.light_background = background.is_some_and(is_light);
-        if let Some((r, g, b)) = background.filter(|&bg| is_light(bg)) {
+        let light = background.filter(|&bg| is_light(bg));
+        self.light_background = light.is_some();
+        if let Some((r, g, b)) = light {
             let darken = |c: u8| (u16::from(c) * 85 / 100) as u8;
             self.selected = self
                 .selected

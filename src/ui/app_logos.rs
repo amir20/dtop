@@ -158,6 +158,13 @@ impl Uploads {
         out
     }
 
+    /// Forgets what was uploaded, so the next frame uploads every logo again.
+    /// For when the terminal dropped its images (dtop re-entered the
+    /// alternate screen after a shell session)
+    pub fn forget_sent(&mut self) {
+        self.sent.clear();
+    }
+
     /// Frees every uploaded logo, for when dtop exits
     pub fn delete_all(&self) -> String {
         self.sent.iter().map(|logo| logo.delete()).collect()
@@ -267,6 +274,16 @@ fn strip_suffix(name: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forget_sent_drops_every_upload() {
+        let mut uploads = Uploads::new(true, false);
+        uploads.sent.insert(Logo(0));
+        assert!(!uploads.delete_all().is_empty());
+        uploads.forget_sent();
+        assert!(uploads.sent.is_empty());
+        assert_eq!(uploads.delete_all(), "");
+    }
 
     fn slug(image: &str) -> Option<&'static str> {
         slug_index_for_image(image).map(|i| LOGOS[i].0)
