@@ -483,11 +483,12 @@ async fn run_event_loop(
 
         // OSC 52: the terminal puts the text on the system clipboard, which
         // also works over SSH since the user's local terminal does the copy
+        // Best-effort: a failed copy shouldn't end the session
         if let Some(text) = state.clipboard_request.take() {
-            execute!(
+            let _ = execute!(
                 terminal.backend_mut(),
                 CopyToClipboard::to_clipboard_from(text)
-            )?;
+            );
         }
 
         // Clean up expired connection errors outside of render

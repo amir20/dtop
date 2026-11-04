@@ -2827,8 +2827,8 @@ mod tests {
     /// Copy ID hands the ID to the event loop (which writes OSC 52) and closes the menu.
     #[test]
     fn test_copy_id_requests_clipboard_write() {
+        // No host connected: copying needs none
         let (mut state, keys) = create_bulk_state();
-        connect_test_host(&mut state, "local", true);
         state.table_state.select(Some(0));
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
         let last = crate::core::types::ContainerAction::available_for_state(

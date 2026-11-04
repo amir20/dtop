@@ -411,6 +411,17 @@ impl AppState {
             return RenderAction::None;
         };
 
+        // Needs no connection, so it works while the host is unreachable
+        if action == ContainerAction::CopyId {
+            // Written to the terminal as OSC 52 by the event loop
+            let id = container_key.container_id.clone();
+            self.show_notification(&format!("Copied {id}"));
+            self.clipboard_request = Some(id);
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+            return RenderAction::Render;
+        }
+
         // Get the Docker host for this container
         let Some(host) = self.connected_hosts.get(&container_key.host_id) else {
             // Silently fail if host not found
@@ -426,15 +437,6 @@ impl AppState {
             self.action_menu_state.select(None);
 
             return RenderAction::StartShell(container_key_clone);
-        }
-
-        if action == ContainerAction::CopyId {
-            // Written to the terminal as OSC 52 by the event loop
-            self.clipboard_request = Some(container_key.container_id.clone());
-            self.show_notification(&format!("Copied {}", container_key.container_id));
-            self.view_state = ViewState::ContainerList;
-            self.action_menu_state.select(None);
-            return RenderAction::Render;
         }
 
         if action == ContainerAction::Details {
