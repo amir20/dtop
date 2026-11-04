@@ -1,7 +1,7 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerKey, LogState, RenderAction, ViewState};
 use crate::docker::logs::{LogEntry, fetch_older_logs};
-use crate::ui::rex_panes::PaneKind;
+use crate::ui::panes::PaneKind;
 
 impl AppState {
     pub(super) fn handle_enter_pressed(&mut self) -> RenderAction {
@@ -42,7 +42,7 @@ impl AppState {
             return RenderAction::None;
         };
 
-        if let Some(action) = self.open_in_rex_pane(PaneKind::Logs, &container_key) {
+        if let Some(action) = self.open_in_pane(PaneKind::Logs, &container_key) {
             return action;
         }
 

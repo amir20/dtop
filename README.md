@@ -19,7 +19,7 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - 🌍 **Multi-host support** - Monitor containers across multiple hosts
 - 🔍 **Dozzle** - Supports opening Dozzle links via keyboard shortcuts
 - 📝 **Log streaming** - View container logs in real-time
-- 🦖 **Native [Rex](https://www.superlogical.com/rex) support** - App logos, tab status, and shells and logs in their own panes
+- 🦖 **Native [Rex](https://www.superlogical.com/rex) support** - App logos, tab status, and shells and logs in their own panes (also in tmux)
 
 ## Roadmap
 
@@ -317,14 +317,19 @@ icons: nerd
 
 ### Shells and logs in panes
 
-With `--panes`, Shell (from the action menu) and Logs (`→`) open in a new Rex pane to the right of dtop, so the container list stays on screen:
+With `--panes`, Shell (from the action menu) and Logs (`→`) open in a new pane to the right of dtop, so the container list stays on screen. This works inside **tmux** and inside **Rex**:
 
 ```bash
 dtop --panes
 dtop --panes --host ssh://user@nas
 ```
 
-The pane runs dtop again (`dtop --host <host> shell <id>` or `dtop --host <host> logs <id>`), so it works on every host dtop can reach, SSH and TLS included, with no Docker CLI needed. Closing the shell, or leaving the log view with `Esc`, closes the pane. This needs the `rex` CLI on your `PATH`, so it applies when dtop runs on the same machine as Rex; anywhere else dtop opens shells and logs in place as usual.
+The pane runs dtop again (`dtop --host <host> shell <id>` or `dtop --host <host> logs <id>`), so it works on every host dtop can reach, SSH and TLS included, with no Docker CLI needed. Closing the shell, or leaving the log view with `Esc`, closes the pane.
+
+- **tmux**: uses `tmux split-window`. tmux runs where dtop runs, so this also works when you SSH into a server and run dtop in tmux there.
+- **Rex**: uses `rex split`, which needs the `rex` CLI on your `PATH`, so it applies when dtop runs on the same machine as Rex.
+
+In tmux inside Rex, panes open in tmux. Anywhere else dtop opens shells and logs in place as usual.
 
 ## Supported Connections
 
