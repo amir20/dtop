@@ -43,9 +43,9 @@
 
   const terminalFeatures = [
     {
-      title: "Shells and logs in panes",
-      body: "With --panes, Shell and → open in a Rex pane beside the list, on any host dtop can reach, SSH included.",
-      where: "Rex",
+      title: "Native panes",
+      body: "With --panes, Shell and → open in a tmux or Rex pane beside the list, on any host dtop can reach, SSH included.",
+      where: "tmux · Rex",
     },
     {
       title: "Tab status",
@@ -195,8 +195,8 @@
           <a class="text-(--c-text) underline underline-offset-3" href="https://www.superlogical.com/rex"
             >Rex</a
           >
-          it goes further, with shells and logs in their own panes and a tab that tells
-          you when something needs a look.
+          it goes further, with a tab that tells you when something needs a look. In
+          tmux and Rex, shells and logs open in their own panes.
         </p>
         <pre class="panel mt-2 overflow-x-auto px-4 py-3 font-mono text-[0.8125rem] text-(--c-text)">dtop --panes --host ssh://user@nas</pre>
       </div>
