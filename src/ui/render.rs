@@ -118,6 +118,8 @@ pub fn cleanup_expired_errors(state: &mut AppState) {
 
     // Clear expired notifications
     state.clear_expired_notification();
+
+    state.prune_stale_bulk_progress();
 }
 
 /// Renders the main UI - either container list, log view, or action menu

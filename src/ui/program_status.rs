@@ -18,6 +18,7 @@
 //! would pop one up for every progress step.
 
 use std::collections::BTreeMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerState, HealthStatus};
@@ -39,6 +40,9 @@ pub struct ProgramStatus {
     progress_bar: bool,
     /// The OSC 9;4 percentage last sent (None: no bar shown)
     sent_progress: Option<u8>,
+    /// [`fingerprint`] of the state last reported, to skip rebuilding the
+    /// reports on the (usual) passes where nothing they show changed
+    sent_fingerprint: Option<u64>,
 }
 
 impl ProgramStatus {
@@ -53,6 +57,12 @@ impl ProgramStatus {
     /// The escape sequences that bring the terminal up to date with `state`
     /// (empty when nothing changed)
     pub fn update(&mut self, state: &AppState) -> String {
+        let fingerprint = fingerprint(state);
+        if self.sent_fingerprint == Some(fingerprint) {
+            return String::new();
+        }
+        self.sent_fingerprint = Some(fingerprint);
+
         let wanted = reports(state);
         let mut out = String::new();
         for id in self.sent.keys().filter(|id| !wanted.contains_key(*id)) {
@@ -112,6 +122,35 @@ fn bulk_progress(state: &AppState) -> Option<(usize, u8)> {
     let total: usize = batches.iter().map(|b| b.total).sum();
     let finished: usize = batches.iter().map(|b| b.total - b.pending.len()).sum();
     Some((total, (finished * 100 / total.max(1)) as u8))
+}
+
+/// A hash of everything [`reports`] and [`bulk_progress`] read, cheap enough to
+/// compute every pass (no allocation). Unhealthy containers are combined
+/// order-independently, since `containers` is a `HashMap`.
+fn fingerprint(state: &AppState) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    state.bulk_progress.len().hash(&mut hasher);
+    for batch in &state.bulk_progress {
+        std::mem::discriminant(&batch.action).hash(&mut hasher);
+        batch.total.hash(&mut hasher);
+        batch.pending.len().hash(&mut hasher);
+    }
+    state.last_bulk_outcome.hash(&mut hasher);
+    state.disconnected_hosts.hash(&mut hasher);
+    (state.connected_hosts.len() > 1).hash(&mut hasher);
+    let mut unhealthy = 0u64;
+    for (key, container) in &state.containers {
+        if container.state == ContainerState::Running
+            && container.health == Some(HealthStatus::Unhealthy)
+        {
+            let mut item = DefaultHasher::new();
+            key.hash(&mut item);
+            container.name.hash(&mut item);
+            unhealthy = unhealthy.wrapping_add(item.finish());
+        }
+    }
+    unhealthy.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn push_osc(out: &mut String, body: &str) {
@@ -236,8 +275,6 @@ fn clean_text(text: &str, max: usize) -> String {
 /// that changes the text, a hash of the original is appended so that, e.g.,
 /// `user@box` and `user_box` don't share (and clear) each other's record.
 fn id_segment(text: &str) -> String {
-    use std::hash::{DefaultHasher, Hash, Hasher};
-
     let valid = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '+' | '-');
     if !text.is_empty() && text.len() <= 32 && text.chars().all(valid) {
         return text.to_string();
@@ -255,24 +292,9 @@ fn id_segment(text: &str) -> String {
     segment
 }
 
-/// Standard base64 with padding (also used for the logos' kitty graphics uploads)
-pub(crate) fn base64(data: impl AsRef<[u8]>) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = data.as_ref();
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let n = (u32::from(chunk[0]) << 16)
-            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*chunk.get(2).unwrap_or(&0));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(TABLE[(n >> (18 - 6 * i) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
+fn base64(data: impl AsRef<[u8]>) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(data)
 }
 
 #[cfg(test)]
@@ -317,17 +339,6 @@ mod tests {
 
     fn osc(body: &str) -> String {
         format!("\x1b]7501;{body}\x1b\\")
-    }
-
-    #[test]
-    fn base64_matches_the_spec_examples() {
-        assert_eq!(base64("Installing updates"), "SW5zdGFsbGluZyB1cGRhdGVz");
-        assert_eq!(
-            base64("Upgraded 12 packages"),
-            "VXBncmFkZWQgMTIgcGFja2FnZXM="
-        );
-        assert_eq!(base64("Deploying v2.4.1"), "RGVwbG95aW5nIHYyLjQuMQ==");
-        assert_eq!(base64(""), "");
     }
 
     #[test]
@@ -449,6 +460,25 @@ mod tests {
                 base64("Stopped 4 containers")
             ))
         );
+    }
+
+    #[test]
+    fn bulk_action_whose_results_are_lost_stops_working() {
+        let mut state = state();
+        let mut status = ProgramStatus::default();
+        state.bulk_progress.push(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: HashSet::from([ContainerKey::new("local".to_string(), "a".to_string())]),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now() - std::time::Duration::from_secs(120),
+        });
+        assert!(status.update(&state).contains("state=working"));
+
+        // No event arrives; the event loop's periodic cleanup drops the batch
+        crate::ui::render::cleanup_expired_errors(&mut state);
+        assert_eq!(status.update(&state), osc("state=idle:app=dtop"));
     }
 
     #[test]

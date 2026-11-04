@@ -384,7 +384,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Owned here so `cleanup_terminal` can undo what they wrote to the
     // terminal even when the event loop fails
-    let app_logos = app_logos::terminal_supports_logos(reply.name.as_deref());
+    let app_logos = merged_config.app_logos.unwrap_or(true)
+        && app_logos::terminal_supports_logos(reply.name.as_deref());
     let mut logos = app_logos::Uploads::new(
         app_logos,
         reply.background.is_some_and(terminal_probe::is_light),

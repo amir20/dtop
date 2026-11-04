@@ -9,11 +9,14 @@
 //! over SSH. kitty (>= 0.28), Ghostty and Rex draw placeholders; other terminals
 //! get no logos.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use ratatui::style::Color;
 
 use crate::core::app_state::AppState;
+use crate::core::types::ContainerKey;
 
 use super::app_logos_data::{ALIASES, DISTRIBUTORS, GENERIC, LOGOS, SUFFIXES};
 
@@ -76,7 +79,7 @@ impl Logo {
     /// placement, chunked as the protocol requires. `q=2` keeps the terminal
     /// from answering, since nothing reads replies after startup.
     pub fn upload(self) -> String {
-        let data = super::program_status::base64(LOGOS[self.0].1);
+        let data = BASE64.encode(LOGOS[self.0].1);
         let mut out = String::with_capacity(data.len() + 64);
         let chunks: Vec<&str> = data
             .as_bytes()
@@ -108,6 +111,8 @@ pub struct Uploads {
     enabled: bool,
     light_background: bool,
     sent: HashSet<Logo>,
+    /// Each container's logo, matched once: a container's image never changes
+    resolved: HashMap<ContainerKey, Option<Logo>>,
 }
 
 impl Uploads {
@@ -116,6 +121,7 @@ impl Uploads {
             enabled,
             light_background,
             sent: HashSet::new(),
+            resolved: HashMap::new(),
         }
     }
 
@@ -127,17 +133,27 @@ impl Uploads {
         if !self.enabled {
             return out;
         }
-        for container in state.containers.values() {
-            let Some(logo) = container
-                .image
-                .as_deref()
-                .and_then(|image| logo_for_image(image, self.light_background))
-            else {
-                continue;
-            };
-            if self.sent.insert(logo) {
+        // Every container, not just listed ones: the list is re-filtered during
+        // the draw that follows, so a container that becomes listed then must
+        // already have its logo. The cache keeps this to one lookup each.
+        for (key, container) in &state.containers {
+            let light_background = self.light_background;
+            let logo = *self.resolved.entry(key.clone()).or_insert_with(|| {
+                container
+                    .image
+                    .as_deref()
+                    .and_then(|image| logo_for_image(image, light_background))
+            });
+            if let Some(logo) = logo
+                && self.sent.insert(logo)
+            {
                 out.push_str(&logo.upload());
             }
+        }
+        // Forget containers that are gone, now and then rather than every frame
+        if self.resolved.len() > 2 * state.containers.len() + 16 {
+            self.resolved
+                .retain(|key, _| state.containers.contains_key(key));
         }
         out
     }
@@ -244,10 +260,11 @@ fn strip_suffix(name: &str) -> &str {
         let Some(cut) = name.len().checked_sub(suffix.len() + 1) else {
             continue;
         };
-        let (rest, tail) = name.split_at(cut);
-        if tail.len() == suffix.len() + 1
-            && normalized(tail).eq(std::iter::once('-').chain(suffix.chars()))
-        {
+        // A cut inside a multi-byte character can't be a suffix match
+        let Some((rest, tail)) = name.split_at_checked(cut) else {
+            continue;
+        };
+        if normalized(tail).eq(std::iter::once('-').chain(suffix.chars())) {
             return if rest.len() > 1 { rest } else { name };
         }
     }
@@ -306,6 +323,11 @@ mod tests {
         assert_eq!(slug("server"), None);
         assert_eq!(slug("linuxserver/app"), None);
         assert_eq!(slug(""), None);
+        // Non-ASCII names don't panic when a suffix cut lands inside a character
+        assert_eq!(slug("aéalpine"), None);
+        assert_eq!(strip_suffix("aéalpine"), "aéalpine");
+        assert_eq!(slug("ü"), None);
+        assert_eq!(slug("日本語サーバー"), None);
     }
 
     #[test]

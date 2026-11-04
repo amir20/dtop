@@ -778,6 +778,7 @@ name = "dtop"
 version = "0.10.6"
 dependencies = [
  "ansi-to-tui",
+ "base64 0.22.1",
  "bollard",
  "chrono",
  "clap",

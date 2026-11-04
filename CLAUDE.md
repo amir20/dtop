@@ -140,6 +140,9 @@ hyperlinks: auto
 # System stats header above the container list (default: true; 't' toggles)
 stats_header: true
 
+# App logos next to container names on supporting terminals (default: true)
+app_logos: true
+
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
@@ -177,6 +180,7 @@ Global config options:
 - `columns`: List of column IDs to show, in order (e.g., ["status", "name", "cpu", "memory"])
 - `hyperlinks`: OSC 8 hyperlink mode for Dozzle links ("auto", "always", "never")
 - `stats_header`: Show the system stats header (default: true)
+- `app_logos`: Show app logos next to container names where the terminal supports them (default: true)
 
 See `config.example.yaml` for a complete example.
 
@@ -614,7 +618,8 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
 On terminals that draw kitty graphics Unicode placeholders (kitty >= 0.28, Ghostty, Rex),
 the Name column shows the image's app logo before each name, from Dozzle's icon set. Detected
 from the startup probe's XTVERSION name (`app_logos::terminal_supports_logos`), so it's off
-under tmux/screen, and always on where supported (no setting).
+under tmux/screen. On by default where supported; `app_logos: false` in config turns it off
+(not saved by Ctrl-S, and no CLI flag or toggle key).
 
 - `assets/app-logos/*.png` and `src/ui/app_logos_data.rs` are **generated** by
   `scripts/import-dozzle-icons.py <dozzle checkout>` (needs `rsvg-convert` and Pillow). Run it

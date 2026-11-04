@@ -3,6 +3,8 @@
 //! whose logs are open. The title from before dtop started is pushed onto the
 //! terminal's title stack at startup and popped on exit.
 
+use std::fmt::Write;
+
 use crate::core::app_state::AppState;
 use crate::core::types::ViewState;
 
@@ -17,44 +19,56 @@ pub const POP_TITLE: &str = "\x1b]0;\x1b\\\x1b[23;0t";
 #[derive(Default)]
 pub struct WindowTitle {
     sent: String,
+    /// Reused buffer the wanted title is written into, so the usual
+    /// no-change pass doesn't allocate
+    scratch: String,
 }
 
 impl WindowTitle {
     /// The escape sequence that sets the title for `state`, or an empty string
     /// when it hasn't changed
     pub fn update(&mut self, state: &AppState) -> String {
-        let wanted = title(state);
-        if wanted == self.sent {
+        write_title(state, &mut self.scratch);
+        if self.scratch == self.sent {
             return String::new();
         }
-        let sequence = format!("\x1b]0;{wanted}\x1b\\");
-        self.sent = wanted;
-        sequence
+        std::mem::swap(&mut self.sent, &mut self.scratch);
+        format!("\x1b]0;{}\x1b\\", self.sent)
     }
 }
 
+#[cfg(test)]
 fn title(state: &AppState) -> String {
-    let title = match &state.view_state {
+    let mut out = String::new();
+    write_title(state, &mut out);
+    out
+}
+
+/// Writes the title for `state` into `out`, replacing its contents
+fn write_title(state: &AppState, out: &mut String) {
+    out.clear();
+    // Writing to a String can't fail
+    let _ = match &state.view_state {
         ViewState::LogView(key) => {
             let name = state
                 .containers
                 .get(key)
                 .map_or(key.container_id.as_str(), |c| c.name.as_str());
-            format!("dtop · logs · {name}")
+            write!(out, "dtop · logs · {name}")
         }
         _ => {
             let mut hosts = state.connected_hosts.keys();
             match (hosts.next(), hosts.next()) {
-                (None, _) => "dtop".to_string(),
-                (Some(host), None) if host == "local" => "dtop".to_string(),
-                (Some(host), None) => format!("dtop · {host}"),
-                _ => format!("dtop · {} hosts", state.connected_hosts.len()),
+                (None, _) => write!(out, "dtop"),
+                (Some(host), None) if host == "local" => write!(out, "dtop"),
+                (Some(host), None) => write!(out, "dtop · {host}"),
+                _ => write!(out, "dtop · {} hosts", state.connected_hosts.len()),
             }
         }
     };
     // Host names come from the config file and could otherwise end the
     // sequence early and inject escapes
-    title.chars().filter(|c| !c.is_control()).collect()
+    out.retain(|c| !c.is_control());
 }
 
 #[cfg(test)]
