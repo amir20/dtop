@@ -80,16 +80,20 @@ impl ProgramStatus {
 
     /// Removes every record dtop made, and its progress bar
     pub fn clear_all() -> String {
-        let mut out = String::new();
-        push_osc(&mut out, "state=clear");
-        if supports_progress_bar(|key| std::env::var(key).ok()) {
-            out.push_str(CLEAR_PROGRESS_BAR);
-        }
-        out
+        clear_all_for(supports_progress_bar(|key| std::env::var(key).ok()))
     }
 }
 
 const CLEAR_PROGRESS_BAR: &str = "\x1b]9;4;0\x07";
+
+fn clear_all_for(progress_bar: bool) -> String {
+    let mut out = String::new();
+    push_osc(&mut out, "state=clear");
+    if progress_bar {
+        out.push_str(CLEAR_PROGRESS_BAR);
+    }
+    out
+}
 
 /// Terminals known to draw OSC 9;4 as a progress bar (the same set cargo uses).
 /// Off under tmux, which doesn't pass it through.
@@ -654,7 +658,10 @@ mod tests {
 
     #[test]
     fn clear_all_removes_every_record() {
-        // Followed by an OSC 9;4 clear when the terminal running the tests draws one
-        assert!(ProgramStatus::clear_all().starts_with(&osc("state=clear")));
+        assert_eq!(clear_all_for(false), osc("state=clear"));
+        assert_eq!(
+            clear_all_for(true),
+            format!("{}{CLEAR_PROGRESS_BAR}", osc("state=clear"))
+        );
     }
 }
