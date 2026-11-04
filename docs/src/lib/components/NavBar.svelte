@@ -15,6 +15,8 @@
   }
 
   const links = [
+    { href: "/#features", label: "Features" },
+    { href: "/#rex", label: "Rex" },
     { href: "/#install", label: "Install" },
     { href: "/#config", label: "Config" },
     { href: "/#cli", label: "Reference" },
