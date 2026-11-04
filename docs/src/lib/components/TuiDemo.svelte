@@ -523,7 +523,7 @@
     role="img"
     aria-label="dtop showing live stats for containers across three Docker hosts; pressing the right arrow opens a container's logs in a terminal pane beside it"
   >
-    <div class="flex w-max min-w-full font-mono text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)">
+    <div class="flex w-max min-w-full font-mono [font-synthesis:none] text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)">
       <!-- The <pre> is whitespace-exact: reformatting it shifts the grid -->
       <!-- prettier-ignore -->
       <pre class="shrink-0 overflow-hidden" style="width: {cols}ch">{title}

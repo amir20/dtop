@@ -19,7 +19,8 @@ A terminal based dashboard for Docker that monitors multiple hosts in real-time.
 - 🌍 **Multi-host support** - Monitor containers across multiple hosts
 - 🔍 **Dozzle** - Supports opening Dozzle links via keyboard shortcuts
 - 📝 **Log streaming** - View container logs in real-time
-- 🦖 **Native [Rex](https://www.superlogical.com/rex) support** - App logos, tab status, and shells and logs in their own panes (also in tmux)
+- 🪟 **Native panes** - Shells and logs open in a tmux or Rex pane beside the list with `--panes`
+- 🦖 **Native [Rex](https://www.superlogical.com/rex) support** - App logos and tab status
 
 ## Roadmap
 
@@ -204,7 +205,7 @@ Options:
           This is equivalent to pressing 'a' in the UI to toggle show all.
 
       --panes
-          Open Shell and Logs in a terminal pane beside dtop instead of taking over its screen. Applies inside Rex, with its CLI on PATH
+          Open Shell and Logs in a terminal pane beside dtop instead of taking over its screen. Applies inside tmux, or inside Rex with its CLI on PATH
 
   -s, --sort <SORT>
           Default sort field for container list
@@ -326,7 +327,7 @@ dtop --panes --host ssh://user@nas
 
 The pane runs dtop again (`dtop --host <host> shell <id>` or `dtop --host <host> logs <id>`), so it works on every host dtop can reach, SSH and TLS included, with no Docker CLI needed. Closing the shell, or leaving the log view with `Esc`, closes the pane.
 
-- **tmux**: uses `tmux split-window`. tmux runs where dtop runs, so this also works when you SSH into a server and run dtop in tmux there.
+- **tmux** (3.0+): uses `tmux split-window`. tmux runs where dtop runs, so this also works when you SSH into a server and run dtop in tmux there. The pane starts with the tmux server's environment, not your shell's: if you set `DOCKER_HOST` or `DOCKER_CONTEXT` after tmux started, the pane's dtop won't see it, so pass the host explicitly with `--host`.
 - **Rex**: uses `rex split`, which needs the `rex` CLI on your `PATH`, so it applies when dtop runs on the same machine as Rex.
 
 In tmux inside Rex, panes open in tmux. Anywhere else dtop opens shells and logs in place as usual.
