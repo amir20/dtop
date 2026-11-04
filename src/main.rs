@@ -392,7 +392,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         EventLoopConfig {
             icon_style,
             background: reply.background,
-            app_logos: app_logos::terminal_supports_logos(reply.name.as_deref()),
+            app_logos: merged_config.app_logos.unwrap_or(true)
+                && app_logos::terminal_supports_logos(reply.name.as_deref()),
             hyperlinks,
             show_all,
             sort_field,

@@ -13,6 +13,7 @@
     { marker: "# == Sort ==", label: "Sort", description: "Default sort field for container list" },
     { marker: "# == Hyperlinks ==", label: "Hyperlinks", description: "Clickable container names linking to Dozzle" },
     { marker: "# == Stats Header ==", label: "Stats Header", description: "Machine and host stats above the list" },
+    { marker: "# == App Logos ==", label: "App Logos", description: "Image logos next to container names" },
     { marker: "# == Columns ==", label: "Columns", description: "Column visibility and order" },
   ];
 

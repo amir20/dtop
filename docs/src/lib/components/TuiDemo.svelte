@@ -1,6 +1,13 @@
 <script>
   import { onMount } from "svelte";
   import cargoToml from "../../../../Cargo.toml?raw";
+  import grafana from "../../../../assets/app-logos/grafana.png";
+  import nginx from "../../../../assets/app-logos/nginx.png";
+  import postgresql from "../../../../assets/app-logos/postgresql.png";
+  import prometheus from "../../../../assets/app-logos/prometheus.png";
+  import python from "../../../../assets/app-logos/python.png";
+  import redis from "../../../../assets/app-logos/redis.png";
+  import traefik from "../../../../assets/app-logos/traefik.png";
 
   /**
    * A recreation of the dtop container list, drawn as a character grid with
@@ -14,6 +21,7 @@
    * - `src/ui/system_header.rs`: `HeaderText`, `render_system_header`
    * - `src/ui/formatters.rs`: `write_byte_value`
    * - `src/ui/icons.rs`, and default columns in `src/core/types.rs`
+   * - `src/ui/app_logos.rs` / `name_with_logo`: a 2-cell logo and a space before each name
    */
   const version = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? "";
 
@@ -35,6 +43,9 @@
   const RED = "text-(--c-crit)";
   const CYAN_BOLD = "font-semibold text-(--c-cyan)";
 
+  // App logos as dtop draws them on kitty, Ghostty and Rex (the same generated PNGs)
+  const logos = { grafana, nginx, postgresql, prometheus, python, redis, traefik };
+
   /** Docker hosts: capacity from `docker info`, plus how many containers are stopped. */
   const hosts = {
     local: { cores: 10, mem: 7.7 * GB, stopped: 1 },
@@ -54,18 +65,18 @@
 
   // Sorted the way dtop sorts by default: Created, newest first
   const seed = [
-    ["a1f3c9e27b04", "unhealthy", "worker-etl", "10.0.4.12:2375", 88, 1.6 * GB, 2 * GB, 277 * KB, 999 * KB, 4 * 3600],
-    ["7d2e0b91c5aa", "running", "api-gateway", "10.0.4.12:2375", 52, 380 * MB, 1 * GB, 7.8 * MB, 5.8 * MB, 6 * 86400],
-    ["e4b8a17f3d62", "running", "nginx-ingress", "10.0.4.12:2375", 18, 96 * MB, 512 * MB, 12 * MB, 9.1 * MB, 6 * 86400],
-    ["3c91f0d4a8e7", "running", "postgres-main", "ops@db-eu", 74, 5.2 * GB, 8 * GB, 98 * KB, 5.8 * MB, 12 * 86400],
-    ["b06d5e2f9c13", "healthy", "redis-cache", "ops@db-eu", 31, 410 * MB, 2 * GB, 1.1 * MB, 209 * KB, 12 * 86400],
-    ["58fa2c7e01bd", "healthy", "grafana", "local", 11, 212 * MB, 7.7 * GB, 705 * KB, 168 * KB, 21 * 86400],
-    ["92e7b4d0f6c8", "running", "prometheus", "local", 24, 1.1 * GB, 7.7 * GB, 64 * KB, 2.2 * MB, 21 * 86400],
+    ["a1f3c9e27b04", "unhealthy", "python", "worker-etl", "10.0.4.12:2375", 88, 1.6 * GB, 2 * GB, 277 * KB, 999 * KB, 4 * 3600],
+    ["7d2e0b91c5aa", "running", "traefik", "api-gateway", "10.0.4.12:2375", 52, 380 * MB, 1 * GB, 7.8 * MB, 5.8 * MB, 6 * 86400],
+    ["e4b8a17f3d62", "running", "nginx", "nginx-proxy", "10.0.4.12:2375", 18, 96 * MB, 512 * MB, 12 * MB, 9.1 * MB, 6 * 86400],
+    ["3c91f0d4a8e7", "running", "postgresql", "postgres-db", "ops@db-eu", 74, 5.2 * GB, 8 * GB, 98 * KB, 5.8 * MB, 12 * 86400],
+    ["b06d5e2f9c13", "healthy", "redis", "redis-cache", "ops@db-eu", 31, 410 * MB, 2 * GB, 1.1 * MB, 209 * KB, 12 * 86400],
+    ["58fa2c7e01bd", "healthy", "grafana", "grafana", "local", 11, 212 * MB, 7.7 * GB, 705 * KB, 168 * KB, 21 * 86400],
+    ["92e7b4d0f6c8", "running", "prometheus", "prometheus", "local", 24, 1.1 * GB, 7.7 * GB, 64 * KB, 2.2 * MB, 21 * 86400],
   ];
 
   let rows = $state(
-    seed.map(([id, status, name, host, cpu, mem, limit, tx, rx, age]) => ({
-      id, status, name, host, cpu, mem, limit, tx, rx, age,
+    seed.map(([id, status, slug, name, host, cpu, mem, limit, tx, rx, age]) => ({
+      id, status, logo: logos[slug], name, host, cpu, mem, limit, tx, rx, age,
       targetCpu: cpu,
       targetMem: mem,
     })),
@@ -119,6 +130,8 @@
   const fit = (text, width) => [...text].slice(0, width).join("").padEnd(width);
 
   const seg = (t, c = "") => ({ t, c });
+  // An image `cells` wide, standing in for kitty graphics placeholder cells
+  const img = (src, cells) => ({ t: " ".repeat(cells), img: src });
 
   function bar(percent, width, cls) {
     const filled = Math.round((Math.max(0, Math.min(100, percent)) / 100) * width);
@@ -152,7 +165,7 @@
         const room = width - used;
         if (room <= 0) break;
         const text = [...part.t].slice(0, room).join("");
-        out.push(seg(text, part.c));
+        out.push(part.img && text.length === part.t.length ? part : seg(text, part.c));
         used += [...text].length;
       }
       out.push(seg(" ".repeat(width - used + (i < cells.length - 1 ? 1 : 0))));
@@ -167,7 +180,7 @@
       return tableRow([
         row.id,
         [seg(icon, iconCls)],
-        row.name,
+        [row.logo ? img(row.logo, 2) : seg("  "), seg(` ${row.name}`)],
         row.host,
         [bar(row.cpu, BAR, tone(row.cpu)), seg(` ${pct(row.cpu)}`, tone(row.cpu))],
         [bar(memPct, BAR, tone(memPct)), seg(` ${size(row.mem)}/${size(row.limit)}`, tone(memPct))],
@@ -360,7 +373,11 @@
 </script>
 
 {#snippet line(segments)}
-  {#each segments as s}{#if s.c}<span class={s.c}>{s.t}</span>{:else}{s.t}{/if}{/each}
+  {#each segments as s}{#if s.img}<img
+        src={s.img}
+        alt=""
+        class="inline-block h-[1.1em] w-[2ch] object-contain align-[-0.2em]"
+      />{:else if s.c}<span class={s.c}>{s.t}</span>{:else}{s.t}{/if}{/each}
 {/snippet}
 
 <div class="panel overflow-hidden" data-tui-demo>

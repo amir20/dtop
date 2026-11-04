@@ -62,6 +62,13 @@ hyperlinks: auto
 # Possible values: true (default), false
 stats_header: true
 
+# == App Logos ==
+# Show each image's app logo before the container name, on terminals that draw
+# kitty graphics placeholders (kitty >= 0.28, Ghostty, Rex). Other terminals
+# never show them.
+# Possible values: true (default), false
+app_logos: true
+
 # == Columns ==
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.
