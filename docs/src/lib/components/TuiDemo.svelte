@@ -25,7 +25,7 @@
    * - `src/ui/log_view.rs` (the pane's title and wrapped lines) and
    *   `src/ui/window_title.rs` (the tab title)
    *
-   * On a loop it also shows `--rex-panes`: → on a container splits a pane in
+   * On a loop it also shows `--panes`: → on a container splits a pane in
    * with dtop's log view, dtop re-lays out for the narrower width, and Esc
    * closes it again.
    */
@@ -91,7 +91,7 @@
 
   // The row the cursor is on, highlighted like ratatui's row_highlight_style
   let selected = $state(1);
-  // Whether the logs pane is open (`--rex-panes`)
+  // Whether the logs pane is open (`--panes`)
   let split = $state(false);
   // dtop's terminal width, and the list block's proportional(1) padding: 2 cells left and right
   let cols = $derived(split ? SPLIT_COLS : COLS);

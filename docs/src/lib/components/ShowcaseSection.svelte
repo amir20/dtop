@@ -44,7 +44,7 @@
   const terminalFeatures = [
     {
       title: "Shells and logs in panes",
-      body: "With --rex-panes, Shell and → open in a Rex pane beside the list, on any host dtop can reach, SSH included.",
+      body: "With --panes, Shell and → open in a Rex pane beside the list, on any host dtop can reach, SSH included.",
       where: "Rex",
     },
     {
@@ -198,7 +198,7 @@
           it goes further, with shells and logs in their own panes and a tab that tells
           you when something needs a look.
         </p>
-        <pre class="panel mt-2 overflow-x-auto px-4 py-3 font-mono text-[0.8125rem] text-(--c-text)">dtop --rex-panes --host ssh://user@nas</pre>
+        <pre class="panel mt-2 overflow-x-auto px-4 py-3 font-mono text-[0.8125rem] text-(--c-text)">dtop --panes --host ssh://user@nas</pre>
       </div>
       <div class="grid gap-3">
         {#each terminalFeatures as feature}
