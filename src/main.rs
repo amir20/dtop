@@ -17,13 +17,16 @@ static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingA
 use clap::Parser;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    execute, queue,
+    terminal::{
+        BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode,
+    },
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io;
+use std::io::{self, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -42,6 +45,7 @@ use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
 use ui::program_status::ProgramStatus;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
+use ui::window_title::{POP_TITLE, PUSH_TITLE, WindowTitle};
 
 /// Configuration for the event loop
 struct EventLoopConfig {
@@ -403,6 +407,8 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn st
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
+    // Save the title dtop is about to replace, restored in `cleanup_terminal`
+    write!(stdout, "{PUSH_TITLE}")?;
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)
 }
@@ -415,6 +421,7 @@ fn cleanup_terminal(
     write_raw(terminal, &ProgramStatus::clear_all())?;
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    write!(terminal.backend_mut(), "{POP_TITLE}")?;
     terminal.show_cursor()?;
     Ok(())
 }
@@ -462,13 +469,18 @@ async fn run_event_loop(
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
     // half a second even when the container list arrives immediately.
-    terminal.draw(|f| {
-        render_ui(f, &mut state, &styles);
-    })?;
+    draw(terminal, &mut state, &styles)?;
+
+    let mut window_title = WindowTitle::default();
 
     let mut program_status = ProgramStatus::default();
 
     while !state.should_quit {
+        let title = window_title.update(&state);
+        if !title.is_empty() {
+            write_raw(terminal, &title)?;
+        }
+
         report_program_status(terminal, &mut program_status, &state)?;
 
         // Wait for events with timeout - handles both throttling and waiting
@@ -494,25 +506,19 @@ async fn run_event_loop(
 
                     // Force full redraw after returning from shell
                     terminal.clear()?;
-                    terminal.draw(|f| {
-                        render_ui(f, &mut state, &styles);
-                    })?;
+                    draw(terminal, &mut state, &styles)?;
                     last_draw = std::time::Instant::now();
                 }
             }
             RenderAction::Render => {
                 // Force draw requested
-                terminal.draw(|f| {
-                    render_ui(f, &mut state, &styles);
-                })?;
+                draw(terminal, &mut state, &styles)?;
                 last_draw = std::time::Instant::now();
             }
             RenderAction::None => {
                 // Check if we should draw based on interval
                 if last_draw.elapsed() >= draw_interval {
-                    terminal.draw(|f| {
-                        render_ui(f, &mut state, &styles);
-                    })?;
+                    draw(terminal, &mut state, &styles)?;
                     last_draw = std::time::Instant::now();
                 }
             }
@@ -520,6 +526,21 @@ async fn run_event_loop(
     }
 
     Ok(())
+}
+
+/// Draws one frame inside a synchronized update (mode 2026), so the terminal
+/// paints it whole instead of showing a half-redrawn screen (tearing, or
+/// flicker over a slow SSH link). Terminals without it ignore both sequences.
+fn draw(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut AppState,
+    styles: &UiStyles,
+) -> io::Result<()> {
+    queue!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
+    let drawn = terminal.draw(|f| render_ui(f, state, styles)).map(|_| ());
+    // End the update even if the draw failed, or the terminal stops painting
+    execute!(terminal.backend_mut(), EndSynchronizedUpdate)?;
+    drawn
 }
 
 /// Tells the terminal what dtop is doing, if that changed (OSC 7501)
@@ -542,7 +563,6 @@ fn write_raw(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     sequences: &str,
 ) -> io::Result<()> {
-    use std::io::Write;
     let backend = terminal.backend_mut();
     backend.write_all(sequences.as_bytes())?;
     backend.flush()

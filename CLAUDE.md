@@ -565,6 +565,15 @@ which triggers exactly the row-swallowing bug above.
 guard against regressing this; note that the second is the only test that exercises
 the diff → real-backend byte path, where this class of bug is actually visible.
 
+### Window Title
+
+`ui/window_title.rs` sets the tab title (OSC 0) to `dtop`, `dtop · <host>` (one remote host),
+`dtop · N hosts`, or `dtop · logs · <container>` in the log view; only changes are written,
+and control characters are dropped since host names come from the config. The previous title
+is pushed onto the terminal's title stack (`CSI 22;0t`) at startup. On exit dtop sets an empty
+title and then pops it (`CSI 23;0t`): terminals without a title stack (Rex) then show their
+default rather than dtop's last title.
+
 ### Program Status (OSC 7501)
 
 `ui/program_status.rs` tells the terminal what dtop is doing with the
