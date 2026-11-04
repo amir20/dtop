@@ -45,11 +45,14 @@ use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
 use ui::program_status::ProgramStatus;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
+use ui::terminal_probe;
 use ui::window_title::{POP_TITLE, PUSH_TITLE, WindowTitle};
 
 /// Configuration for the event loop
 struct EventLoopConfig {
     icon_style: IconStyle,
+    /// Terminal background color, if it answered OSC 11
+    background: Option<(u8, u8, u8)>,
     hyperlinks: bool,
     show_all: bool,
     sort_field: Column,
@@ -369,7 +372,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Ask the terminal what it is before the keyboard worker starts reading
     // stdin, or the worker would swallow the reply
-    let icon_style = icon_mode.resolve();
+    let reply = terminal_probe::probe();
+    let icon_style = icon_mode.resolve(reply.name.as_deref());
 
     // Spawn keyboard worker in blocking thread
     spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
@@ -383,6 +387,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         keyboard_paused,
         EventLoopConfig {
             icon_style,
+            background: reply.background,
             hyperlinks,
             show_all,
             sort_field,
@@ -467,7 +472,9 @@ async fn run_event_loop(
     let mut last_draw = std::time::Instant::now();
 
     // Pre-allocate styles to avoid recreation every frame
-    let styles = UiStyles::with_icon_style(config.icon_style).with_hyperlinks(config.hyperlinks);
+    let styles = UiStyles::with_icon_style(config.icon_style)
+        .with_hyperlinks(config.hyperlinks)
+        .with_background(config.background);
 
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
