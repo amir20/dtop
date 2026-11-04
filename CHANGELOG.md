@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-11-04
+
+### Features
+
+- *(ui)* Set the terminal's tab title (#415)
+- *(ui)* Report dtop's status to the terminal (OSC 7501) (#412)
+- *(ui)* Show bulk action progress as an OSC 9;4 progress bar (#416)
+- *(actions)* Copy a container's ID to the clipboard (OSC 52) (#414)
+- *(ui)* Show app logos next to container names (#419)
+- *(config)* Add app_logos option to turn off app logos (#420)
+- Open shells and logs in Rex panes with --panes (#426)
+- *(panes)* Open shells and logs in tmux panes too (#428)
+
+### Bug Fixes
+
+- *(hyperlinks)* Detect Rex as an OSC 8 terminal (#411)
+- *(ui)* Keep the selected row readable on light themes (#417)
+- *(ui)* Guard logo suffix stripping and cache logo matches (#423)
+- *(ui)* Unstick bulk progress and cut per-pass status work (#422)
+- *(ui)* Restore logos and tab title after a shell session (#421)
+- *(deps)* Update rust crate base64 to 0.23 (#424)
+- *(shell)* Close SSH masters when dtop shell fails (#431)
+
+### Performance
+
+- *(ui)* Draw each frame as a synchronized update (#413)
+
+### Ci
+
+- *(docker)* Build one platform on PRs and write the cache only from main (#425)
+
 ## [0.10.6] - 2026-11-03
 
 ### Bug Fixes
