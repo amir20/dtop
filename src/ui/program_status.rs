@@ -171,9 +171,20 @@ fn clean_text(text: &str, max: usize) -> String {
 }
 
 /// An id segment: `[A-Za-z0-9_.+-]{1,32}`. Other characters (e.g. the `@` in
-/// `user@host`) become `_`; a report with a bad id would be ignored.
+/// `user@host`) become `_`, since a report with a bad id would be ignored. When
+/// that changes the text, a hash of the original is appended so that, e.g.,
+/// `user@box` and `user_box` don't share (and clear) each other's record.
 fn id_segment(text: &str) -> String {
-    let segment: String = text
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
+    let valid = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '+' | '-');
+    if !text.is_empty() && text.len() <= 32 && text.chars().all(valid) {
+        return text.to_string();
+    }
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    let hash = format!("{:08x}", hasher.finish() as u32);
+    let mut segment: String = text
         .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '+' | '-') {
@@ -182,13 +193,11 @@ fn id_segment(text: &str) -> String {
                 '_'
             }
         })
-        .take(32)
+        .take(32 - 1 - hash.len())
         .collect();
-    if segment.is_empty() {
-        "_".to_string()
-    } else {
-        segment
-    }
+    segment.push('.');
+    segment.push_str(&hash);
+    segment
 }
 
 /// Standard base64 with padding
@@ -292,7 +301,8 @@ mod tests {
         assert_eq!(
             status.update(&state),
             osc(&format!(
-                "state=error:app=dtop:id=container/user_box/abc123:title={}:msg={}",
+                "state=error:app=dtop:id=container/{}/abc123:title={}:msg={}",
+                id_segment("user@box"),
                 base64("abc123-name"),
                 base64("Unhealthy")
             ))
@@ -301,7 +311,10 @@ mod tests {
         state.handle_event(AppEvent::ContainerHealthChanged(key, HealthStatus::Healthy));
         assert_eq!(
             status.update(&state),
-            osc("state=clear:id=container/user_box/abc123")
+            osc(&format!(
+                "state=clear:id=container/{}/abc123",
+                id_segment("user@box")
+            ))
         );
     }
 
@@ -331,14 +344,18 @@ mod tests {
         assert_eq!(
             status.update(&state),
             osc(&format!(
-                "state=error:app=dtop:id=host/user_box:title={}:msg={}",
+                "state=error:app=dtop:id=host/{}:title={}:msg={}",
+                id_segment("user@box"),
                 base64("user@box"),
                 base64("Disconnected, reconnecting")
             ))
         );
 
         state.handle_event(AppEvent::HostReconnected("user@box".to_string()));
-        assert_eq!(status.update(&state), osc("state=clear:id=host/user_box"));
+        assert_eq!(
+            status.update(&state),
+            osc(&format!("state=clear:id=host/{}", id_segment("user@box")))
+        );
     }
 
     #[test]
@@ -409,12 +426,91 @@ mod tests {
     }
 
     #[test]
+    fn failed_single_container_bulk_action_names_it() {
+        let mut state = state();
+        let mut status = ProgramStatus::default();
+        let key = ContainerKey::new("local".to_string(), "a".to_string());
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![container("a", "local")],
+        ));
+        state.bulk_progress.push(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: HashSet::from([key.clone()]),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        });
+        status.update(&state);
+
+        state.handle_event(AppEvent::ActionError(
+            key,
+            ContainerAction::Stop,
+            "timeout".to_string(),
+        ));
+        assert_eq!(
+            status.update(&state),
+            osc(&format!(
+                "state=error:app=dtop:msg={}",
+                base64("a-name: timeout")
+            ))
+        );
+    }
+
+    #[test]
+    fn unhealthy_container_that_stops_is_cleared() {
+        let mut state = state();
+        let mut status = ProgramStatus::default();
+        let mut sick = container("abc123", "local");
+        sick.health = Some(HealthStatus::Unhealthy);
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![sick],
+        ));
+        status.update(&state);
+
+        let key = ContainerKey::new("local".to_string(), "abc123".to_string());
+        state.handle_event(AppEvent::ContainerStateChanged(key, ContainerState::Exited));
+        assert_eq!(
+            status.update(&state),
+            osc("state=clear:id=container/local/abc123")
+        );
+    }
+
+    #[test]
+    fn overlapping_bulk_actions_share_one_working_record() {
+        let mut state = state();
+        for (action, id) in [(ContainerAction::Stop, "a"), (ContainerAction::Remove, "b")] {
+            state.bulk_progress.push(BulkProgress {
+                action,
+                pending: HashSet::from([ContainerKey::new("local".to_string(), id.to_string())]),
+                total: 1,
+                failed: 0,
+                last_error: None,
+                last_activity: std::time::Instant::now(),
+            });
+        }
+        assert_eq!(
+            ProgramStatus::default().update(&state),
+            osc(&format!(
+                "state=working:app=dtop:progress=0:msg={}",
+                base64("Running actions on 2 containers")
+            ))
+        );
+    }
+
+    #[test]
     fn text_is_single_line_and_bounded() {
         assert_eq!(clean_text("a\nb\t\x1bc", 50), "a b c");
         assert_eq!(clean_text("abcdef", 3), "abc…");
-        assert_eq!(id_segment("user@host:22"), "user_host_22");
-        assert_eq!(id_segment(""), "_");
-        assert_eq!(id_segment(&"x".repeat(40)).len(), 32);
+        assert_eq!(id_segment("abc123"), "abc123");
+        assert!(id_segment("user@host:22").starts_with("user_host_22."));
+        assert_ne!(id_segment("user@box"), id_segment("user_box"));
+        assert_ne!(id_segment(""), "");
+        let long = id_segment(&"x".repeat(40));
+        assert_eq!(long.len(), 32);
+        assert_ne!(long, id_segment(&"x".repeat(41)));
     }
 
     #[test]

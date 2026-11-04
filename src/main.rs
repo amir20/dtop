@@ -371,7 +371,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
 
     // Run main event loop
-    run_event_loop(
+    let result = run_event_loop(
         &mut terminal,
         &mut rx,
         tx.clone(),
@@ -389,12 +389,13 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             header_visible,
         },
     )
-    .await?;
+    .await;
 
-    // Restore terminal
+    // Restore the terminal (and clear dtop's status records) even when the
+    // loop failed, then report the failure
     cleanup_terminal(&mut terminal)?;
 
-    Ok(())
+    result
 }
 
 /// Sets up the terminal for TUI rendering
@@ -410,6 +411,8 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn st
 fn cleanup_terminal(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // dtop's `error` status records would otherwise outlive the process
+    write_raw(terminal, &ProgramStatus::clear_all())?;
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
@@ -516,8 +519,6 @@ async fn run_event_loop(
         }
     }
 
-    write_raw(terminal, &ProgramStatus::clear_all())?;
-
     Ok(())
 }
 
@@ -535,7 +536,8 @@ fn report_program_status(
 }
 
 /// Writes escape sequences straight to the terminal, outside ratatui's buffer:
-/// they print nothing, and a cell can't carry them without corrupting the row
+/// they print nothing, and a cell can't carry them without corrupting the row.
+/// Only called between draws, when ratatui has already flushed its frame.
 fn write_raw(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     sequences: &str,
