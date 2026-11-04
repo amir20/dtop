@@ -31,6 +31,7 @@ mod tests {
             state: ContainerState::Running,
             health: None,
             created: Some(Utc::now() - chrono::Duration::hours(i as i64 + 1)),
+            started: None,
             stats: ContainerStats {
                 cpu: (i as f64 * 3.7) % 100.0,
                 memory: (i as f64 * 5.1) % 100.0,

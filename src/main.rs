@@ -190,7 +190,7 @@ struct Args {
     /// Default sort field for container list
     ///
     /// Options:
-    ///   uptime  - Sort by container uptime/creation time (default, newest first)
+    ///   uptime  - Sort by time since the container last started (default, newest first)
     ///   name    - Sort by container name (alphabetically)
     ///   cpu     - Sort by CPU usage (highest first)
     ///   memory  - Sort by memory usage (highest first)

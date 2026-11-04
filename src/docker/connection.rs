@@ -19,6 +19,16 @@ const SHORT_ID_LEN: usize = 12;
 
 /// Returns the first [`SHORT_ID_LEN`] characters of a container ID, or the whole
 /// ID if it is shorter.
+/// When the container last started. Docker reports a container that never
+/// started as the zero time, `0001-01-01T00:00:00Z`.
+fn started_at(inspect: &bollard::models::ContainerInspectResponse) -> Option<DateTime<Utc>> {
+    let started = inspect.state.as_ref()?.started_at.as_ref()?;
+    DateTime::parse_from_rfc3339(started)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
+        .filter(|dt| dt.timestamp() > 0)
+}
+
 fn short_id(id: &str) -> &str {
     id.get(..SHORT_ID_LEN).unwrap_or(id)
 }
@@ -234,10 +244,12 @@ impl DockerHost {
                 state,
                 health,
                 created,
+                // Backfilled below with the restart count; the list API
+                // carries neither.
+                started: None,
                 stats: ContainerStats::default(),
                 host_id: self.host_id.clone(),
                 dozzle_url: self.dozzle_url.clone(),
-                // Backfilled below; the list API does not carry it.
                 restart_count: None,
                 compose_project,
                 image: container.image.clone(),
@@ -273,10 +285,10 @@ impl DockerHost {
         true
     }
 
-    /// Fetches restart counts in the background and streams them to the UI.
+    /// Fetches restart counts and start times in the background and streams
+    /// them to the UI.
     ///
-    /// The list API does not report restart counts, so each container needs an
-    /// inspect call. Doing that before sending the container list made first
+    /// The list API reports neither, so each container needs an inspect call. Doing that before sending the container list made first
     /// paint cost `container_count * round_trip` — seconds on a remote host with
     /// a large `docker ps -a`. The rows render without it instead, and the counts
     /// fill in as they arrive.
@@ -298,19 +310,22 @@ impl DockerHost {
                     let host = &host;
                     let tx = &tx;
                     async move {
-                        let restart_count = host
+                        let Ok(inspect) = host
                             .docker
                             .inspect_container(&full_id, None::<InspectContainerOptions>)
                             .await
-                            .ok()
-                            .and_then(|inspect| inspect.restart_count);
-
-                        if let Some(restart_count) = restart_count {
-                            let key = ContainerKey::new(host.host_id.clone(), truncated_id);
-                            let _ = tx
-                                .send(AppEvent::ContainerRestartCount(key, restart_count))
-                                .await;
-                        }
+                        else {
+                            return;
+                        };
+                        let started = started_at(&inspect);
+                        let key = ContainerKey::new(host.host_id.clone(), truncated_id);
+                        let _ = tx
+                            .send(AppEvent::ContainerInspected(
+                                key,
+                                inspect.restart_count,
+                                started,
+                            ))
+                            .await;
                     }
                 })
                 .await;
@@ -560,6 +575,7 @@ impl DockerHost {
                     .map(|dt| dt.with_timezone(&Utc))
             });
 
+            let started = started_at(&inspect);
             let restart_count = inspect.restart_count;
 
             let image = inspect
@@ -594,6 +610,7 @@ impl DockerHost {
                     state,
                     health,
                     created,
+                    started,
                     stats: ContainerStats::default(),
                     host_id: self.host_id.clone(),
                     dozzle_url: self.dozzle_url.clone(),
@@ -608,8 +625,13 @@ impl DockerHost {
                 self.start_container_monitoring(&truncated_id, tx, active_containers);
             } else {
                 // Container already monitored (e.g., "start" event without preceding "die")
-                // — just update the state to Running
-                let _ = tx.send(AppEvent::ContainerStateChanged(key, state)).await;
+                // — just update the state to Running, and the start time
+                let _ = tx
+                    .send(AppEvent::ContainerStateChanged(key.clone(), state))
+                    .await;
+                let _ = tx
+                    .send(AppEvent::ContainerInspected(key, restart_count, started))
+                    .await;
             }
         }
     }

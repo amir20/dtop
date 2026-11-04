@@ -72,6 +72,7 @@ pub struct Container {
     pub state: ContainerState,
     pub health: Option<HealthStatus>, // None if container has no health check configured
     pub created: Option<DateTime<Utc>>, // When the container was created
+    pub started: Option<DateTime<Utc>>, // When it last started; backfilled for the initial list
     pub stats: ContainerStats,
     pub host_id: HostId,
     pub dozzle_url: Option<String>,
@@ -195,9 +196,10 @@ pub enum AppEvent {
     ContainerHealthChanged(ContainerKey, HealthStatus),
     /// Result of inspecting a container for the details popup
     ContainerDetails(ContainerKey, Result<ContainerDetails, String>),
-    /// Restart count for a container, backfilled after the initial list is sent.
-    /// The list API does not carry it, so it is inspected off the critical path.
-    ContainerRestartCount(ContainerKey, i64),
+    /// Restart count and last start time for a container, backfilled after the
+    /// initial list is sent. The list API carries neither, so each container is
+    /// inspected off the critical path.
+    ContainerInspected(ContainerKey, Option<i64>, Option<DateTime<Utc>>),
     /// User requested to quit
     Quit,
     /// Terminal was resized
@@ -603,6 +605,7 @@ pub enum Column {
     DiskRead,
     DiskWrite,
     Uptime,
+    Created,
     Restarts,
 }
 
@@ -623,7 +626,8 @@ impl Column {
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk R",
             Column::DiskWrite => "Disk W",
-            Column::Uptime => "Created",
+            Column::Uptime => "Uptime",
+            Column::Created => "Created",
             Column::Restarts => "Restarts",
         }
     }
@@ -645,6 +649,7 @@ impl Column {
             Column::DiskRead => "disk_read",
             Column::DiskWrite => "disk_write",
             Column::Uptime => "uptime",
+            Column::Created => "created",
             Column::Restarts => "restarts",
         }
     }
@@ -666,6 +671,7 @@ impl Column {
             "disk_read" => Some(Column::DiskRead),
             "disk_write" => Some(Column::DiskWrite),
             "uptime" => Some(Column::Uptime),
+            "created" => Some(Column::Created),
             "restarts" => Some(Column::Restarts),
             _ => None,
         }
@@ -688,6 +694,7 @@ impl Column {
             Column::DiskRead,
             Column::DiskWrite,
             Column::Uptime,
+            Column::Created,
             Column::Restarts,
         ]
     }
@@ -697,6 +704,7 @@ impl Column {
         !matches!(
             self,
             Column::Restarts
+                | Column::Created
                 | Column::Compose
                 | Column::Image
                 | Column::Ports
@@ -717,6 +725,7 @@ impl Column {
             | Column::Ports
             | Column::Status => SortDirection::Ascending,
             Column::Uptime
+            | Column::Created
             | Column::Cpu
             | Column::Memory
             | Column::Pids
@@ -756,7 +765,8 @@ impl Column {
             Column::NetRx => "Net RX",
             Column::DiskRead => "Disk Read",
             Column::DiskWrite => "Disk Write",
-            Column::Uptime => "Created",
+            Column::Uptime => "Uptime",
+            Column::Created => "Created",
             Column::Restarts => "Restarts",
         }
     }
@@ -916,7 +926,8 @@ mod tests {
         assert_eq!(Column::NetRx.label(), "Net RX");
         assert_eq!(Column::DiskRead.label(), "Disk R");
         assert_eq!(Column::DiskWrite.label(), "Disk W");
-        assert_eq!(Column::Uptime.label(), "Created");
+        assert_eq!(Column::Uptime.label(), "Uptime");
+        assert_eq!(Column::Created.label(), "Created");
         assert_eq!(Column::Restarts.label(), "Restarts");
         assert_eq!(Column::Image.label(), "Image");
         assert_eq!(Column::Ports.label(), "Ports");
@@ -925,8 +936,8 @@ mod tests {
     #[test]
     fn test_column_config_default_all_visible() {
         let config = ColumnConfig::default();
-        assert_eq!(config.columns.len(), 16);
-        // All columns except Restarts, Compose, Image, Ports, DiskRead, DiskWrite, Pids should be visible by default
+        assert_eq!(config.columns.len(), 17);
+        // All columns except Restarts, Created, Compose, Image, Ports, DiskRead, DiskWrite, Pids should be visible by default
         for (col, visible) in &config.columns {
             assert_eq!(*visible, col.default_visible());
         }
@@ -943,7 +954,7 @@ mod tests {
         config.columns[id_idx] = (Column::Id, false);
         let visible = config.visible_columns();
         assert!(!visible.contains(&Column::Id));
-        // Default has 9 visible (Restarts, Compose, Image, Ports, DiskRead, DiskWrite, Pids hidden), minus Id = 8
+        // Default has 9 visible (Restarts, Created, Compose, Image, Ports, DiskRead, DiskWrite, Pids hidden), minus Id = 8
         assert_eq!(visible.len(), 8);
     }
 
@@ -1028,7 +1039,7 @@ mod tests {
         let config = ColumnConfig::from_config_strings(&strings);
         let visible = config.visible_columns();
         assert_eq!(visible, vec![Column::Status, Column::Name, Column::Cpu]);
-        assert_eq!(config.columns.len(), 16);
+        assert_eq!(config.columns.len(), 17);
     }
 
     #[test]
@@ -1059,6 +1070,7 @@ mod tests {
         assert_eq!(Column::DiskRead.id(), "disk_read");
         assert_eq!(Column::DiskWrite.id(), "disk_write");
         assert_eq!(Column::Uptime.id(), "uptime");
+        assert_eq!(Column::Created.id(), "created");
         assert_eq!(Column::Restarts.id(), "restarts");
         assert_eq!(Column::Image.id(), "image");
         assert_eq!(Column::Ports.id(), "ports");
@@ -1078,6 +1090,7 @@ mod tests {
         assert_eq!(Column::from_id("disk_read"), Some(Column::DiskRead));
         assert_eq!(Column::from_id("disk_write"), Some(Column::DiskWrite));
         assert_eq!(Column::from_id("uptime"), Some(Column::Uptime));
+        assert_eq!(Column::from_id("created"), Some(Column::Created));
         assert_eq!(Column::from_id("restarts"), Some(Column::Restarts));
         assert_eq!(Column::from_id("image"), Some(Column::Image));
         assert_eq!(Column::from_id("ports"), Some(Column::Ports));

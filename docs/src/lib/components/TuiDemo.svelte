@@ -70,7 +70,7 @@
     { host: "ops@db-eu", name: "ops@db-eu", cores: 8, mem: 32 * GB, memOther: 2.1 * GB, cpu: 6, target: 6, tx: 0.2 * MB, rx: 0.4 * MB, swap: "", load: [1.42, 1.37, 1.29], up: "  Up 41d 2h" },
   ]);
 
-  // Sorted the way dtop sorts by default: Created, newest first
+  // Sorted the way dtop sorts by default: Uptime, most recently started first
   const seed = [
     ["a1f3c9e27b04", "unhealthy", "python", "worker-etl", "10.0.4.12:2375", 88, 1.6 * GB, 2 * GB, 277 * KB, 999 * KB, 4 * 3600],
     ["7d2e0b91c5aa", "running", "traefik", "api-gateway", "10.0.4.12:2375", 52, 380 * MB, 1 * GB, 7.8 * MB, 5.8 * MB, 6 * 86400],
@@ -130,12 +130,12 @@
 
   const pct = (value) => `${value.toFixed(1).padStart(5)}%`;
 
-  /** The `timeago` crate's formatting, to one unit. */
-  function ago(secs) {
+  /** The `timeago` crate's formatting, to one unit, without "ago" (the Uptime column). */
+  function uptime(secs) {
     const units = [["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
     for (const [unit, length] of units) {
       const n = Math.floor(secs / length);
-      if (n >= 1) return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+      if (n >= 1) return `${n} ${unit}${n === 1 ? "" : "s"}`;
     }
     return "now";
   }
@@ -163,7 +163,7 @@
     ["Memory %", bars ? 33 : 7],
     ["Net TX", 12],
     ["Net RX", 12],
-    ["Created ▼", 15],
+    ["Uptime ▼", 15],
   ]);
   let widths = $derived.by(() => {
     const fixed = columns.reduce((sum, [, width]) => sum + width, 0) + columns.length - 1;
@@ -206,7 +206,7 @@
           : [seg(pct(memPct), tone(memPct))],
         rate(row.tx),
         rate(row.rx),
-        ago(row.age),
+        uptime(row.age),
       ], widths);
     }),
   );

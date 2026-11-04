@@ -282,8 +282,8 @@ impl AppState {
                 self.handle_container_health_changed(key, health)
             }
             AppEvent::ContainerDetails(key, details) => self.handle_container_details(key, details),
-            AppEvent::ContainerRestartCount(key, count) => {
-                self.handle_container_restart_count(key, count)
+            AppEvent::ContainerInspected(key, restart_count, started) => {
+                self.handle_container_inspected(key, restart_count, started)
             }
             AppEvent::Resize => RenderAction::Render,
             AppEvent::Quit => {

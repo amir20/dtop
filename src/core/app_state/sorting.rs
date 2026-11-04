@@ -3,6 +3,7 @@ use crate::core::types::{
     Column, Container, ContainerState, HealthStatus, RenderAction, SortDirection, SortState,
     ViewState,
 };
+use chrono::{DateTime, Utc};
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
@@ -13,6 +14,14 @@ const SORT_THROTTLE_DURATION: Duration = Duration::from_secs(3);
 ///
 /// Health only counts while the container runs: an exited container keeps its
 /// last health status, which no longer says anything about it.
+/// The Uptime column's sort key: when a running container last started.
+/// Stopped containers have no uptime and sort as `None`, like an unknown start.
+fn uptime_since(container: &Container) -> Option<DateTime<Utc>> {
+    container
+        .started
+        .filter(|_| container.state == ContainerState::Running)
+}
+
 fn status_severity(container: &Container) -> u8 {
     match container.state {
         ContainerState::Running => match container.health {
@@ -174,7 +183,8 @@ impl AppState {
             let ord = match sort_field {
                 // `Option`'s ordering already places `None` before `Some`, which
                 // matches the previous hand-written match exactly.
-                Column::Uptime => a.created.cmp(&b.created),
+                Column::Uptime => uptime_since(a).cmp(&uptime_since(b)),
+                Column::Created => a.created.cmp(&b.created),
                 Column::Name => a.name.cmp(&b.name),
                 Column::Id => a.id.cmp(&b.id),
                 Column::Host => a.host_id.cmp(&b.host_id),

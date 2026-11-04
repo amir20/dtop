@@ -153,9 +153,10 @@ async fn handle_connection(
         } else if path.contains("/containers/json") {
             containers_json.to_string()
         } else if path.contains("/containers/") && path.ends_with("/json") {
-            // Container inspect — only `RestartCount` is read from it. Non-zero so
-            // a backfilled count is distinguishable from the default.
-            "{\"RestartCount\":3}".to_string()
+            // Container inspect — only `RestartCount` and `StartedAt` are read
+            // from it. Non-zero so a backfilled count is distinguishable from
+            // the default.
+            r#"{"RestartCount":3,"State":{"StartedAt":"2026-10-14T09:00:01Z"}}"#.to_string()
         } else {
             // Anything else (e.g. the stats stream) is not part of these tests.
             let _ = stream
@@ -382,12 +383,13 @@ async fn restart_counts_are_backfilled_after_the_container_list() {
     // The list must be the *first* container event: nothing may be inspected
     // ahead of it, or first paint is back to waiting on a round trip per row.
     let ids = wait_for(&mut rx, "the initial container list", |event| match event {
-        AppEvent::ContainerRestartCount(key, _) => {
+        AppEvent::ContainerInspected(key, _, _) => {
             panic!("restart count for {key:?} arrived before the container list")
         }
         AppEvent::InitialContainerList(_, list) => {
             assert!(
-                list.iter().all(|c| c.restart_count.is_none()),
+                list.iter()
+                    .all(|c| c.restart_count.is_none() && c.started.is_none()),
                 "the list should not carry restart counts it had to block on"
             );
             Some(list.iter().map(|c| c.id.clone()).collect::<Vec<_>>())
@@ -401,8 +403,17 @@ async fn restart_counts_are_backfilled_after_the_container_list() {
     let mut backfilled = Vec::new();
     while backfilled.len() < ids.len() {
         let id = wait_for(&mut rx, "a backfilled restart count", |event| match event {
-            AppEvent::ContainerRestartCount(key, count) => {
-                assert_eq!(*count, 3, "the count should come from the inspect response");
+            AppEvent::ContainerInspected(key, count, started) => {
+                assert_eq!(
+                    *count,
+                    Some(3),
+                    "the count should come from the inspect response"
+                );
+                assert_eq!(
+                    started.map(|s| s.to_rfc3339()).as_deref(),
+                    Some("2026-10-14T09:00:01+00:00"),
+                    "the start time should come from the inspect response"
+                );
                 Some(key.container_id.clone())
             }
             _ => None,

@@ -4,9 +4,9 @@ expression: output
 ---
 dtop vX.X.X - 1 container ('?' for help, 'q' to quit)                                                                   
                                                                                                                         
-  ID        ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐ed ▼        
+  ID        ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐e ▼         
             │                                                                                              │            
-  abc1234567│                                                                                              │rs ago      
+  abc1234567│                                                                                              │rs          
             │ Navigation                                                                                   │            
             │   ↑/↓, j/k    Navigate/scroll (1 line)    →/l    View logs      ←/h    Exit logs             │            
             │   Enter       Action menu                 Esc    Close menu     ?      Toggle help           │            

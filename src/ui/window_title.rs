@@ -128,6 +128,7 @@ mod tests {
                 state: ContainerState::Running,
                 health: None,
                 created: None,
+                started: None,
                 stats: Default::default(),
                 host_id: "local".to_string(),
                 dozzle_url: None,
