@@ -785,7 +785,9 @@ connections instead of 31.
   reconnect loop in `connection.rs` heal an SSH host.
 - Masters are launched with `ServerAliveInterval=15s` so a dead master surfaces as an
   error instead of hanging. Dropping the last reference runs `ssh -O exit`, so masters
-  are cleaned up on quit.
+  are cleaned up on quit. A dtop that is killed instead (pane closed, SIGHUP, crash) can't
+  do that, so masters also use `ControlPersist=30s`: they exit 30s after their last
+  channel closes rather than running forever.
 - `SshRunner` (returned by `connect_with_ssh`, stored on `DockerHost::ssh`) runs short
   commands on the host over the same pool, borrowing one channel per command. It is
   what the remote system stats sampler uses. Usually that's a free slot on an existing

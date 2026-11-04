@@ -42,6 +42,14 @@ const MAX_CHANNELS_PER_MASTER: usize = 8;
 /// error (and gets evicted) instead of hanging.
 const SERVER_ALIVE_INTERVAL: Duration = Duration::from_secs(15);
 
+/// How long a master with no open channels stays up before exiting. Masters are
+/// normally closed with `ssh -O exit` when dtop drops them, but a dtop that is
+/// killed (its pane closed, SIGHUP, a crash) never gets to; with the openssh
+/// default (`ControlPersist=yes`) its masters would then run forever. A running
+/// dtop keeps its masters busy, and one that does idle out is evicted and
+/// replaced on the next channel open, like any dead master.
+const MASTER_IDLE_EXIT_SECS: usize = 30;
+
 /// How long [`SshRunner::run_sh`] waits for a command before giving up on it.
 const RUN_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -229,6 +237,9 @@ struct SshConnector {
 async fn launch_master(destination: &str) -> Result<Arc<openssh::Session>, openssh::Error> {
     let mut builder = openssh::SessionBuilder::default();
     builder.server_alive_interval(SERVER_ALIVE_INTERVAL);
+    builder.control_persist(openssh::ControlPersist::IdleFor(
+        std::num::NonZeroUsize::new(MASTER_IDLE_EXIT_SECS).expect("non-zero"),
+    ));
 
     let (builder, destination) = builder.resolve(destination);
     let tempdir = builder.launch_master(destination).await?;
