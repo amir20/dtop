@@ -7,7 +7,7 @@ use crate::core::app_state::{AppState, BulkProgress};
 use crate::core::types::{
     ContainerAction, ContainerDetails, ContainerKey, HostId, RenderAction, ViewState,
 };
-use crate::ui::rex_panes::PaneKind;
+use crate::ui::panes::PaneKind;
 
 impl AppState {
     pub(super) fn handle_show_action_menu(&mut self) -> RenderAction {
@@ -427,7 +427,7 @@ impl AppState {
         // Shell takes over the terminal, or opens in a Rex pane beside dtop
         if action == ContainerAction::Shell {
             let key = container_key.clone();
-            if let Some(action) = self.open_in_rex_pane(PaneKind::Shell, &key) {
+            if let Some(action) = self.open_in_pane(PaneKind::Shell, &key) {
                 return action;
             }
             if !self.connected_hosts.contains_key(&key.host_id) {
@@ -604,15 +604,15 @@ fn containers_word(count: usize) -> String {
 }
 
 impl AppState {
-    /// With `--panes`, opens Shell or Logs in a Rex pane beside dtop.
+    /// With `--panes`, opens Shell or Logs in a tmux or Rex pane beside dtop.
     /// `None` when panes are off or can't be used, so the caller does what it
     /// did before.
-    pub(super) fn open_in_rex_pane(
+    pub(super) fn open_in_pane(
         &mut self,
         kind: PaneKind,
         key: &ContainerKey,
     ) -> Option<RenderAction> {
-        let rex = self.rex_panes.as_ref()?;
+        let panes = self.panes.as_ref()?;
         let spec = self.connected_hosts.get(&key.host_id)?.spec.as_str();
         if spec.is_empty() {
             return None;
@@ -625,7 +625,7 @@ impl AppState {
             PaneKind::Shell => format!("shell: {name}"),
             PaneKind::Logs => format!("logs: {name}"),
         };
-        rex.open(kind, spec, &key.container_id, &label)?;
+        panes.open(kind, spec, &key.container_id, &label)?;
         self.view_state = ViewState::ContainerList;
         self.action_menu_state.select(None);
         Some(RenderAction::Render)

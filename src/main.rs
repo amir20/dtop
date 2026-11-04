@@ -65,7 +65,7 @@ struct EventLoopConfig {
     config_path: Option<std::path::PathBuf>,
     stats_header: bool,
     header_visible: Arc<AtomicBool>,
-    rex_panes: Option<ui::rex_panes::RexPanes>,
+    panes: Option<ui::panes::Panes>,
     /// `dtop logs <id>`
     logs_only: Option<String>,
 }
@@ -183,7 +183,7 @@ struct Args {
     all: bool,
 
     /// Open Shell and Logs in a terminal pane beside dtop instead of taking
-    /// over its screen. Applies inside Rex, with its CLI on PATH.
+    /// over its screen. Applies inside tmux, or inside Rex with its CLI on PATH.
     #[arg(long)]
     panes: bool,
 
@@ -450,7 +450,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             config_path: config_path_for_state,
             stats_header,
             header_visible,
-            rex_panes: ui::rex_panes::RexPanes::detect(args.panes),
+            panes: ui::panes::Panes::detect(args.panes),
             logs_only,
         },
     )
@@ -530,7 +530,7 @@ async fn run_event_loop(
     );
     state.header_visible = config.header_visible;
     state.set_show_system_header(config.stats_header);
-    state.rex_panes = config.rex_panes;
+    state.panes = config.panes;
     state.logs_only = config.logs_only;
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();

@@ -121,8 +121,8 @@ pub struct AppState {
     /// Text to put on the clipboard with OSC 52, taken by the event loop,
     /// which owns the terminal
     pub clipboard_request: Option<String>,
-    /// Opens Shell and Logs in a Rex pane beside dtop (`--panes`)
-    pub rex_panes: Option<crate::ui::rex_panes::RexPanes>,
+    /// Opens Shell and Logs in a terminal pane beside dtop (`--panes`)
+    pub panes: Option<crate::ui::panes::Panes>,
     /// `dtop logs <id>`: the container to open the log view for once it is
     /// listed; leaving that log view quits
     pub logs_only: Option<String>,
@@ -195,7 +195,7 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             clipboard_request: None,
-            rex_panes: None,
+            panes: None,
             logs_only: None,
             quit_with_log_view: false,
             last_bulk_outcome: None,
