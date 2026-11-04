@@ -23,7 +23,7 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io;
+use std::io::{self, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -41,6 +41,7 @@ use ui::hyperlinks::HyperlinkMode;
 use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
+use ui::window_title::{POP_TITLE, PUSH_TITLE, WindowTitle};
 
 /// Configuration for the event loop
 struct EventLoopConfig {
@@ -401,6 +402,8 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn st
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
+    // Save the title dtop is about to replace, restored in `cleanup_terminal`
+    write!(stdout, "{PUSH_TITLE}")?;
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)
 }
@@ -411,6 +414,7 @@ fn cleanup_terminal(
 ) -> Result<(), Box<dyn std::error::Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    write!(terminal.backend_mut(), "{POP_TITLE}")?;
     terminal.show_cursor()?;
     Ok(())
 }
@@ -462,7 +466,16 @@ async fn run_event_loop(
         render_ui(f, &mut state, &styles);
     })?;
 
+    let mut window_title = WindowTitle::default();
+
     while !state.should_quit {
+        let title = window_title.update(&state);
+        if !title.is_empty() {
+            let backend = terminal.backend_mut();
+            backend.write_all(title.as_bytes())?;
+            backend.flush()?;
+        }
+
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
 
