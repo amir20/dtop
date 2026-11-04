@@ -12,6 +12,7 @@ pub mod render;
 pub mod sort_selector;
 pub mod system_header;
 pub mod terminal_probe;
+pub mod window_title;
 
 #[cfg(test)]
 mod alloc_tests;
