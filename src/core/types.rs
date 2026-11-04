@@ -302,10 +302,9 @@ impl ContainerAction {
             // Not reported: shells run through `RenderAction::StartShell`, not
             // the ActionInProgress/Success events. Kept so the match is total.
             ContainerAction::Shell => ("Opening shell in", "Closed shell in"),
-            // Not reported either: details open a popup, not a background action
-            ContainerAction::Details => ("Inspecting", "Inspected"),
-            // Nor this: the ID goes straight to the clipboard
-            ContainerAction::CopyId => ("Copying ID of", "Copied ID of"),
+            // Not reported either: details open a popup and the ID goes
+            // straight to the clipboard, neither is a background action
+            ContainerAction::Details | ContainerAction::CopyId => ("Inspecting", "Inspected"),
         }
     }
 
