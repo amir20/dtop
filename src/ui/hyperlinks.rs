@@ -227,6 +227,7 @@ const SUPPORTED_TERM_PROGRAMS: &[&str] = &[
     "rio",
     "Tabby",
     "WarpTerminal",
+    "rex", // Ghostty's engine; TERM stays xterm-256color
 ];
 
 /// `TERM` values (or prefixes) for terminals that render OSC 8 hyperlinks.
@@ -482,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_detects_supported_term_programs() {
-        for program in ["iTerm.app", "WezTerm", "ghostty", "vscode"] {
+        for program in ["iTerm.app", "WezTerm", "ghostty", "vscode", "rex"] {
             let env = FakeEnv::new(&[("TERM", "xterm-256color"), ("TERM_PROGRAM", program)]);
             assert!(detect_osc8_support(&env), "{program} should be supported");
         }
