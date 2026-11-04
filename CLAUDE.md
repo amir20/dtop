@@ -585,6 +585,8 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
   with the toast's summary (`AppState::last_bulk_outcome`); `idle` before the first one.
   The outcome stays until the next bulk action on purpose: per the protocol, `done`/`error`
   mean "not seen yet", and the terminal (not the program) decides when the user has seen it.
+  A batch dropped without finishing (host disconnect, 60s of silence) leaves no outcome: the
+  root falls back to the previous one, and the disconnect has its own `host/` record.
 - Ids are sanitized to the protocol's segment grammar; a sanitized or truncated segment gets
   a hash of the original appended, so `user@box` and `user_box` don't share a record.
 - `host/<host>`: `error` while the host is disconnected.

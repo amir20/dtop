@@ -18,9 +18,10 @@ use crate::core::app_state::AppState;
 use crate::core::types::{ContainerState, HealthStatus};
 
 const APP: &str = "dtop";
-/// Decoded limits are 2048 (`msg`) and 192 (`title`) bytes; stay well inside them
-const MAX_MSG_CHARS: usize = 200;
-const MAX_TITLE_CHARS: usize = 60;
+/// Decoded limits in bytes: 2048 (`msg`) and 192 (`title`). A report over
+/// either is dropped whole, so text is cut to fit
+const MAX_MSG_BYTES: usize = 600;
+const MAX_TITLE_BYTES: usize = 120;
 
 /// One record's report body, keyed by its id ("" for the root record)
 type Reports = BTreeMap<String, String>;
@@ -144,17 +145,17 @@ fn report(
     }
     if let Some(title) = title {
         body.push_str(":title=");
-        body.push_str(&base64(&clean_text(title, MAX_TITLE_CHARS)));
+        body.push_str(&base64(&clean_text(title, MAX_TITLE_BYTES)));
     }
     if let Some(msg) = msg {
         body.push_str(":msg=");
-        body.push_str(&base64(&clean_text(msg, MAX_MSG_CHARS)));
+        body.push_str(&base64(&clean_text(msg, MAX_MSG_BYTES)));
     }
     body
 }
 
 /// Single-line text without control characters (the terminal refuses the whole
-/// report otherwise), shortened to `max` characters
+/// report otherwise), cut on a character boundary to at most `max` bytes
 fn clean_text(text: &str, max: usize) -> String {
     let mut out: String = text
         .chars()
@@ -163,7 +164,14 @@ fn clean_text(text: &str, max: usize) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    if let Some((cut, _)) = out.char_indices().nth(max) {
+    if out.len() > max {
+        let budget = max - '…'.len_utf8();
+        let cut = out
+            .char_indices()
+            .map(|(i, c)| i + c.len_utf8())
+            .take_while(|&end| end <= budget)
+            .last()
+            .unwrap_or(0);
         out.truncate(cut);
         out.push('…');
     }
@@ -186,13 +194,7 @@ fn id_segment(text: &str) -> String {
     let hash = format!("{:08x}", hasher.finish() as u32);
     let mut segment: String = text
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '+' | '-') {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if valid(c) { c } else { '_' })
         .take(32 - 1 - hash.len())
         .collect();
     segment.push('.');
@@ -503,7 +505,12 @@ mod tests {
     #[test]
     fn text_is_single_line_and_bounded() {
         assert_eq!(clean_text("a\nb\t\x1bc", 50), "a b c");
-        assert_eq!(clean_text("abcdef", 3), "abc…");
+        assert_eq!(clean_text("abcdef", 6), "abcdef");
+        assert_eq!(clean_text("abcdefg", 6), "abc…");
+        // Bytes, not characters: 4-byte characters are never split
+        let emoji = clean_text(&"🐳".repeat(60), MAX_TITLE_BYTES);
+        assert!(emoji.len() <= MAX_TITLE_BYTES);
+        assert!(emoji.ends_with("🐳…"));
         assert_eq!(id_segment("abc123"), "abc123");
         assert!(id_segment("user@host:22").starts_with("user_host_22."));
         assert_ne!(id_segment("user@box"), id_segment("user_box"));
