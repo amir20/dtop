@@ -476,7 +476,7 @@ async fn run_event_loop(
 
     let mut window_title = WindowTitle::default();
 
-    let mut program_status = ProgramStatus::default();
+    let mut program_status = ProgramStatus::for_terminal();
 
     while !state.should_quit {
         let title = window_title.update(&state);

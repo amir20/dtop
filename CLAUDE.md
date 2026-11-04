@@ -595,6 +595,12 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
   buffer (a cell can't carry an escape sequence, see OSC 8 above). `cleanup_terminal` clears
   every record, since `error` records outlive the process; it runs even when the event loop
   fails.
+- A bulk action's progress also goes out as OSC 9;4 (the tab/taskbar progress bar), but only
+  to terminals known to draw it (`supports_progress_bar`: Windows Terminal, ConEmu, Ghostty,
+  WezTerm, not under tmux). Older iTerm2, kitty and others read any OSC 9 as a desktop
+  notification and would pop one up per progress step. Detection is by env var, so it can't
+  see versions (Ghostty < 1.2 and older WezTerm also treat OSC 9 as a notification, the same
+  risk cargo takes), and over SSH, where those variables are lost, no bar is sent.
 - Exits with a non-zero code are not reported: `docker stop` on an image that ignores
   SIGTERM exits 137, which would flag every routine stop.
 

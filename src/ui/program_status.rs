@@ -11,6 +11,11 @@
 //!
 //! Only changes are written, and everything is cleared on quit, since dtop is
 //! then no longer watching and `error` records outlive the process.
+//!
+//! A bulk action's progress is also sent as OSC 9;4, the progress bar that
+//! Windows Terminal, ConEmu, Ghostty and WezTerm show, but only to those: other
+//! terminals (older iTerm2, kitty) read any OSC 9 as a desktop notification, and
+//! would pop one up for every progress step.
 
 use std::collections::BTreeMap;
 
@@ -30,9 +35,21 @@ type Reports = BTreeMap<String, String>;
 #[derive(Default)]
 pub struct ProgramStatus {
     sent: Reports,
+    /// Whether to also send OSC 9;4 progress
+    progress_bar: bool,
+    /// The OSC 9;4 percentage last sent (None: no bar shown)
+    sent_progress: Option<u8>,
 }
 
 impl ProgramStatus {
+    /// A reporter for the terminal dtop runs in
+    pub fn for_terminal() -> Self {
+        Self {
+            progress_bar: supports_progress_bar(|key| std::env::var(key).ok()),
+            ..Self::default()
+        }
+    }
+
     /// The escape sequences that bring the terminal up to date with `state`
     /// (empty when nothing changed)
     pub fn update(&mut self, state: &AppState) -> String {
@@ -47,15 +64,58 @@ impl ProgramStatus {
             }
         }
         self.sent = wanted;
+
+        if self.progress_bar {
+            let progress = bulk_progress(state).map(|(_, percent)| percent);
+            if progress != self.sent_progress {
+                match progress {
+                    Some(percent) => out.push_str(&format!("\x1b]9;4;1;{percent}\x07")),
+                    None => out.push_str(CLEAR_PROGRESS_BAR),
+                }
+                self.sent_progress = progress;
+            }
+        }
         out
     }
 
-    /// Removes every record dtop made
+    /// Removes every record dtop made, and its progress bar
     pub fn clear_all() -> String {
-        let mut out = String::new();
-        push_osc(&mut out, "state=clear");
-        out
+        clear_all_for(supports_progress_bar(|key| std::env::var(key).ok()))
     }
+}
+
+const CLEAR_PROGRESS_BAR: &str = "\x1b]9;4;0\x07";
+
+fn clear_all_for(progress_bar: bool) -> String {
+    let mut out = String::new();
+    push_osc(&mut out, "state=clear");
+    if progress_bar {
+        out.push_str(CLEAR_PROGRESS_BAR);
+    }
+    out
+}
+
+/// Terminals known to draw OSC 9;4 as a progress bar (the same set cargo uses).
+/// Off under tmux, which doesn't pass it through.
+fn supports_progress_bar(env: impl Fn(&str) -> Option<String>) -> bool {
+    if env("TMUX").is_some() {
+        return false;
+    }
+    env("WT_SESSION").is_some()
+        || env("ConEmuANSI").as_deref() == Some("ON")
+        || env("TERM_PROGRAM")
+            .is_some_and(|p| p.eq_ignore_ascii_case("ghostty") || p.eq_ignore_ascii_case("WezTerm"))
+}
+
+/// Container count and percent done across the running bulk actions
+fn bulk_progress(state: &AppState) -> Option<(usize, u8)> {
+    let batches = &state.bulk_progress;
+    if batches.is_empty() {
+        return None;
+    }
+    let total: usize = batches.iter().map(|b| b.total).sum();
+    let finished: usize = batches.iter().map(|b| b.total - b.pending.len()).sum();
+    Some((total, (finished * 100 / total.max(1)) as u8))
 }
 
 fn push_osc(out: &mut String, body: &str) {
@@ -103,11 +163,8 @@ fn reports(state: &AppState) -> Reports {
 }
 
 fn root_report(state: &AppState) -> String {
-    let batches = &state.bulk_progress;
-    if !batches.is_empty() {
-        let total: usize = batches.iter().map(|b| b.total).sum();
-        let finished: usize = batches.iter().map(|b| b.total - b.pending.len()).sum();
-        let progress = (finished * 100 / total.max(1)) as u8;
+    if let Some((total, progress)) = bulk_progress(state) {
+        let batches = &state.bulk_progress;
         let count = if total == 1 {
             "1 container".to_string()
         } else {
@@ -521,7 +578,90 @@ mod tests {
     }
 
     #[test]
+    fn progress_bar_follows_the_bulk_action() {
+        let mut state = state();
+        let mut status = ProgramStatus {
+            progress_bar: true,
+            ..ProgramStatus::default()
+        };
+        status.update(&state);
+
+        let keys: Vec<_> = ["a", "b"]
+            .iter()
+            .map(|id| ContainerKey::new("local".to_string(), id.to_string()))
+            .collect();
+        state.bulk_progress.push(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: keys.iter().cloned().collect(),
+            total: 2,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        });
+        assert!(status.update(&state).ends_with("\x1b]9;4;1;0\x07"));
+
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[0].clone(),
+            ContainerAction::Stop,
+        ));
+        assert!(status.update(&state).ends_with("\x1b]9;4;1;50\x07"));
+
+        state.handle_event(AppEvent::ActionSuccess(
+            keys[1].clone(),
+            ContainerAction::Stop,
+        ));
+        assert!(status.update(&state).ends_with(CLEAR_PROGRESS_BAR));
+        assert_eq!(status.update(&state), "");
+    }
+
+    #[test]
+    fn progress_bar_is_off_by_default() {
+        let mut state = state();
+        let mut status = ProgramStatus::default();
+        state.bulk_progress.push(BulkProgress {
+            action: ContainerAction::Stop,
+            pending: HashSet::from([ContainerKey::new("local".to_string(), "a".to_string())]),
+            total: 1,
+            failed: 0,
+            last_error: None,
+            last_activity: std::time::Instant::now(),
+        });
+        assert!(!status.update(&state).contains("]9;4"));
+    }
+
+    #[test]
+    fn progress_bar_only_on_terminals_that_draw_it() {
+        let env = |vars: &'static [(&'static str, &'static str)]| {
+            move |key: &str| {
+                vars.iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| v.to_string())
+            }
+        };
+        assert!(supports_progress_bar(env(&[("WT_SESSION", "x")])));
+        assert!(supports_progress_bar(env(&[("ConEmuANSI", "ON")])));
+        assert!(supports_progress_bar(env(&[("TERM_PROGRAM", "ghostty")])));
+        assert!(supports_progress_bar(env(&[("TERM_PROGRAM", "WezTerm")])));
+        // OSC 9 is a notification in these
+        assert!(!supports_progress_bar(env(&[(
+            "TERM_PROGRAM",
+            "iTerm.app"
+        )])));
+        assert!(!supports_progress_bar(env(&[("TERM", "xterm-kitty")])));
+        // Rex gets OSC 7501, which carries the progress already
+        assert!(!supports_progress_bar(env(&[("TERM_PROGRAM", "rex")])));
+        assert!(!supports_progress_bar(env(&[
+            ("TERM_PROGRAM", "ghostty"),
+            ("TMUX", "/tmp/tmux")
+        ])));
+    }
+
+    #[test]
     fn clear_all_removes_every_record() {
-        assert_eq!(ProgramStatus::clear_all(), osc("state=clear"));
+        assert_eq!(clear_all_for(false), osc("state=clear"));
+        assert_eq!(
+            clear_all_for(true),
+            format!("{}{CLEAR_PROGRESS_BAR}", osc("state=clear"))
+        );
     }
 }
