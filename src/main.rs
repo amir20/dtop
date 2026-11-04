@@ -65,6 +65,9 @@ struct EventLoopConfig {
     config_path: Option<std::path::PathBuf>,
     stats_header: bool,
     header_visible: Arc<AtomicBool>,
+    rex_panes: Option<ui::rex_panes::RexPanes>,
+    /// `dtop logs <id>`
+    logs_only: Option<String>,
 }
 
 /// Returns custom styles for CLI help output
@@ -179,6 +182,11 @@ struct Args {
     #[arg(short = 'a', long = "all", verbatim_doc_comment)]
     all: bool,
 
+    /// Open Shell and Logs in a Rex pane beside dtop instead of taking over
+    /// its screen. Only applies when running inside Rex with its CLI on PATH.
+    #[arg(long)]
+    rex_panes: bool,
+
     /// Default sort field for container list
     ///
     /// Options:
@@ -199,6 +207,16 @@ enum Command {
     /// Update dtop to the latest version
     #[cfg(feature = "self-update")]
     Update,
+    /// Open a shell in a container, then exit (used by --rex-panes)
+    Shell {
+        /// Container ID (or a prefix of it)
+        container: String,
+    },
+    /// Show a container's logs in dtop's log view, then exit (used by --rex-panes)
+    Logs {
+        /// Container ID (or a prefix of it)
+        container: String,
+    },
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -208,14 +226,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command line arguments
     let args = Args::parse();
 
-    // Handle subcommands before initializing Tokio runtime
-    if let Some(command) = args.command {
-        match command {
-            #[cfg(feature = "self-update")]
-            Command::Update => {
-                return cli::update::run_update();
-            }
-        }
+    // Handle subcommands that don't need the Tokio runtime
+    #[cfg(feature = "self-update")]
+    if matches!(args.command, Some(Command::Update)) {
+        return cli::update::run_update();
     }
 
     // Run the main TUI in async context
@@ -339,6 +353,28 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Establish connections to all configured hosts
     let connection_result = establish_connections(&merged_config, tx.clone()).await?;
 
+    // `dtop shell <id>`: just the shell, on the first host
+    if let Some(Command::Shell { container }) = &args.command {
+        let result = connection_result
+            .first_host
+            .run_shell_session(container)
+            .await;
+        // The session ends by re-entering dtop's screen; there is none to return to
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, crossterm::cursor::Show);
+        if let Err(e) = result {
+            // A pane closes when dtop exits, so hold the error on screen
+            eprintln!("{e}\n\nPress Enter to close");
+            let _ = io::stdin().read_line(&mut String::new());
+            return Err(e.to_string().into());
+        }
+        return Ok(());
+    }
+    let logs_only = match &args.command {
+        Some(Command::Logs { container }) => Some(container.clone()),
+        _ => None,
+    };
+
     // Store first connected host
     let mut connected_hosts: HashMap<String, DockerHost> = HashMap::new();
     connected_hosts.insert(
@@ -413,6 +449,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             config_path: config_path_for_state,
             stats_header,
             header_visible,
+            rex_panes: ui::rex_panes::RexPanes::detect(args.rex_panes),
+            logs_only,
         },
     )
     .await;
@@ -491,6 +529,8 @@ async fn run_event_loop(
     );
     state.header_visible = config.header_visible;
     state.set_show_system_header(config.stats_header);
+    state.rex_panes = config.rex_panes;
+    state.logs_only = config.logs_only;
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms
     let mut last_draw = std::time::Instant::now();
 

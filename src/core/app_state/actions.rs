@@ -7,6 +7,7 @@ use crate::core::app_state::{AppState, BulkProgress};
 use crate::core::types::{
     ContainerAction, ContainerDetails, ContainerKey, HostId, RenderAction, ViewState,
 };
+use crate::ui::rex_panes::PaneKind;
 
 impl AppState {
     pub(super) fn handle_show_action_menu(&mut self) -> RenderAction {
@@ -423,22 +424,25 @@ impl AppState {
             return RenderAction::Render;
         }
 
+        // Shell takes over the terminal, or opens in a Rex pane beside dtop
+        if action == ContainerAction::Shell {
+            let key = container_key.clone();
+            if let Some(action) = self.open_in_rex_pane(PaneKind::Shell, &key) {
+                return action;
+            }
+            if !self.connected_hosts.contains_key(&key.host_id) {
+                return RenderAction::None;
+            }
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+            return RenderAction::StartShell(key);
+        }
+
         // Get the Docker host for this container
         let Some(host) = self.connected_hosts.get(&container_key.host_id) else {
             // Silently fail if host not found
             return RenderAction::None;
         };
-
-        // Handle Shell action specially - it needs to take over the terminal
-        if action == ContainerAction::Shell {
-            let container_key_clone = container_key.clone();
-
-            // Close the action menu immediately
-            self.view_state = ViewState::ContainerList;
-            self.action_menu_state.select(None);
-
-            return RenderAction::StartShell(container_key_clone);
-        }
 
         if action == ContainerAction::Details {
             tokio::spawn(crate::docker::details::fetch_container_details(
@@ -596,5 +600,34 @@ fn containers_word(count: usize) -> String {
         "1 container".to_string()
     } else {
         format!("{count} containers")
+    }
+}
+
+impl AppState {
+    /// With `--rex-panes`, opens Shell or Logs in a Rex pane beside dtop.
+    /// `None` when panes are off or can't be used, so the caller does what it
+    /// did before.
+    pub(super) fn open_in_rex_pane(
+        &mut self,
+        kind: PaneKind,
+        key: &ContainerKey,
+    ) -> Option<RenderAction> {
+        let rex = self.rex_panes.as_ref()?;
+        let spec = self.connected_hosts.get(&key.host_id)?.spec.as_str();
+        if spec.is_empty() {
+            return None;
+        }
+        let name = self
+            .containers
+            .get(key)
+            .map_or(key.container_id.as_str(), |c| c.name.as_str());
+        let label = match kind {
+            PaneKind::Shell => format!("shell: {name}"),
+            PaneKind::Logs => format!("logs: {name}"),
+        };
+        rex.open(kind, spec, &key.container_id, &label)?;
+        self.view_state = ViewState::ContainerList;
+        self.action_menu_state.select(None);
+        Some(RenderAction::Render)
     }
 }

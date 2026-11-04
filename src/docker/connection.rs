@@ -114,6 +114,10 @@ pub struct DockerHost {
     /// and puts its Docker line under the local System line. Comes from the host spec
     /// (see [`is_local_spec`]), never from `host_id`, which may be a custom name.
     pub is_local: bool,
+    /// The `--host` spec this host was connected with (e.g. `ssh://me@nas`),
+    /// so a `--rex-panes` pane can run dtop against the same host. Empty when
+    /// unknown, which turns panes off for this host.
+    pub spec: String,
 }
 
 impl DockerHost {
@@ -131,7 +135,13 @@ impl DockerHost {
             filters,
             ssh: None,
             is_local,
+            spec: String::new(),
         }
+    }
+
+    pub fn with_spec(mut self, spec: &str) -> Self {
+        self.spec = spec.to_string();
+        self
     }
 
     pub fn with_ssh(mut self, ssh: Option<SshRunner>) -> Self {

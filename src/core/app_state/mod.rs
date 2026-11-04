@@ -121,6 +121,13 @@ pub struct AppState {
     /// Text to put on the clipboard with OSC 52, taken by the event loop,
     /// which owns the terminal
     pub clipboard_request: Option<String>,
+    /// Opens Shell and Logs in a Rex pane beside dtop (`--rex-panes`)
+    pub rex_panes: Option<crate::ui::rex_panes::RexPanes>,
+    /// `dtop logs <id>`: the container to open the log view for once it is
+    /// listed; leaving that log view quits
+    pub logs_only: Option<String>,
+    /// Set once `logs_only` has opened its log view
+    pub(crate) quit_with_log_view: bool,
     /// How the last finished bulk action went (failed, summary), for the
     /// terminal's program status (`ui/program_status.rs`)
     pub(crate) last_bulk_outcome: Option<(bool, String)>,
@@ -188,6 +195,9 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             clipboard_request: None,
+            rex_panes: None,
+            logs_only: None,
+            quit_with_log_view: false,
             last_bulk_outcome: None,
             armed_bulk_action: None,
             armed_bulk_targets: HashSet::new(),
@@ -259,7 +269,8 @@ impl AppState {
     fn dispatch_event(&mut self, event: AppEvent) -> RenderAction {
         match event {
             AppEvent::InitialContainerList(host_id, container_list) => {
-                self.handle_initial_container_list(host_id, container_list)
+                let action = self.handle_initial_container_list(host_id, container_list);
+                self.open_pending_logs().unwrap_or(action)
             }
             AppEvent::ContainerCreated(container) => self.handle_container_created(container),
             AppEvent::ContainerDestroyed(key) => self.handle_container_destroyed(key),

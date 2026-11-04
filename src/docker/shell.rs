@@ -202,6 +202,16 @@ pub async fn run_shell_session(
         }
     }
 
+    // 126/127: the container has no usable shell (e.g. a distroless image).
+    // The runtime's message was already printed as output; report it as an error
+    let exit_code = host
+        .docker
+        .inspect_exec(&exec_id)
+        .await
+        .ok()
+        .and_then(|exec| exec.exit_code);
+    let no_shell = matches!(exit_code, Some(126 | 127));
+
     // Restore terminal state
     terminal::disable_raw_mode()?;
     execute!(
@@ -212,6 +222,9 @@ pub async fn run_shell_session(
     )?;
     terminal::enable_raw_mode()?;
 
+    if no_shell {
+        return Err("No shell found in the container".into());
+    }
     Ok(())
 }
 

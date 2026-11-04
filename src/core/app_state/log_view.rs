@@ -1,6 +1,7 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{ContainerKey, LogState, RenderAction, ViewState};
 use crate::docker::logs::{LogEntry, fetch_older_logs};
+use crate::ui::rex_panes::PaneKind;
 
 impl AppState {
     pub(super) fn handle_enter_pressed(&mut self) -> RenderAction {
@@ -37,10 +38,35 @@ impl AppState {
             return RenderAction::None;
         };
 
-        let Some(container_key) = self.sorted_container_keys.get(selected_idx) else {
+        let Some(container_key) = self.sorted_container_keys.get(selected_idx).cloned() else {
             return RenderAction::None;
         };
 
+        if let Some(action) = self.open_in_rex_pane(PaneKind::Logs, &container_key) {
+            return action;
+        }
+
+        self.open_log_view(&container_key)
+    }
+
+    /// `dtop logs <id>`: opens the log view once the container is listed
+    pub(super) fn open_pending_logs(&mut self) -> Option<RenderAction> {
+        let wanted = self.logs_only.as_deref()?;
+        if self.quit_with_log_view {
+            return None;
+        }
+        let key = self
+            .containers
+            .keys()
+            .find(|key| {
+                key.container_id.starts_with(wanted) || wanted.starts_with(&key.container_id)
+            })?
+            .clone();
+        self.quit_with_log_view = true;
+        Some(self.open_log_view(&key))
+    }
+
+    fn open_log_view(&mut self, container_key: &ContainerKey) -> RenderAction {
         // Get container creation time for progress calculation
         let container_created_at = self.containers.get(container_key).and_then(|c| c.created);
 
@@ -84,6 +110,11 @@ impl AppState {
             && let Some(handle) = state.stream_handle.take()
         {
             handle.abort();
+        }
+
+        // `dtop logs <id>` exists only for this log view
+        if self.quit_with_log_view {
+            self.should_quit = true;
         }
 
         // Switch back to container list view

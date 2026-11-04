@@ -177,7 +177,8 @@ pub async fn connect_and_verify_host(host_config: &HostConfig) -> Result<DockerH
         filters,
         is_local_spec(host_spec),
     )
-    .with_ssh(ssh);
+    .with_ssh(ssh)
+    .with_spec(host_spec);
 
     // Verify the connection actually works by pinging Docker with timeout
     debug!("Pinging Docker daemon at host: {}", host_spec);
