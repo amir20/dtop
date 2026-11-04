@@ -37,11 +37,8 @@ impl std::str::FromStr for IconMode {
 }
 
 impl IconMode {
-    /// Resolves `Auto` by asking the terminal what it is.
-    ///
-    /// Must run in raw mode, before anything else reads stdin, or the reply is
-    /// either echoed or eaten as keystrokes.
-    pub fn resolve(self) -> IconStyle {
+    /// Resolves `Auto` from the terminal's XTVERSION name (`terminal_probe`).
+    pub fn resolve(self, probed_name: Option<&str>) -> IconStyle {
         match self {
             IconMode::Fixed(style) => style,
             IconMode::Auto => {
@@ -54,8 +51,8 @@ impl IconMode {
                     env("TMUX").is_some()
                         && tmux_client_termtype().is_some_and(|name| has_builtin_nerd_font(&name))
                 } else {
-                    match probe_xtversion() {
-                        Some(name) => has_builtin_nerd_font(&name),
+                    match probed_name {
+                        Some(name) => has_builtin_nerd_font(name),
                         None => env_has_builtin_nerd_font(&env),
                     }
                 };
@@ -68,10 +65,6 @@ impl IconMode {
         }
     }
 }
-
-/// How long to wait for the terminal's replies. One round trip over SSH can
-/// take 200ms+, and only terminals that answer neither query ever hit this.
-const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 fn in_multiplexer(env: &impl Fn(&str) -> Option<String>) -> bool {
     let term = env("TERM").unwrap_or_default();
@@ -115,23 +108,6 @@ fn env_has_builtin_nerd_font(env: &impl Fn(&str) -> Option<String>) -> bool {
         || env("TERM").is_some_and(|t| t == "xterm-ghostty")
 }
 
-/// Extracts the terminal name from an XTVERSION reply (`ESC P > | name ESC \`).
-fn parse_xtversion(buf: &[u8]) -> Option<String> {
-    let start = buf.windows(4).position(|w| w == b"\x1bP>|")? + 4;
-    let rest = &buf[start..];
-    let end = rest.iter().position(|&b| b == 0x1b || b == 0x07)?;
-    Some(String::from_utf8_lossy(&rest[..end]).into_owned())
-}
-
-/// Whether `buf` ends with a primary device attributes reply (`ESC [ ? ... c`).
-/// Every terminal answers DA1, and replies come back in order, so once it is
-/// here there is no XTVERSION reply still on its way.
-fn has_da1_reply(buf: &[u8]) -> bool {
-    buf.windows(3)
-        .rposition(|w| w == b"\x1b[?")
-        .is_some_and(|i| buf[i + 3..].contains(&b'c'))
-}
-
 /// The outer terminal's XTVERSION answer, as tmux recorded it when the client
 /// attached (`#{client_termtype}`, empty before tmux 3.3 or if it didn't answer).
 fn tmux_client_termtype() -> Option<String> {
@@ -143,7 +119,7 @@ fn tmux_client_termtype() -> Option<String> {
         .spawn()
         .ok()?;
     // tmux answers from memory, but don't let a wedged server hold up startup
-    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
+    let deadline = std::time::Instant::now() + super::terminal_probe::PROBE_TIMEOUT;
     while child.try_wait().ok()?.is_none() {
         if std::time::Instant::now() >= deadline {
             let _ = child.kill();
@@ -155,58 +131,6 @@ fn tmux_client_termtype() -> Option<String> {
     let output = child.wait_with_output().ok()?;
     let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
     (output.status.success() && !name.is_empty()).then_some(name)
-}
-
-/// Asks the terminal its name with XTVERSION, followed by DA1 as a sentinel so
-/// a terminal that ignores XTVERSION costs one round trip, not the timeout.
-/// The query travels in-band, so this works when dtop runs over SSH.
-///
-/// A reply that arrives after the timeout (a link with a round trip over 1s)
-/// reaches the keyboard worker as keystrokes. Terminals that don't support these
-/// queries never answer at all, so only such slow links are affected.
-#[cfg(unix)]
-fn probe_xtversion() -> Option<String> {
-    use std::io::{IsTerminal, Read, Write};
-    use std::os::fd::AsRawFd;
-
-    let mut stdin = std::io::stdin();
-    let mut stdout = std::io::stdout();
-    if !stdin.is_terminal() || !stdout.is_terminal() {
-        return None;
-    }
-    stdout.write_all(b"\x1b[>0q\x1b[c").ok()?;
-    stdout.flush().ok()?;
-
-    let deadline = std::time::Instant::now() + PROBE_TIMEOUT;
-    let mut buf = Vec::new();
-    let mut chunk = [0u8; 256];
-    while !has_da1_reply(&buf) {
-        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-        let mut fds = libc::pollfd {
-            fd: stdin.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        // SAFETY: one valid pollfd, and the count matches.
-        let ready = unsafe { libc::poll(&mut fds, 1, remaining.as_millis() as libc::c_int) };
-        if ready < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
-            // A signal (e.g. SIGWINCH from a resize) is not the end of the reply
-            continue;
-        }
-        if ready <= 0 {
-            break;
-        }
-        match stdin.read(&mut chunk) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => buf.extend_from_slice(&chunk[..n]),
-        }
-    }
-    parse_xtversion(&buf)
-}
-
-#[cfg(not(unix))]
-fn probe_xtversion() -> Option<String> {
-    None
 }
 
 impl std::fmt::Display for IconStyle {
@@ -326,32 +250,15 @@ mod tests {
     }
 
     #[test]
-    fn test_fixed_mode_does_not_probe() {
-        assert_eq!(IconMode::Fixed(IconStyle::Nerd).resolve(), IconStyle::Nerd);
+    fn test_fixed_mode_ignores_the_probe() {
         assert_eq!(
-            IconMode::Fixed(IconStyle::Unicode).resolve(),
+            IconMode::Fixed(IconStyle::Nerd).resolve(Some("XTerm(390)")),
+            IconStyle::Nerd
+        );
+        assert_eq!(
+            IconMode::Fixed(IconStyle::Unicode).resolve(Some("ghostty 1.3.2")),
             IconStyle::Unicode
         );
-    }
-
-    #[test]
-    fn test_parse_xtversion() {
-        // Captured from Ghostty over SSH: XTVERSION reply, then DA1.
-        let reply = b"\x1bP>|ghostty 1.3.2-main+b1d9492cf\x1b\\\x1b[?62;22;52c";
-        assert!(has_da1_reply(reply));
-        assert_eq!(
-            parse_xtversion(reply).as_deref(),
-            Some("ghostty 1.3.2-main+b1d9492cf")
-        );
-
-        // A terminal that ignores XTVERSION answers DA1 alone.
-        let da1_only = b"\x1b[?1;2c";
-        assert!(has_da1_reply(da1_only));
-        assert_eq!(parse_xtversion(da1_only), None);
-
-        // XTVERSION arrived but DA1 hasn't yet: keep reading.
-        assert!(!has_da1_reply(b"\x1bP>|WezTerm 20240203\x1b\\"));
-        assert!(!has_da1_reply(b"\x1bP>|WezTerm 20240203\x1b\\\x1b[?62;2"));
     }
 
     #[test]

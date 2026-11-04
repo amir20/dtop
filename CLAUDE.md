@@ -157,8 +157,13 @@ Each host entry is a struct with:
 
 Global config options:
 - `icons`: Icon style to use ("auto", "unicode" or "nerd"). `auto` (`ui/icons.rs::IconMode::resolve`)
-  sends XTVERSION followed by DA1 right after raw mode is enabled and before the keyboard worker
-  starts (which would otherwise eat the reply). DA1 is the sentinel: every terminal answers it, so a
+  uses the XTVERSION name from `ui/terminal_probe.rs::probe`, which sends XTVERSION, OSC 11
+  (background color) and DA1 in one round trip, right after raw mode is enabled and before the
+  keyboard worker starts (which would otherwise eat the reply). The probe runs for every icon mode,
+  since the background is used too: on a light background (`is_light`) the selected row is the
+  background darkened 15% (`UiStyles::with_background`) instead of dark gray, which on a light theme
+  holds dark text that can't be read. That bar is a truecolor `Color::Rgb`; a terminal that
+  answers OSC 11 but lacks truecolor may approximate it. DA1 is the sentinel: every terminal answers it, so a
   terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
   WezTerm, Rex and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
   over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
@@ -573,6 +578,36 @@ and control characters are dropped since host names come from the config. The pr
 is pushed onto the terminal's title stack (`CSI 22;0t`) at startup. On exit dtop sets an empty
 title and then pops it (`CSI 23;0t`): terminals without a title stack (Rex) then show their
 default rather than dtop's last title.
+
+### Program Status (OSC 7501)
+
+`ui/program_status.rs` tells the terminal what dtop is doing with the
+[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status),
+so a terminal that supports it (Rex) can flag dtop's tab while you look elsewhere.
+Unsupporting terminals ignore the sequence, so it is always sent and has no setting.
+
+- Root record: `working` (with progress) while a bulk action runs, then `done` or `error`
+  with the toast's summary (`AppState::last_bulk_outcome`); `idle` before the first one.
+  The outcome stays until the next bulk action on purpose: per the protocol, `done`/`error`
+  mean "not seen yet", and the terminal (not the program) decides when the user has seen it.
+  A batch dropped without finishing (host disconnect, 60s of silence) leaves no outcome: the
+  root falls back to the previous one, and the disconnect has its own `host/` record.
+- Ids are sanitized to the protocol's segment grammar; a sanitized or truncated segment gets
+  a hash of the original appended, so `user@box` and `user_box` don't share a record.
+- `host/<host>`: `error` while the host is disconnected.
+- `container/<host>/<id>`: `error` while a *running* container is unhealthy.
+- The event loop writes only changed records, straight to the backend outside ratatui's
+  buffer (a cell can't carry an escape sequence, see OSC 8 above). `cleanup_terminal` clears
+  every record, since `error` records outlive the process; it runs even when the event loop
+  fails.
+- A bulk action's progress also goes out as OSC 9;4 (the tab/taskbar progress bar), but only
+  to terminals known to draw it (`supports_progress_bar`: Windows Terminal, ConEmu, Ghostty,
+  WezTerm, not under tmux). Older iTerm2, kitty and others read any OSC 9 as a desktop
+  notification and would pop one up per progress step. Detection is by env var, so it can't
+  see versions (Ghostty < 1.2 and older WezTerm also treat OSC 9 as a notification, the same
+  risk cargo takes), and over SSH, where those variables are lost, no bar is sent.
+- Exits with a non-zero code are not reported: `docker stop` on an image that ignores
+  SIGTERM exits 137, which would flag every routine stop.
 
 ### Configuration Loading
 

@@ -358,12 +358,13 @@ impl AppState {
             self.bulk_progress.swap_remove(index);
             if failed > 0 && total == 1 {
                 // The container's own error toast already says what happened
+                let name = self.action_target_name(key);
+                let reason = last_error.unwrap_or_default();
+                self.last_bulk_outcome = Some((true, format!("{name}: {reason}")));
             } else if failed == 0 {
-                self.show_action_notification(
-                    &format!("{done} {}", containers_word(total)),
-                    Duration::from_secs(2),
-                    false,
-                );
+                let summary = format!("{done} {}", containers_word(total));
+                self.show_action_notification(&summary, Duration::from_secs(2), false);
+                self.last_bulk_outcome = Some((false, summary));
             } else {
                 // There is one notification slot, so earlier failures' toasts
                 // are already gone; keep the latest reason in the summary
@@ -372,14 +373,12 @@ impl AppState {
                     Some(error) => format!(", last: {error}"),
                     None => String::new(),
                 };
-                self.show_action_notification(
-                    &format!(
-                        "{done} {} of {total} containers ({failed} failed{reason})",
-                        total - failed
-                    ),
-                    Duration::from_secs(6),
-                    true,
+                let summary = format!(
+                    "{done} {} of {total} containers ({failed} failed{reason})",
+                    total - failed
                 );
+                self.show_action_notification(&summary, Duration::from_secs(6), true);
+                self.last_bulk_outcome = Some((true, summary));
             }
         }
         true

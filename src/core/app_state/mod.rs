@@ -121,6 +121,9 @@ pub struct AppState {
     /// Text to put on the clipboard with OSC 52, taken by the event loop,
     /// which owns the terminal
     pub clipboard_request: Option<String>,
+    /// How the last finished bulk action went (failed, summary), for the
+    /// terminal's program status (`ui/program_status.rs`)
+    pub(crate) last_bulk_outcome: Option<(bool, String)>,
     /// The bulk action picked once and awaiting a confirming Enter (Remove)
     pub armed_bulk_action: Option<ContainerAction>,
     /// The containers the armed action was shown to hit; a confirming Enter
@@ -185,6 +188,7 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             clipboard_request: None,
+            last_bulk_outcome: None,
             armed_bulk_action: None,
             armed_bulk_targets: HashSet::new(),
             reset_confirm_pending: false,
