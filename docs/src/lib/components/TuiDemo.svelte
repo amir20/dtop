@@ -22,13 +22,20 @@
    * - `src/ui/formatters.rs`: `write_byte_value`
    * - `src/ui/icons.rs`, and default columns in `src/core/types.rs`
    * - `src/ui/app_logos.rs` / `name_with_logo`: a 2-cell logo and a space before each name
+   * - `src/ui/log_view.rs` (the pane's title and wrapped lines) and
+   *   `src/ui/window_title.rs` (the tab title)
+   *
+   * On a loop it also shows `--rex-panes`: → on a container splits a pane in
+   * with dtop's log view, dtop re-lays out for the narrower width, and Esc
+   * closes it again.
    */
   const version = cargoToml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] ?? "";
 
   // Terminal size in cells. The grid is scaled so this many columns fill the panel.
   const COLS = 160;
-  // The list block's proportional(1) padding: 2 cells left and right
-  const INNER = COLS - 4;
+  // With the logs pane open: dtop's pane, then a 1-cell divider, then the logs pane
+  const SPLIT_COLS = 116;
+  const LOG_COLS = COLS - SPLIT_COLS - 1;
   const BAR = 20;
   const ALPHA = 0.3;
   const TICK_MS = 500;
@@ -83,7 +90,14 @@
   );
 
   // The row the cursor is on, highlighted like ratatui's row_highlight_style
-  const SELECTED = 1;
+  let selected = $state(1);
+  // Whether the logs pane is open (`--rex-panes`)
+  let split = $state(false);
+  // dtop's terminal width, and the list block's proportional(1) padding: 2 cells left and right
+  let cols = $derived(split ? SPLIT_COLS : COLS);
+  let inner = $derived(cols - 4);
+  // `render_container_list`: progress bars only from 128 columns
+  let bars = $derived(cols >= 128);
 
   // `src/ui/icons.rs` (unicode set): health wins over state when present
   const icons = {
@@ -140,22 +154,24 @@
 
   // ---- Container table (`column_constraints`, spacing 1, Name takes the rest)
 
-  const columns = [
+  let columns = $derived([
     ["ID", 12],
     ["", 1],
     ["Name", 0],
     ["Host", 20],
-    ["CPU %", 28],
-    ["Memory %", 33],
+    ["CPU %", bars ? 28 : 7],
+    ["Memory %", bars ? 33 : 7],
     ["Net TX", 12],
     ["Net RX", 12],
     ["Created ▼", 15],
-  ];
-  const fixed = columns.reduce((sum, [, width]) => sum + width, 0) + columns.length - 1;
-  const widths = columns.map(([, width]) => width || INNER - fixed);
+  ]);
+  let widths = $derived.by(() => {
+    const fixed = columns.reduce((sum, [, width]) => sum + width, 0) + columns.length - 1;
+    return columns.map(([, width]) => width || inner - fixed);
+  });
 
   /** One table row as segments, each cell clipped/padded to its column. */
-  function tableRow(cells) {
+  function tableRow(cells, widths) {
     const out = [];
     cells.forEach((cell, i) => {
       const width = widths[i];
@@ -182,12 +198,16 @@
         [seg(icon, iconCls)],
         [row.logo ? img(row.logo, 2) : seg("  "), seg(` ${row.name}`)],
         row.host,
-        [bar(row.cpu, BAR, tone(row.cpu)), seg(` ${pct(row.cpu)}`, tone(row.cpu))],
-        [bar(memPct, BAR, tone(memPct)), seg(` ${size(row.mem)}/${size(row.limit)}`, tone(memPct))],
+        bars
+          ? [bar(row.cpu, BAR, tone(row.cpu)), seg(` ${pct(row.cpu)}`, tone(row.cpu))]
+          : [seg(pct(row.cpu), tone(row.cpu))],
+        bars
+          ? [bar(memPct, BAR, tone(memPct)), seg(` ${size(row.mem)}/${size(row.limit)}`, tone(memPct))]
+          : [seg(pct(memPct), tone(memPct))],
         rate(row.tx),
         rate(row.rx),
         ago(row.age),
-      ]);
+      ], widths);
     }),
   );
 
@@ -289,12 +309,12 @@
     let chosen = null;
     for (let level = 5; level >= 0; level--) {
       const needed = Math.max(...headerTexts.map((t) => textWidth(t, level)));
-      const barWidth = Math.max(0, Math.floor(Math.max(0, INNER - needed) / 2) - 1);
+      const barWidth = Math.max(0, Math.floor(Math.max(0, inner - needed) / 2) - 1);
       if (level >= 2 && barWidth >= MIN_BAR_WIDTH) {
         chosen = [level, barWidth];
         break;
       }
-      if (!chosen && needed <= INNER) chosen = [level, 0];
+      if (!chosen && needed <= inner) chosen = [level, 0];
     }
     const [level, barWidth] = chosen ?? [0, 0];
 
@@ -325,14 +345,105 @@
     });
   });
 
-  const headerRow = tableRow(columns.map(([title]) => title));
+  let headerRow = $derived(tableRow(columns.map(([title]) => title), widths));
+
+  // ---- The logs pane (`render_log_view`): title on the top row, lines wrapped to the width
+
+  const LOG_POOL = [
+    "checkpoint starting: time",
+    "checkpoint complete: wrote 35 buffers (0.1%); write=3.4 s, sync=0.02 s",
+    "connection received: host=10.0.4.7 port=51344",
+    "connection authorized: user=app database=orders",
+    "automatic vacuum of table \"orders.public.line_items\": index scans: 1",
+    "duration: 812.4 ms  statement: SELECT * FROM orders WHERE status = 'open'",
+    "disconnection: session time: 0:00:04.912 user=app database=orders",
+  ];
+  let logEntries = $state([]);
+  let logSeq = 0;
+  let clock = 21 * 3600 + 10 * 60 + 2;
+
+  function pushLog() {
+    clock += 1 + (logSeq % 3);
+    const t = clock % 86400;
+    const hh = String(Math.floor(t / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((t % 3600) / 60)).padStart(2, "0");
+    const ss = String(t % 60).padStart(2, "0");
+    logEntries = [...logEntries, { ts: `2026-11-03 ${hh}:${mm}:${ss}`, msg: LOG_POOL[logSeq++ % LOG_POOL.length] }].slice(-24);
+  }
+
+  let logTitle = "Logs: postgres-db (ops@db-eu) - Press ESC to return [LIVE]";
+
+  /** Each entry wrapped to the pane width (`Wrap { trim: false }`), newest last. */
+  let logLines = $derived.by(() => {
+    const lines = [];
+    for (const entry of logEntries) {
+      const text = `${entry.ts} ${entry.msg}`;
+      for (let i = 0; i < text.length; i += LOG_COLS) {
+        const chunk = text.slice(i, i + LOG_COLS);
+        if (i === 0) {
+          lines.push([seg(chunk.slice(0, entry.ts.length), "font-semibold text-(--c-warn)"), seg(chunk.slice(entry.ts.length))]);
+        } else {
+          lines.push([seg(chunk)]);
+        }
+      }
+    }
+    // The pane is as tall as dtop's screen; show the newest that fit
+    return lines.slice(-(rows.length + 8));
+  });
+
+  // `window_title.rs`: the tab title follows the focused pane
+  let tabTitle = $derived(split ? "dtop · logs · postgres-db" : "dtop · 3 hosts");
+  // The key the viewer just "pressed", shown briefly
+  let pressed = $state("");
 
   let title = $derived(
     `dtop v${version} - ${rows.length} containers ('?' for help, 'q' to quit)`,
   );
 
   onMount(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // A still frame of the split
+      selected = 3;
+      for (let i = 0; i < 8; i++) pushLog();
+      split = true;
+      return;
+    }
+
+    // The pane script: select postgres-db, → opens logs beside dtop, Esc closes it
+    const timers = [];
+    let logTimer;
+    const press = (key) => {
+      pressed = key;
+      timers.push(setTimeout(() => (pressed = ""), 700));
+    };
+    const script = [
+      [2500, () => { press("↓"); selected = 2; }],
+      [600, () => { press("↓"); selected = 3; }],
+      [1200, () => {
+        press("→");
+        logEntries = [];
+        for (let i = 0; i < 6; i++) pushLog();
+        split = true;
+        logTimer = setInterval(pushLog, 900);
+      }],
+      [8000, () => {
+        press("Esc");
+        clearInterval(logTimer);
+        split = false;
+      }],
+      [3000, () => { press("↑"); selected = 2; }],
+      [600, () => { press("↑"); selected = 1; }],
+    ];
+    let step = 0;
+    const next = () => {
+      const [delay, action] = script[step];
+      timers.push(setTimeout(() => {
+        action();
+        step = (step + 1) % script.length;
+        next();
+      }, delay));
+    };
+    next();
 
     const timer = setInterval(() => {
       // Same tick as the rows, so the header and table update in one frame
@@ -368,7 +479,11 @@
       });
     }, TICK_MS);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearInterval(logTimer);
+      timers.forEach(clearTimeout);
+    };
   });
 </script>
 
@@ -381,27 +496,54 @@
 {/snippet}
 
 <div class="panel overflow-hidden" data-tui-demo>
-  <div class="flex items-center gap-1.5 border-b border-(--c-line) bg-(--c-surface-2) px-3.5 py-2.5">
+  <div class="flex items-center gap-1.5 border-b border-(--c-line) bg-(--c-surface-2) px-3.5 py-2">
     {#each [0, 1, 2] as _}
       <span class="size-2.5 rounded-full bg-(--c-line-2)"></span>
     {/each}
+    <!-- Tabs: dtop's title (OSC 0) and its status (OSC 7501: worker-etl is unhealthy) -->
+    <div class="ml-3 flex min-w-0 items-center gap-1 font-mono text-[0.6875rem]">
+      <span
+        class="flex min-w-0 items-center gap-1.5 rounded-md border border-(--c-line-2) bg-(--c-surface) px-2.5 py-1 text-(--c-text)"
+        title="Flagged by dtop: worker-etl is unhealthy"
+      >
+        <span class="size-1.5 shrink-0 rounded-full bg-(--c-crit)"></span>
+        <span class="truncate">{tabTitle}</span>
+      </span>
+      <span class="hidden px-2.5 py-1 text-(--c-text-dim) sm:inline">zsh</span>
+    </div>
+    <kbd
+      class="ml-auto min-w-7 rounded border border-(--c-line-2) bg-(--c-surface) px-1.5 py-0.5 text-center font-mono text-[0.6875rem] text-(--c-text-muted) transition-opacity duration-300"
+      class:opacity-0={!pressed}
+      aria-hidden="true">{pressed || "→"}</kbd
+    >
   </div>
 
-  <div class="overflow-x-auto px-2 py-2 [container-type:inline-size]">
-    <!-- The <pre> is whitespace-exact: reformatting it shifts the grid -->
-    <!-- prettier-ignore -->
-    <pre
-      class="w-max min-w-full font-mono text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)"
-      role="img"
-      aria-label="dtop showing live CPU, memory and network stats for containers across three Docker hosts">{title}
+  <div
+    class="overflow-x-auto px-2 py-2 [container-type:inline-size]"
+    role="img"
+    aria-label="dtop showing live stats for containers across three Docker hosts; pressing the right arrow opens a container's logs in a terminal pane beside it"
+  >
+    <div class="flex w-max min-w-full font-mono text-[max(7px,calc(100cqw/(160*0.6)))] leading-[1.3] text-(--c-text)">
+      <!-- The <pre> is whitespace-exact: reformatting it shifts the grid -->
+      <!-- prettier-ignore -->
+      <pre class="shrink-0 overflow-hidden" style="width: {cols}ch">{title}
 
 {#each headerLines as segments}  {@render line(segments)}
 {/each}
 <span class={CYAN_BOLD}>  {@render line(headerRow)}</span>
 
-{#each containerLines as segments, i}{#if i === SELECTED}  <span
+{#each containerLines as segments, i}{#if i === selected}  <span
           class="bg-(--c-line-2) font-semibold">{@render line(segments)}</span
         >{:else}  {@render line(segments)}{/if}
 {/each}</pre>
+      {#if split}
+        <!-- prettier-ignore -->
+        <pre
+          class="shrink-0 overflow-hidden border-l border-(--c-line-2) pl-[1ch] animate-reveal"
+          style="width: {LOG_COLS + 1}ch">{logTitle.slice(0, LOG_COLS)}
+{#each logLines as segments}{@render line(segments)}
+{/each}</pre>
+      {/if}
+    </div>
   </div>
 </div>

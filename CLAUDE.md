@@ -70,8 +70,12 @@ bun run preview                              # Preview production build
 ```
 
 The animated TUI on the home page (`docs/src/lib/components/TuiDemo.svelte`) hand-ports dtop's
-rendering (column widths, header bar fitting, formatters, icons). Update it when changing
-`src/ui/container_list.rs`, `src/ui/system_header.rs`, `src/ui/formatters.rs` or the default columns.
+rendering (column widths, header bar fitting, formatters, icons, the narrow layout below 128
+columns, the log view and the tab title). It also plays a `--rex-panes` loop: → splits in a logs
+pane and dtop re-lays out at 116 columns. Update it when changing `src/ui/container_list.rs`,
+`src/ui/system_header.rs`, `src/ui/formatters.rs`, `src/ui/log_view.rs`, `src/ui/window_title.rs`
+or the default columns. The feature rows below it (`ShowcaseSection.svelte`) make claims about
+behaviour (pooled SSH, bulk actions, Rex support); keep them true when that behaviour changes.
 
 ## Nix Flake
 

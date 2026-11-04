@@ -1,7 +1,7 @@
 <script>
   import NavBar from "#lib/components/NavBar.svelte";
   import HeroSection from "#lib/components/HeroSection.svelte";
-  import FeaturesSection from "#lib/components/FeaturesSection.svelte";
+  import ShowcaseSection from "#lib/components/ShowcaseSection.svelte";
   import ConfigSection from "#lib/components/ConfigSection.svelte";
   import CliSection from "#lib/components/CliSection.svelte";
   import UsageSection from "#lib/components/UsageSection.svelte";
@@ -16,7 +16,7 @@
 <div id="main" class="min-h-screen overflow-x-hidden">
   <NavBar />
   <HeroSection />
-  <FeaturesSection />
+  <ShowcaseSection />
   <ConfigSection />
   <CliSection />
   <UsageSection />

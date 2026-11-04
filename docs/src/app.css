@@ -68,6 +68,7 @@
     --c-purple: #a38bd0;
     --c-orange: #d9a441;
     --c-cyan: #63b7be;
+    --c-magenta: #c58ad6;
   }
 
   :root:not(.dark) {
@@ -94,6 +95,7 @@
     --c-purple: #6e55a0;
     --c-orange: #9a6c10;
     --c-cyan: #2a7f87;
+    --c-magenta: #8e3fa6;
   }
 
   html {
