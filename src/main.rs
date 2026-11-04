@@ -466,7 +466,7 @@ async fn run_event_loop(
         render_ui(f, &mut state, &styles);
     })?;
 
-    let mut program_status = ProgramStatus::default();
+    let mut program_status = ProgramStatus::for_terminal();
 
     while !state.should_quit {
         report_program_status(terminal, &mut program_status, &state)?;
