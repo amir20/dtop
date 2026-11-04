@@ -428,6 +428,15 @@ impl AppState {
             return RenderAction::StartShell(container_key_clone);
         }
 
+        if action == ContainerAction::CopyId {
+            // Written to the terminal as OSC 52 by the event loop
+            self.clipboard_request = Some(container_key.container_id.clone());
+            self.show_notification(&format!("Copied {}", container_key.container_id));
+            self.view_state = ViewState::ContainerList;
+            self.action_menu_state.select(None);
+            return RenderAction::Render;
+        }
+
         if action == ContainerAction::Details {
             tokio::spawn(crate::docker::details::fetch_container_details(
                 host.clone(),

@@ -275,6 +275,7 @@ pub enum ContainerAction {
     Remove,
     Shell,
     Details,
+    CopyId,
 }
 
 impl ContainerAction {
@@ -287,6 +288,7 @@ impl ContainerAction {
             ContainerAction::Remove => "Remove",
             ContainerAction::Shell => "Shell",
             ContainerAction::Details => "Details",
+            ContainerAction::CopyId => "Copy ID",
         }
     }
 
@@ -302,11 +304,13 @@ impl ContainerAction {
             ContainerAction::Shell => ("Opening shell in", "Closed shell in"),
             // Not reported either: details open a popup, not a background action
             ContainerAction::Details => ("Inspecting", "Inspected"),
+            // Nor this: the ID goes straight to the clipboard
+            ContainerAction::CopyId => ("Copying ID of", "Copied ID of"),
         }
     }
 
-    /// Returns all available actions for a given container state. Details is
-    /// offered in every state, last, since it only reads.
+    /// Returns all available actions for a given container state. Details and
+    /// Copy ID are offered in every state, last, since they only read.
     pub fn available_for_state(state: &ContainerState) -> Vec<ContainerAction> {
         let mut actions = match state {
             ContainerState::Running => vec![
@@ -323,6 +327,7 @@ impl ContainerAction {
             ContainerState::Unknown => vec![],
         };
         actions.push(ContainerAction::Details);
+        actions.push(ContainerAction::CopyId);
         actions
     }
 

@@ -289,6 +289,7 @@ impl Icons {
                 ContainerAction::Remove => "✕",
                 ContainerAction::Shell => ">_",
                 ContainerAction::Details => "ℹ",
+                ContainerAction::CopyId => "⧉",
             },
             IconStyle::Nerd => match action {
                 ContainerAction::Start => "\u{f04b}",   // nf-fa-play
@@ -297,6 +298,7 @@ impl Icons {
                 ContainerAction::Remove => "\u{f1f8}",  // nf-fa-trash
                 ContainerAction::Shell => "\u{f120}",   // nf-fa-terminal
                 ContainerAction::Details => "\u{f05a}", // nf-fa-info_circle
+                ContainerAction::CopyId => "\u{f0c5}",  // nf-fa-copy
             },
         }
     }

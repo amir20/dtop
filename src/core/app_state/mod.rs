@@ -118,6 +118,9 @@ pub struct AppState {
     /// Bulk actions still in flight, each reported as one summary toast.
     /// Several can overlap, e.g. Stop on some containers, then Remove on others.
     pub(crate) bulk_progress: Vec<BulkProgress>,
+    /// Text to put on the clipboard with OSC 52, taken by the event loop,
+    /// which owns the terminal
+    pub clipboard_request: Option<String>,
     /// The bulk action picked once and awaiting a confirming Enter (Remove)
     pub armed_bulk_action: Option<ContainerAction>,
     /// The containers the armed action was shown to hit; a confirming Enter
@@ -181,6 +184,7 @@ impl AppState {
             action_names: HashMap::new(),
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
+            clipboard_request: None,
             armed_bulk_action: None,
             armed_bulk_targets: HashSet::new(),
             reset_confirm_pending: false,
