@@ -651,12 +651,16 @@ The application supports interactive container management through an action menu
   filled by one inspect (`docker/details.rs`): image, command, created/started, last exit code
   and OOM kill, restart policy and count, ports, mounts, networks, label count. Environment
   variables are deliberately left out, since they often hold secrets
+- **Copy ID**: Available in every state (after Details, never in the bulk menu). Sets
+  `AppState::clipboard_request`; the event loop writes it as OSC 52 (crossterm's `osc52`
+  feature), so the user's own terminal does the copy, including over SSH. Needs a terminal
+  that allows OSC 52 writes (tmux: `set -g set-clipboard on`); there is no way to confirm it
 
 **State-Based Availability:**
-- Running → Shell, Stop, Restart, Remove, Details
-- Paused → Stop, Remove, Details
-- Exited/Created/Dead → Start, Remove, Details
-- Restarting/Removing → Details only
+- Running → Shell, Stop, Restart, Remove, Details, Copy ID
+- Paused → Stop, Remove, Details, Copy ID
+- Exited/Created/Dead → Start, Remove, Details, Copy ID
+- Restarting/Removing → Details, Copy ID
 
 **Bulk Actions** (`core/app_state/selection.rs`):
 - Marks live in `AppState::marked_containers`; they are dropped with their container.

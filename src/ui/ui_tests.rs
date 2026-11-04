@@ -2824,6 +2824,32 @@ mod tests {
         );
     }
 
+    /// Copy ID hands the ID to the event loop (which writes OSC 52) and closes the menu.
+    #[test]
+    fn test_copy_id_requests_clipboard_write() {
+        // No host connected: copying needs none
+        let (mut state, keys) = create_bulk_state();
+        state.table_state.select(Some(0));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+        let last = crate::core::types::ContainerAction::available_for_state(
+            &state.containers[&keys[0]].state,
+        )
+        .len()
+            - 1;
+        state.action_menu_state.select(Some(last));
+        press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
+
+        assert_eq!(
+            state.clipboard_request.as_deref(),
+            Some(keys[0].container_id.as_str())
+        );
+        assert_eq!(state.view_state, ViewState::ContainerList);
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some(format!("Copied {}", keys[0].container_id).as_str())
+        );
+    }
+
     #[test]
     fn test_left_cancels_single_action_menu() {
         let (mut state, _) = create_bulk_state();

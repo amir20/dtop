@@ -17,6 +17,7 @@ static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingA
 use clap::Parser;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use crossterm::{
+    clipboard::CopyToClipboard,
     execute, queue,
     terminal::{
         BeginSynchronizedUpdate, EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen,
@@ -495,6 +496,16 @@ async fn run_event_loop(
 
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
+
+        // OSC 52: the terminal puts the text on the system clipboard, which
+        // also works over SSH since the user's local terminal does the copy
+        // Best-effort: a failed copy shouldn't end the session
+        if let Some(text) = state.clipboard_request.take() {
+            let _ = execute!(
+                terminal.backend_mut(),
+                CopyToClipboard::to_clipboard_from(text)
+            );
+        }
 
         // Clean up expired connection errors outside of render
         cleanup_expired_errors(&mut state);

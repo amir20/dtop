@@ -21,7 +21,7 @@ pub async fn execute_container_action(
         ContainerAction::Remove => host.remove_container(&container_key.container_id).await,
         // Shell is handled in main.rs via StartShell, and Details opens a
         // popup from AppState. These paths should never be reached
-        ContainerAction::Shell | ContainerAction::Details => return,
+        ContainerAction::Shell | ContainerAction::Details | ContainerAction::CopyId => return,
     };
 
     // Send result event
