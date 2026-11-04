@@ -17,6 +17,7 @@ use crate::ui::help::render_help_popup;
 use crate::ui::icons::{IconStyle, Icons};
 use crate::ui::log_view::render_log_view;
 use crate::ui::sort_selector::render_sort_selector;
+use crate::ui::terminal_probe::is_light;
 
 /// Pre-allocated styles to avoid recreation every frame
 pub struct UiStyles {
@@ -76,6 +77,21 @@ impl UiStyles {
     /// Enable or disable OSC 8 hyperlink rendering
     pub fn with_hyperlinks(mut self, enabled: bool) -> Self {
         self.hyperlinks = enabled;
+        self
+    }
+
+    /// Adapts the selection highlight to the terminal's background, if known.
+    /// The default dark gray bar holds the theme's default text, which is dark
+    /// on a light theme and can't be read there. No fixed text color fixes that
+    /// (light themes' "white" is often a mid gray), so on a light background the
+    /// bar is the background itself, slightly darkened, under the usual text.
+    pub fn with_background(mut self, background: Option<(u8, u8, u8)>) -> Self {
+        if let Some((r, g, b)) = background.filter(|&bg| is_light(bg)) {
+            let darken = |c: u8| (u16::from(c) * 85 / 100) as u8;
+            self.selected = self
+                .selected
+                .bg(Color::Rgb(darken(r), darken(g), darken(b)));
+        }
         self
     }
 }

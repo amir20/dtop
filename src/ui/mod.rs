@@ -11,6 +11,7 @@ pub mod log_view;
 pub mod render;
 pub mod sort_selector;
 pub mod system_header;
+pub mod terminal_probe;
 
 #[cfg(test)]
 mod alloc_tests;

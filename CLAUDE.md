@@ -157,8 +157,12 @@ Each host entry is a struct with:
 
 Global config options:
 - `icons`: Icon style to use ("auto", "unicode" or "nerd"). `auto` (`ui/icons.rs::IconMode::resolve`)
-  sends XTVERSION followed by DA1 right after raw mode is enabled and before the keyboard worker
-  starts (which would otherwise eat the reply). DA1 is the sentinel: every terminal answers it, so a
+  uses the XTVERSION name from `ui/terminal_probe.rs::probe`, which sends XTVERSION, OSC 11
+  (background color) and DA1 in one round trip, right after raw mode is enabled and before the
+  keyboard worker starts (which would otherwise eat the reply). The probe runs for every icon mode,
+  since the background is used too: on a light background (`is_light`) the selected row is the
+  background darkened 15% (`UiStyles::with_background`) instead of dark gray, which on a light theme
+  holds dark text that can't be read. DA1 is the sentinel: every terminal answers it, so a
   terminal that ignores XTVERSION costs one round trip, not the 1s timeout. Nerd icons on Ghostty,
   WezTerm, Rex and kitty >= 0.36, which bundle the glyphs; the query is in-band, so it works when dtop runs
   over SSH (where `TERM_PROGRAM` is lost and `TERM` is often rewritten). Falls back to
