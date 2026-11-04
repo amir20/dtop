@@ -233,8 +233,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Run the main TUI in async context
-    run_async(args)
+    match run_async(args) {
+        // The error is already on screen; exit non-zero without printing it again
+        Err(e) if e.is::<AlreadyReported>() => std::process::exit(1),
+        result => result,
+    }
 }
+
+/// An error already shown to the user (`dtop shell` holds it on screen)
+#[derive(Debug)]
+struct AlreadyReported;
+
+impl std::fmt::Display for AlreadyReported {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("already reported")
+    }
+}
+
+impl std::error::Error for AlreadyReported {}
 
 #[tokio::main]
 async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -366,8 +382,9 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             // A pane closes when dtop exits, so hold the error on screen
             eprintln!("{e}\n\nPress Enter to close");
             let _ = io::stdin().read_line(&mut String::new());
-            // Already shown; returning the error would print it again
-            std::process::exit(1);
+            // Already shown. Returned rather than `process::exit`, so the
+            // runtime shuts down and SSH masters are closed on the way out
+            return Err(AlreadyReported.into());
         }
         return Ok(());
     }
