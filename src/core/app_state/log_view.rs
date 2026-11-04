@@ -407,6 +407,7 @@ mod logs_only_tests {
             state,
             health: None,
             created: None,
+            started: None,
             stats: Default::default(),
             host_id: "nas".to_string(),
             dozzle_url: None,

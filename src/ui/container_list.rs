@@ -3,7 +3,9 @@ use crate::core::types::{
     Column, Container, ContainerKey, ContainerState, HealthStatus, SortState,
 };
 use crate::ui::app_logos;
-use crate::ui::formatters::{format_bytes_per_sec, format_time_elapsed, write_bytes};
+use crate::ui::formatters::{
+    format_bytes_per_sec, format_duration_since, format_time_elapsed, write_bytes,
+};
 use crate::ui::hyperlinks::Hyperlink;
 use crate::ui::render::UiStyles;
 use crate::ui::system_header::{header_height, render_system_header};
@@ -405,9 +407,14 @@ fn create_container_row<'a>(
                     Cell::from("")
                 }
             }
-            // Labelled "Created" and sorted by creation time for every state,
-            // so stopped containers show it too
-            Column::Uptime => Cell::from(format_time_elapsed(container.created.as_ref())),
+            // Empty until the backfill fills in the start time, and for stopped
+            // containers, whose last start says nothing about uptime
+            Column::Uptime => match container.started {
+                Some(started) if is_running => Cell::from(format_duration_since(started)),
+                _ => Cell::from(""),
+            },
+            // Every state has a creation time, so stopped containers show it too
+            Column::Created => Cell::from(format_time_elapsed(container.created.as_ref())),
             Column::Restarts => Cell::from(
                 container
                     .restart_count
@@ -537,7 +544,8 @@ fn create_header_row(
                 Column::NetRx => "Net RX",
                 Column::DiskRead => "Disk R",
                 Column::DiskWrite => "Disk W",
-                Column::Uptime => "Created",
+                Column::Uptime => "Uptime",
+                Column::Created => "Created",
                 Column::Restarts => "Restarts",
             };
             if *col == sort_field && !base_label.is_empty() {
@@ -596,6 +604,7 @@ fn column_constraints(
             Column::DiskRead => Constraint::Length(12),
             Column::DiskWrite => Constraint::Length(12),
             Column::Uptime => Constraint::Length(15),
+            Column::Created => Constraint::Length(15),
             Column::Restarts => Constraint::Length(10),
         })
         .collect()

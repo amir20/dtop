@@ -9,8 +9,8 @@ dtop vX.X.X - 3 containers ('?' for help, 'q' to quit)
   System  user@server1  CPU █████████  97.0% of  4 cores  MEM ████████░ 1.9G/2G      TX 8.00MB/s   RX 12.00MB/s   Load 3.90 3.50 2.80                 
   Docker  user@server1  CPU █████████  95.0% of  4 cores  MEM ███░░░░░░ 747M/2G                                   1/1 running                         
                                                                                                                                                       
-  ID             Name     Host                 CPU %                        Memory %                       Net TX       Net RX       Created ▼        
+  ID             Name     Host                 CPU %                        Memory %                       Net TX       Net RX       Uptime ▼         
                                                                                                                                                       
-  abc123456789 ▶ nginx    local                ████████████████████ 150.0%  █████████░░░░░░░░░░░ 431M/954M 1.0KB/s      2.0KB/s      1 hour ago       
-  bbb222222222 ▶ redis    local                ██████████░░░░░░░░░░  50.0%  ██████░░░░░░░░░░░░░░ 286M/954M 0B/s         0B/s         2 hours ago      
-  def987654321 ▶ postgres user@server1         ████████████████████ 380.0%  ████████████████░░░░ 747M/954M 0B/s         0B/s         4 hours ago
+  abc123456789 ▶ nginx    local                ████████████████████ 150.0%  █████████░░░░░░░░░░░ 431M/954M 1.0KB/s      2.0KB/s      1 hour           
+  bbb222222222 ▶ redis    local                ██████████░░░░░░░░░░  50.0%  ██████░░░░░░░░░░░░░░ 286M/954M 0B/s         0B/s         2 hours          
+  def987654321 ▶ postgres user@server1         ████████████████████ 380.0%  ████████████████░░░░ 747M/954M 0B/s         0B/s         4 hours

@@ -93,6 +93,7 @@ mod tests {
             state: ContainerState::Running,
             health: None,
             created,
+            started: created,
             stats: ContainerStats {
                 cpu,
                 memory,
@@ -186,8 +187,9 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            // Distinct creation times so the default uptime sort is deterministic
+            // Distinct start times so the default uptime sort is deterministic
             container.created = Some(chrono::Utc::now() - chrono::Duration::hours(i as i64 + 1));
+            container.started = container.created;
             state.handle_event(AppEvent::ContainerCreated(container));
         }
         state.handle_event(AppEvent::HostInfo(
@@ -1268,6 +1270,7 @@ mod tests {
                 state: ContainerState::Exited,
                 health: None,
                 created: Some(Utc::now() - chrono::Duration::days(1)),
+                started: None,
                 stats: ContainerStats::default(), // Stats should not be shown
                 host_id: "local".to_string(),
                 dozzle_url: None,
@@ -1282,6 +1285,7 @@ mod tests {
                 state: ContainerState::Dead,
                 health: None,
                 created: Some(Utc::now() - chrono::Duration::hours(3)),
+                started: None,
                 stats: ContainerStats::default(), // Stats should not be shown
                 host_id: "local".to_string(),
                 dozzle_url: None,

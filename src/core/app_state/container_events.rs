@@ -2,6 +2,7 @@ use crate::core::app_state::AppState;
 use crate::core::types::{
     Container, ContainerKey, ContainerState, ContainerStats, HealthStatus, RenderAction,
 };
+use chrono::{DateTime, Utc};
 
 impl AppState {
     pub(super) fn handle_initial_container_list(
@@ -118,18 +119,24 @@ impl AppState {
         RenderAction::Render // Force draw - health status changed (visible in UI)
     }
 
-    /// Applies a backfilled restart count.
+    /// Applies a backfilled restart count and start time.
     ///
     /// These arrive one per container right after startup, so this deliberately
     /// does not force a draw: the periodic render picks the values up, and the
-    /// sort throttle settles the ordering when sorting by `Restarts`.
-    pub(super) fn handle_container_restart_count(
+    /// sort throttle settles the ordering when sorting by `Restarts` or `Uptime`.
+    pub(super) fn handle_container_inspected(
         &mut self,
         key: ContainerKey,
-        count: i64,
+        restart_count: Option<i64>,
+        started: Option<DateTime<Utc>>,
     ) -> RenderAction {
         if let Some(container) = self.containers.get_mut(&key) {
-            container.restart_count = Some(count);
+            if restart_count.is_some() {
+                container.restart_count = restart_count;
+            }
+            if started.is_some() {
+                container.started = started;
+            }
         }
         RenderAction::None
     }

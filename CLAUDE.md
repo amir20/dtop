@@ -234,7 +234,8 @@ The `--sort` / `-s` option sets the default sort field for the container list:
 - **Config file**: `sort: <field>` in YAML
 
 **Available sort fields:**
-- `uptime` (or `u`) - Sort by container creation time (default, newest first)
+- `uptime` (or `u`) - Sort by when the container last started (default, newest first; stopped containers last)
+- `created` - Sort by container creation time
 - `name` (or `n`) - Sort by container name (alphabetically, ascending)
 - `cpu` (or `c`) - Sort by CPU usage (highest first)
 - `memory` (or `m`) - Sort by memory usage (highest first)
@@ -486,6 +487,7 @@ pub struct Container {
     pub state: ContainerState,              // Running, Paused, Exited, etc.
     pub health: Option<HealthStatus>,       // Healthy, Unhealthy, Starting (None if no health check)
     pub created: Option<DateTime<Utc>>,     // Container creation timestamp
+    pub started: Option<DateTime<Utc>>,     // Last start, from inspect (backfilled with restart counts)
     pub stats: ContainerStats,              // CPU, memory, network, disk I/O stats (updated in real-time)
     pub host_id: HostId,                    // Which Docker host this container belongs to
     pub dozzle_url: Option<String>,         // Dozzle URL for this container's host
@@ -858,7 +860,10 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
        (and the hyperlink overlay) stay correct. Hidden on terminals too short to fit
        it plus 8 list rows.
    - Dynamically shows/hides "Host" column (only shown when multiple hosts are connected)
-   - Displays: ID, Name, Host (conditional), CPU%, Memory%, PIDs, Net TX, Net RX, Disk R, Disk W, Uptime, Status
+   - Displays: ID, Name, Host (conditional), CPU%, Memory%, PIDs, Net TX, Net RX, Disk R, Disk W, Uptime, Created, Status
+   - Uptime is the time since the container last started (blank for stopped containers); Created
+     is the time since it was created, hidden by default. The list API carries no start time, so
+     it is filled in by the same inspect backfill as restart counts (`ContainerInspected`)
    - PIDs and Disk I/O columns (Disk R, Disk W) are hidden by default - enable via column selector ('c')
    - PIDs column shows the current number of processes/threads; when a PID limit is set it displays as `current/limit`
    - Progress bars with percentage indicators for CPU and Memory
@@ -887,7 +892,7 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
 
 **Sorting:** Containers can be sorted by multiple fields:
 - Default sort: Uptime (newest first, descending)
-- Sort fields: Uptime, Name, CPU, Memory, PIDs, Net TX, Net RX, Disk Read, Disk Write, ID, Host, Status, Restarts
+- Sort fields: Uptime, Name, CPU, Memory, PIDs, Net TX, Net RX, Disk Read, Disk Write, ID, Host, Status, Restarts, Created
 - Containers are sorted globally across all hosts by the selected field, with `host_id` as tiebreaker
 - Press 's' to open sort selector popup
 - In the sort popup, select a field to sort by; selecting the active field toggles direction

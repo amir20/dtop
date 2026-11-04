@@ -109,6 +109,7 @@ mod tests {
             state,
             health: None,
             created: None,
+            started: None,
             stats: ContainerStats {
                 cpu,
                 memory_used_bytes: 100,

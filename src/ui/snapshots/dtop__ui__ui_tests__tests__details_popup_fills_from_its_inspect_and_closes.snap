@@ -4,9 +4,9 @@ expression: output
 ---
 dtop vX.X.X - 1 container ('?' for help, 'q' to quit)                                               
                                                                                                     
-  ID             Name                    CPU %   Memory  Net TX       Net RX       Created ▼        
+  ID             Name                    CPU %   Memory  Net TX       Net RX       Uptime ▼         
                                                                                                     
-  abc123456789 ▶ nginx                    25.5%   45.2%  1.0KB/s      2.0KB/s      2 hours ago      
+  abc123456789 ▶ nginx                    25.5%   45.2%  1.0KB/s      2.0KB/s      2 hours          
                                                                                                     
                                                                                                     
                                                                                                     

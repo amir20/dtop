@@ -4,7 +4,7 @@ expression: output
 ---
 dtop vX.X.X - 2 containers ('?' for help, 'q' to quit)                                                                  
                                                                                                                         
-  ID             Name                   Ports                CPU %   Memory  Net TX       Net RX       Created ▼        
+  ID             Name                   Ports                CPU %   Memory  Net TX       Net RX       Uptime ▼         
                                                                                                                         
-  abc123def456 ▶ nginx                  53→53/udp, 8080→80    25.0%   50.0%  1.0KB/s      2.0KB/s      2 hours ago      
-  def987654321 ▶ worker                                       10.0%   20.0%  512B/s       1.0KB/s      2 hours ago
+  abc123def456 ▶ nginx                  53→53/udp, 8080→80    25.0%   50.0%  1.0KB/s      2.0KB/s      2 hours          
+  def987654321 ▶ worker                                       10.0%   20.0%  512B/s       1.0KB/s      2 hours

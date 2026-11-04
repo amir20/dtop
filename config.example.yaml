@@ -73,7 +73,7 @@ app_logos: true
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.
 # Omitted columns are hidden. Press 'c' in the UI to toggle columns interactively.
-# Possible values: status, name, id, host, compose, image, ports, cpu, memory, pids, net_tx, net_rx, disk_read, disk_write, uptime, restarts
+# Possible values: status, name, id, host, compose, image, ports, cpu, memory, pids, net_tx, net_rx, disk_read, disk_write, uptime, created, restarts
 # columns:
 #   - status
 #   - name

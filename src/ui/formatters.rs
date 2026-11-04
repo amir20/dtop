@@ -6,6 +6,11 @@ use std::sync::LazyLock;
 use timeago::Formatter;
 
 static TIMEAGO_FORMATTER: LazyLock<Formatter> = LazyLock::new(Formatter::new);
+static UPTIME_FORMATTER: LazyLock<Formatter> = LazyLock::new(|| {
+    let mut formatter = Formatter::new();
+    formatter.ago("");
+    formatter
+});
 
 const KB: f64 = 1024.0;
 const MB: f64 = KB * 1024.0;
@@ -71,6 +76,12 @@ pub fn format_bytes_per_sec(bytes_per_sec: f64) -> String {
 /// Writes bytes per second (KB/s, MB/s, GB/s) into an existing buffer.
 pub fn write_bytes_per_sec(buf: &mut String, bytes_per_sec: f64) {
     write_byte_value(buf, bytes_per_sec, "/s", true, (2, 2, 1, 0));
+}
+
+/// Formats how long ago `since` was without the "ago", for uptime ("3 hours")
+pub fn format_duration_since(since: chrono::DateTime<Utc>) -> String {
+    let elapsed = (Utc::now() - since).to_std().unwrap_or_default();
+    UPTIME_FORMATTER.convert(elapsed)
 }
 
 /// Formats the time elapsed since container creation
