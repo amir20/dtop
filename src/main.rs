@@ -382,6 +382,15 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Spawn keyboard worker in blocking thread
     spawn_keyboard_worker(tx.clone(), keyboard_paused.clone());
 
+    // Owned here so `cleanup_terminal` can undo what they wrote to the
+    // terminal even when the event loop fails
+    let app_logos = app_logos::terminal_supports_logos(reply.name.as_deref());
+    let mut logos = app_logos::Uploads::new(
+        app_logos,
+        reply.background.is_some_and(terminal_probe::is_light),
+    );
+    let mut program_status = ProgramStatus::for_terminal();
+
     // Run main event loop
     let result = run_event_loop(
         &mut terminal,
@@ -389,10 +398,12 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         tx.clone(),
         connected_hosts,
         keyboard_paused,
+        &mut logos,
+        &mut program_status,
         EventLoopConfig {
             icon_style,
             background: reply.background,
-            app_logos: app_logos::terminal_supports_logos(reply.name.as_deref()),
+            app_logos,
             hyperlinks,
             show_all,
             sort_field,
@@ -408,7 +419,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Restore the terminal (and clear dtop's status records) even when the
     // loop failed, then report the failure
     // The loop's own error is the one worth reporting
-    let cleanup = cleanup_terminal(&mut terminal);
+    let cleanup = cleanup_terminal(&mut terminal, &program_status, &logos);
     result?;
     cleanup
 }
@@ -427,11 +438,14 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn st
 /// Restores the terminal to its original state
 fn cleanup_terminal(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    program_status: &ProgramStatus,
+    logos: &app_logos::Uploads,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // dtop's `error` status records would otherwise outlive the process.
-    // Best-effort: if stdout is gone (e.g. the SSH session dropped), the
-    // restore steps below must still run.
-    let _ = write_raw(terminal, &ProgramStatus::clear_all());
+    // dtop's `error` status records and the logos' images would otherwise
+    // outlive the process. Best-effort: if stdout is gone (e.g. the SSH
+    // session dropped), the restore steps below must still run.
+    let _ = write_raw(terminal, &program_status.clear_all());
+    let _ = write_raw(terminal, &logos.delete_all());
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     write!(terminal.backend_mut(), "{POP_TITLE}")?;
@@ -454,12 +468,15 @@ fn spawn_keyboard_worker(tx: mpsc::Sender<AppEvent>, paused: Arc<AtomicBool>) {
 }
 
 /// Main event loop that processes events and renders the UI
+#[allow(clippy::too_many_arguments)]
 async fn run_event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     rx: &mut mpsc::Receiver<AppEvent>,
     tx: mpsc::Sender<AppEvent>,
     connected_hosts: HashMap<String, DockerHost>,
     keyboard_paused: Arc<AtomicBool>,
+    logos: &mut app_logos::Uploads,
+    program_status: &mut ProgramStatus,
     config: EventLoopConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut state = AppState::new(
@@ -481,16 +498,13 @@ async fn run_event_loop(
         .with_hyperlinks(config.hyperlinks)
         .with_background(config.background)
         .with_app_logos(config.app_logos);
-    let mut logos = app_logos::Uploads::new(config.app_logos, styles.light_background);
 
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
     // half a second even when the container list arrives immediately.
-    draw(terminal, &mut state, &styles, &mut logos)?;
+    draw(terminal, &mut state, &styles, logos)?;
 
     let mut window_title = WindowTitle::default();
-
-    let mut program_status = ProgramStatus::for_terminal();
 
     while !state.should_quit {
         let title = window_title.update(&state);
@@ -498,7 +512,7 @@ async fn run_event_loop(
             write_raw(terminal, &title)?;
         }
 
-        report_program_status(terminal, &mut program_status, &state)?;
+        report_program_status(terminal, program_status, &state)?;
 
         // Wait for events with timeout - handles both throttling and waiting
         let action = process_events(rx, &mut state, draw_interval).await;
@@ -531,29 +545,31 @@ async fn run_event_loop(
                     // Resume keyboard worker
                     keyboard_paused.store(false, Ordering::Relaxed);
 
-                    // Force full redraw after returning from shell
+                    // Force full redraw after returning from shell. The shell
+                    // may have retitled the tab, and leaving the alternate
+                    // screen dropped the logos' images (kitty, Ghostty, Rex),
+                    // so both are sent again
                     terminal.clear()?;
-                    draw(terminal, &mut state, &styles, &mut logos)?;
+                    logos.forget_sent();
+                    window_title = WindowTitle::default();
+                    draw(terminal, &mut state, &styles, logos)?;
                     last_draw = std::time::Instant::now();
                 }
             }
             RenderAction::Render => {
                 // Force draw requested
-                draw(terminal, &mut state, &styles, &mut logos)?;
+                draw(terminal, &mut state, &styles, logos)?;
                 last_draw = std::time::Instant::now();
             }
             RenderAction::None => {
                 // Check if we should draw based on interval
                 if last_draw.elapsed() >= draw_interval {
-                    draw(terminal, &mut state, &styles, &mut logos)?;
+                    draw(terminal, &mut state, &styles, logos)?;
                     last_draw = std::time::Instant::now();
                 }
             }
         }
     }
-
-    // Free the logos' images; the terminal would otherwise keep them
-    let _ = write_raw(terminal, &logos.delete_all());
 
     Ok(())
 }

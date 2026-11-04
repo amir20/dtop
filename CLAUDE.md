@@ -628,7 +628,9 @@ under tmux/screen, and always on where supported (no setting).
   2x1 cells, then drawn as two U+10EEEE placeholder cells whose foreground color is the image
   id (`0xD70000 + index`, kept clear of ids other programs use). To ratatui they're plain text,
   so redraws, scrolling and popups just work. The hyperlink overlay starts `LOGO_WIDTH` cells
-  into the Name column when logos are on. Images are deleted on normal exit.
+  into the Name column when logos are on. Images are deleted on exit (`cleanup_terminal`, so also
+  when the event loop fails), and re-uploaded after a shell session, since re-entering the
+  alternate screen drops them.
 
 ### Configuration Loading
 
