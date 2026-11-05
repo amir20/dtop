@@ -495,7 +495,7 @@
       />{:else if s.c}<span class={s.c}>{s.t}</span>{:else}{s.t}{/if}{/each}
 {/snippet}
 
-<div class="panel overflow-hidden" data-tui-demo>
+<div class="panel overflow-hidden select-none" data-tui-demo>
   <div class="flex items-center gap-1.5 border-b border-(--c-line) bg-(--c-surface-2) px-3.5 py-2">
     {#each [0, 1, 2] as _}
       <span class="size-2.5 rounded-full bg-(--c-line-2)"></span>
