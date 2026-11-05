@@ -1,0 +1,87 @@
+# Throwaway workload for the README recording. Every container carries the
+# dtop.demo label so the recording can filter out everything else on the machine.
+name: shop
+
+x-demo: &demo
+  labels:
+    dtop.demo: "true"
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *demo
+    image: nginx:alpine
+    mem_limit: 128m
+
+  api:
+    <<: *demo
+    image: busybox:1.36
+    mem_limit: 256m
+    command:
+      - sh
+      - -c
+      - |
+        i=0
+        while true; do
+          i=$$((i+1))
+          n=$$((i % 5))
+          echo "level=info msg=\"GET /api/orders/$$((1000 + i)) 200\" duration=$$((10 + n * 7))ms"
+          [ $$n = 0 ] && echo "level=warn msg=\"slow query on orders\" duration=$$((200 + i % 90))ms"
+          j=0; while [ $$j -lt 120000 ]; do j=$$((j+1)); done
+          sleep 0.2
+        done
+
+  worker:
+    <<: *demo
+    image: busybox:1.36
+    mem_limit: 64m
+    # Keeps about 45MB resident so the memory bar has something to show.
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /dev/shm/w; dd if=/dev/urandom of=/dev/shm/w/buf bs=1M count=45 2>/dev/null
+        while true; do cat /dev/shm/w/buf | md5sum >/dev/null; echo "job done"; sleep 1; done
+
+  redis:
+    <<: *demo
+    image: redis:alpine
+    mem_limit: 128m
+
+  loadgen:
+    <<: *demo
+    image: redis:alpine
+    mem_limit: 64m
+    depends_on: [redis]
+    command: ["sh", "-c", "while true; do redis-benchmark -h redis -q -n 4000 -c 2 -t set,get >/dev/null 2>&1; sleep 1; done"]
+
+  postgres:
+    <<: *demo
+    image: postgres:18.6-alpine
+    mem_limit: 256m
+    environment:
+      POSTGRES_PASSWORD: demo
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+  traffic:
+    <<: *demo
+    image: curlimages/curl:latest
+    mem_limit: 32m
+    depends_on: [web]
+    command: ["sh", "-c", "while true; do curl -s -o /dev/null http://web/; curl -s -o /dev/null http://web/missing; sleep 0.1; done"]
+
+  grafana:
+    <<: *demo
+    image: grafana/grafana:latest
+    mem_limit: 512m
+
+  # Exited containers appear when 'a' is pressed.
+  migrate:
+    labels:
+      dtop.demo: "true"
+    image: busybox:1.36
+    command: ["sh", "-c", "echo migrations applied"]
