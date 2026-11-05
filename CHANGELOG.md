@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1] - 2026-11-05
+
+### Features
+
+- *(columns)* Add a real Uptime column and keep creation time as Created (#433)
+
+### Bug Fixes
+
+- *(ssh)* Let SSH masters exit 30s after their last channel (and evict them in run_sh) (#432)
+
 ## [0.11.0] - 2026-11-04
 
 ### Features
