@@ -10,12 +10,12 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@sveltejs/adapter-static": "^4.0.0",
-    "@sveltejs/kit": "^3.0.0",
-    "@sveltejs/vite-plugin-svelte": "^7.0.0",
-    "@tailwindcss/vite": "^4.2.4",
-    "svelte": "^5.57.1",
-    "tailwindcss": "^4.2.4",
-    "vite": "^8.0.10"
+    "@sveltejs/adapter-static": "^4.0.1",
+    "@sveltejs/kit": "^3.1.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tailwindcss/vite": "^4.3.4",
+    "svelte": "^5.57.3",
+    "tailwindcss": "^4.3.4",
+    "vite": "^8.3.6"
   }
 }
