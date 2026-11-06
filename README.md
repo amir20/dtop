@@ -170,6 +170,18 @@ Options:
             unicode  - Standard Unicode icons (works everywhere)
             nerd     - Nerd Font icons (requires Nerd Font installed)
 
+      --hyperlinks <MODE>
+          Render container names as clickable OSC 8 hyperlinks to Dozzle
+
+          Only applies to hosts with a `dozzle` URL configured. Unlike the 'o' key,
+          this works over SSH because the link is resolved by your local terminal.
+
+          Options:
+            auto    - Enable on terminals known to support OSC 8 (default)
+            always  - Always render links (use inside tmux with
+                      `set -ga terminal-features "*:hyperlinks"`)
+            never   - Never render links
+
   -f, --filter <FILTER>
           Filter containers (can be specified multiple times)
 

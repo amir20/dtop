@@ -5,7 +5,7 @@
   function parseCliFlags(md) {
     // Extract the help code block from README
     const helpMatch = md.match(
-      /```\n> dtop --help\n([\s\S]*?)```/,
+      /```\n[>❯] dtop --help\n([\s\S]*?)```/,
     );
     if (!helpMatch) return [];
 
@@ -22,9 +22,10 @@
     let current = null;
 
     for (const line of lines) {
-      // Detect a new flag line: "  -X, --long-name" pattern
+      // Detect a new flag line: "  -X, --long-name" or "      --long-name". The indent
+      // limit keeps out the examples inside a description, which are indented further.
       const flagMatch = line.match(
-        /^\s{1,4}(-\w),\s+(--[\w-]+)(?:\s+<(\w+)>)?/,
+        /^\s{1,6}(?:(-\w),\s+)?(--[\w-]+)(?:\s+<(\w+)>)?\s*$/,
       );
       if (flagMatch) {
         if (current) flagBlocks.push(current);
@@ -58,7 +59,7 @@
       // Extract examples - try parenthesized format: "--flag value  (Note)"
       const examples = [];
       let m;
-      const parenRegex = /^\s*(--\S+(?:\s+\S+)*?)\s{2,}\(([^)]+)\)/gm;
+      const parenRegex = /^\s*(--\S+(?:\s+\S+)*?)\s+\(([^)]+)\)/gm;
       while ((m = parenRegex.exec(rawDesc)) !== null) {
         examples.push({ code: m[1].trim(), note: m[2].trim() });
       }
@@ -102,8 +103,8 @@
     </span>
     <h2 class="text-[clamp(1.4rem,2.4vw,1.85rem)] font-semibold">Flags</h2>
     <p class="text-(--c-text-muted)">
-      Generated from <code class="font-mono text-(--c-text)">dtop --help</code>, so
-      it stays correct as the binary changes.
+      From the <code class="font-mono text-(--c-text)">dtop --help</code> output in the
+      README.
     </p>
   </header>
 
@@ -111,7 +112,7 @@
     {#each flags as flag}
       <div class="grid gap-x-6 gap-y-2 px-5 py-4 md:grid-cols-[14rem_minmax(0,1fr)]">
         <code class="font-mono text-[0.8125rem] font-medium text-(--c-accent)">
-          {flag.short}, {flag.long}{#if flag.arg}{" "}<span class="text-(--c-text-dim)">&lt;{flag.arg}&gt;</span>{/if}
+          {#if flag.short}{`${flag.short}, `}{/if}{flag.long}{#if flag.arg}{" "}<span class="text-(--c-text-dim)">&lt;{flag.arg}&gt;</span>{/if}
         </code>
 
         <div class="flex flex-col gap-2">

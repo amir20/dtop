@@ -26,7 +26,7 @@
     for (const line of lines) {
       const m = line.match(locRegex);
       if (m) {
-        const paths = m[2].match(/\.\S+/g) || [];
+        const paths = m[2].match(/[~.]\S+/g) || [];
         const parts = paths.map((p) => p.replace(/,\s*$/, "").replace(/\s+or\s+/, ""));
         if (parts.length > 0) {
           locations.push({
@@ -70,6 +70,7 @@
   }
 
   const { locations, examples } = parseConfigExample(configExample);
+  let activeId = $state(examples[0]?.id);
 
   function escapeHtml(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -144,70 +145,96 @@
       Write it down once, or let dtop do it
     </h2>
     <p class="text-(--c-text-muted)">
-      Every flag can live in a YAML file. Or press
+      Hosts, filters and display settings can live in a YAML file. Or press
       <code class="font-mono text-(--c-text)">Ctrl-S</code> in the app and dtop saves
-      your columns, sort and filters for you — keys you set by hand are preserved.
+      your columns, sort and view for you — keys you set by hand are preserved.
     </p>
   </header>
 
-  <div use:reveal={{ delay: 100 }} class="grid items-start gap-4 lg:grid-cols-2">
+  <div use:reveal={{ delay: 100 }} class="flex flex-col gap-4">
     {#if locations.length > 0}
       <div class="panel p-6">
         <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
           Search order
         </span>
-        <div class="mt-3.5 flex flex-col gap-2 font-mono text-[0.8125rem] text-(--c-text-muted)">
+        <ol class="mt-3.5 flex flex-col gap-2 font-mono text-[0.8125rem] text-(--c-text-muted)">
           {#each locations as loc, i}
-            <div class="flex gap-3">
+            <li class="flex gap-3">
               <span class="text-(--c-text-dim)">{i + 1}</span>
-              <span class="text-(--c-text)">{loc.path}</span>
-              {#if loc.note}
-                <span class="text-(--c-text-dim)">{loc.note}</span>
-              {/if}
-            </div>
+              <span class="flex flex-wrap gap-x-3">
+                <span class="text-(--c-text)">{loc.path}</span>
+                {#if loc.note}
+                  <span class="text-(--c-text-dim)">{loc.note}</span>
+                {/if}
+              </span>
+            </li>
           {/each}
-        </div>
+        </ol>
         <p class="mt-5 text-[0.8125rem] text-(--c-text-muted)">
           First file found wins. Command-line flags override whatever the file says.
         </p>
       </div>
     {/if}
 
-    {#each examples as example}
-      <div class="panel overflow-hidden">
-        <div class="flex items-center justify-between gap-3 border-b border-(--c-line) px-4 py-2.5">
-          <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
-            {example.label}
-          </span>
-          <span class="hidden text-xs text-(--c-text-dim) sm:inline">{example.description}</span>
-        </div>
-        <div class="relative">
-          <pre class="yaml-highlight overflow-x-auto px-4 py-3.5 font-mono text-[0.8125rem] leading-[1.8] text-(--c-text-muted)">{@html highlightYaml(example.code)}</pre>
+    <div class="grid items-start gap-4 lg:grid-cols-[12rem_minmax(0,1fr)]">
+      <div class="flex flex-wrap gap-1 lg:flex-col" aria-label="Config sections" role="group">
+        {#each examples as example}
           <button
-            class="absolute top-2.5 right-2.5 flex items-center justify-center rounded-md border border-(--c-line-2) bg-(--c-surface-2) p-1.5 transition-colors"
-            class:text-(--c-text-dim)={copiedId !== example.id}
-            class:hover:text-(--c-text)={copiedId !== example.id}
-            class:text-(--c-accent)={copiedId === example.id}
-            aria-label="Copy to clipboard"
-            onclick={() => copyCode(example.code, example.id)}
+            type="button"
+            class="rounded-md px-3 py-2 text-left font-mono text-[0.8125rem] transition-colors {activeId === example.id
+              ? 'bg-(--c-surface-2) text-(--c-text)'
+              : 'text-(--c-text-muted) hover:text-(--c-text)'}"
+            aria-pressed={activeId === example.id}
+            onclick={() => (activeId = example.id)}
           >
-            {#if copiedId === example.id}
-              <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            {:else}
-              <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            {/if}
+            {example.label}
           </button>
-        </div>
+        {/each}
       </div>
-    {/each}
+
+      <!-- On desktop the panels share one grid cell, so the tallest sets the height and
+           switching sections doesn't move the page below. -->
+      <div class="min-w-0 lg:grid">
+        {#each examples as example}
+          <div
+            class="panel min-w-0 overflow-hidden lg:[grid-area:1/1] {activeId === example.id
+              ? 'block'
+              : 'hidden lg:invisible lg:block'}"
+          >
+            <div class="flex items-center gap-3 border-b border-(--c-line) py-2 pr-2 pl-4">
+              <span class="font-mono text-[0.6875rem] font-medium tracking-[0.11em] text-(--c-text-dim) uppercase">
+                {example.label}
+              </span>
+              <span class="ml-auto hidden text-xs text-(--c-text-dim) sm:inline">{example.description}</span>
+              <button
+                type="button"
+                class="ml-auto flex items-center justify-center rounded-md border border-(--c-line-2) bg-(--c-surface-2) p-1.5 transition-colors sm:ml-0"
+                class:text-(--c-text-dim)={copiedId !== example.id}
+                class:hover:text-(--c-text)={copiedId !== example.id}
+                class:text-(--c-accent)={copiedId === example.id}
+                aria-label="Copy {example.label} to clipboard"
+                onclick={() => copyCode(example.code, example.id)}
+              >
+                {#if copiedId === example.id}
+                  <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                {:else}
+                  <svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                {/if}
+              </button>
+            </div>
+            <pre class="yaml-highlight px-4 py-3.5 font-mono text-[0.8125rem] leading-[1.8] wrap-break-word whitespace-pre-wrap text-(--c-text-muted)">{@html highlightYaml(example.code)}</pre>
+          </div>
+        {/each}
+      </div>
+    </div>
   </div>
 </section>
 
