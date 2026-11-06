@@ -255,7 +255,7 @@ The page itself has no form inputs. The TUI does. If inputs are added to this do
 
 The only rounded element (`rounded-xl`, 12px). Carries:
 - A faux-titlebar strip with three `size-3` colored circles (`#ff5f57 #febc2e #28c840`) and a centered "dtop" label. (This is the *one* costume element the page allows itself, because the demo IS being captured from a real terminal window.)
-- The `demo.mp4` autoplaying loop.
+- The animated `TuiDemo.svelte` terminal.
 - Boxed in by the only sanctioned glow shadow on the page (see Elevation).
 
 ### Footer
