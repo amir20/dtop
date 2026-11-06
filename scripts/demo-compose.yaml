@@ -15,7 +15,7 @@ services:
 
   api:
     <<: *demo
-    image: busybox:1.36
+    image: oven/bun:1-slim
     mem_limit: 256m
     command:
       - sh
@@ -33,7 +33,7 @@ services:
 
   worker:
     <<: *demo
-    image: busybox:1.36
+    image: python:3-alpine
     mem_limit: 64m
     # Keeps about 45MB resident so the memory bar has something to show.
     command:
@@ -69,17 +69,17 @@ services:
 
   traffic:
     <<: *demo
-    image: curlimages/curl:latest
+    image: python:3-alpine
     mem_limit: 32m
     depends_on: [web]
-    command: ["sh", "-c", "while true; do curl -s -o /dev/null http://web/; curl -s -o /dev/null http://web/missing; sleep 0.1; done"]
+    command: ["sh", "-c", "while true; do wget -q -O /dev/null http://web/; wget -q -O /dev/null http://web/missing; sleep 0.1; done"]
 
   grafana:
     <<: *demo
     image: grafana/grafana:latest
     mem_limit: 512m
 
-  # Exited containers appear when 'a' is pressed.
+  # Images are picked for having an app logo. Exited containers appear when 'a' is pressed.
   migrate:
     labels:
       dtop.demo: "true"
