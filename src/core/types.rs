@@ -457,6 +457,9 @@ pub struct LogState {
 
     /// Track if we're currently fetching older logs (prevent duplicate requests)
     pub fetching_older: bool,
+
+    /// Whether lines lead with dtop's timestamp; change it with `set_show_timestamps`
+    show_timestamps: bool,
 }
 
 impl LogState {
@@ -476,14 +479,29 @@ impl LogState {
             total_loaded: 0,
             container_created_at,
             fetching_older: false,
+            show_timestamps: true,
         }
+    }
+
+    /// Shows or hides dtop's timestamp on every line, reformatting the loaded ones.
+    pub fn set_show_timestamps(&mut self, show: bool) {
+        if self.show_timestamps == show {
+            return;
+        }
+        self.show_timestamps = show;
+        self.formatted_lines = self.log_entries.iter().map(|e| e.format(show)).collect();
+        self.line_widths = self.formatted_lines.iter().map(Line::width).collect();
+        self.rows_cache = None;
     }
 
     /// Set log entries and rebuild the formatted lines cache.
     /// Used in tests and when bulk-replacing entries.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_entries(&mut self, entries: Vec<crate::docker::logs::LogEntry>) {
-        self.formatted_lines = entries.iter().map(|e| e.format()).collect();
+        self.formatted_lines = entries
+            .iter()
+            .map(|e| e.format(self.show_timestamps))
+            .collect();
         self.line_widths = self.formatted_lines.iter().map(Line::width).collect();
         self.rows_cache = None;
         self.log_entries = entries;
@@ -491,7 +509,7 @@ impl LogState {
 
     /// Append a streamed entry, keeping the formatted line, width and row caches in step.
     pub fn push_entry(&mut self, entry: crate::docker::logs::LogEntry) {
-        let line = entry.format();
+        let line = entry.format(self.show_timestamps);
         let line_width = line.width();
         if let Some((width, total)) = &mut self.rows_cache {
             *total += wrapped_rows(line_width, *width);
@@ -508,7 +526,10 @@ impl LogState {
         mut entries: Vec<crate::docker::logs::LogEntry>,
         width: usize,
     ) -> usize {
-        let mut lines: Vec<Line<'static>> = entries.iter().map(|e| e.format()).collect();
+        let mut lines: Vec<Line<'static>> = entries
+            .iter()
+            .map(|e| e.format(self.show_timestamps))
+            .collect();
         let mut widths: Vec<usize> = lines.iter().map(Line::width).collect();
         let rows = widths.iter().map(|&w| wrapped_rows(w, width)).sum();
 

@@ -2,11 +2,12 @@ use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
-use ratatui::text::{Line, Text};
+use ratatui::text::{Line, Span, Text};
 
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
 use crate::docker::json_formatter;
+use crate::docker::timestamp_prefix::timestamp_prefix_len;
 
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
@@ -14,22 +15,30 @@ pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
     /// Parsed ANSI text ready for rendering
     pub text: Text<'static>,
+    /// A timestamp the app printed at the start of the line that repeats
+    /// `timestamp` (see `timestamp_prefix`), cut from `text`. Empty when the
+    /// line has none. Shown only in place of dtop's own timestamp.
+    pub own_timestamp: Vec<Span<'static>>,
 }
 
 impl LogEntry {
-    /// Format this log entry into a styled Line with timestamp and ANSI-parsed content.
-    /// The result is suitable for rendering in a ratatui Paragraph.
-    pub fn format(&self) -> Line<'static> {
+    /// Format this log entry into a styled Line suitable for a ratatui Paragraph.
+    ///
+    /// With `show_timestamp`, dtop's timestamp leads and the app's duplicate of
+    /// it stays hidden. Without, the line reads as the app printed it.
+    pub fn format(&self, show_timestamp: bool) -> Line<'static> {
         use chrono::Local;
         use ratatui::style::{Color, Modifier, Style};
-        use ratatui::text::Span;
 
         const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
-        let local_timestamp = self.timestamp.with_timezone(&Local);
-        let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-
-        let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
+        let mut line_spans = if show_timestamp {
+            let local_timestamp = self.timestamp.with_timezone(&Local);
+            let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+            vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")]
+        } else {
+            self.own_timestamp.clone()
+        };
 
         if let Some(text_line) = self.text.lines.first() {
             line_spans.extend(text_line.spans.iter().cloned());
@@ -44,6 +53,7 @@ impl LogEntry {
         // Find the first space which separates timestamp from message
         let space_idx = log_line.find(' ')?;
         let (timestamp_str, message) = log_line.split_at(space_idx);
+        let message = message.trim();
 
         // Parse the timestamp (Docker uses RFC3339 format)
         let timestamp = DateTime::parse_from_rfc3339(timestamp_str)
@@ -51,20 +61,38 @@ impl LogEntry {
             .with_timezone(&Utc);
 
         // Try to detect and format JSON
-        let text = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message.trim())
-        {
-            json_formatter::format_json_as_text(&json_value)
-        } else {
-            // Not JSON, try ANSI parsing for colored text
-            message
-                .trim()
-                .as_bytes()
-                .into_text()
-                .unwrap_or_else(|_| Text::from(message.to_string()))
-        };
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message) {
+            return Some(LogEntry {
+                timestamp,
+                text: json_formatter::format_json_as_text(&json_value),
+                own_timestamp: Vec::new(),
+            });
+        }
 
-        Some(LogEntry { timestamp, text })
+        // Not JSON, try ANSI parsing for colored text. The prefix's coloring
+        // is closed before the text starts, so the two halves parse on their own.
+        let (prefix, message) =
+            message.split_at(timestamp_prefix_len(message, timestamp.timestamp_millis()));
+        let own_timestamp = ansi_text(prefix)
+            .lines
+            .into_iter()
+            .next()
+            .map(|line| line.spans)
+            .unwrap_or_default();
+
+        Some(LogEntry {
+            timestamp,
+            text: ansi_text(message),
+            own_timestamp,
+        })
     }
+}
+
+fn ansi_text(message: &str) -> Text<'static> {
+    message
+        .as_bytes()
+        .into_text()
+        .unwrap_or_else(|_| Text::from(message.to_string()))
 }
 
 /// Fetches older logs for pagination using density-based adaptive algorithm
@@ -310,6 +338,41 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn plain(line: &Line) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    /// The app's copy of Docker's timestamp is hidden behind dtop's, and comes
+    /// back (with its own coloring) when dtop's is turned off
+    #[test]
+    fn test_duplicate_timestamp_shows_once() {
+        let entry = LogEntry::parse(
+            "2025-10-28T12:34:56.789Z \x1b[90m2025-10-28T12:34:56Z\x1b[0m INF Starting server",
+        )
+        .unwrap();
+
+        let with = plain(&entry.format(true));
+        assert!(with.ends_with(":56 INF Starting server"), "{with}");
+        assert_eq!(with.matches("2025-10-2").count(), 1, "{with}");
+
+        let without = entry.format(false);
+        assert_eq!(plain(&without), "2025-10-28T12:34:56Z INF Starting server");
+        assert_ne!(without.spans[0].style, ratatui::style::Style::default());
+    }
+
+    /// A timestamp that isn't Docker's (here an event from hours earlier) stays
+    #[test]
+    fn test_unrelated_timestamp_is_kept() {
+        let entry =
+            LogEntry::parse("2025-10-28T12:34:56.789Z 2025-10-28T09:00:00Z job finished").unwrap();
+        assert!(entry.own_timestamp.is_empty());
+        assert!(plain(&entry.format(true)).ends_with(" 2025-10-28T09:00:00Z job finished"));
+        assert_eq!(
+            plain(&entry.format(false)),
+            "2025-10-28T09:00:00Z job finished"
+        );
+    }
 
     #[test]
     fn test_parse_log_entry_valid() {

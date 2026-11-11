@@ -64,6 +64,8 @@ struct EventLoopConfig {
     column_config: ColumnConfig,
     config_path: Option<std::path::PathBuf>,
     stats_header: bool,
+    /// Whether log lines lead with dtop's timestamp
+    timestamps: bool,
     header_visible: Arc<AtomicBool>,
     panes: Option<ui::panes::Panes>,
     /// `dtop logs <id>`
@@ -466,6 +468,7 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             column_config,
             config_path: config_path_for_state,
             stats_header,
+            timestamps: merged_config.timestamps.unwrap_or(true),
             header_visible,
             panes: ui::panes::Panes::detect(args.panes),
             logs_only,
@@ -547,6 +550,7 @@ async fn run_event_loop(
     );
     state.header_visible = config.header_visible;
     state.set_show_system_header(config.stats_header);
+    state.show_log_timestamps = config.timestamps;
     state.panes = config.panes;
     state.logs_only = config.logs_only;
     let draw_interval = Duration::from_millis(500); // Refresh UI every 500ms

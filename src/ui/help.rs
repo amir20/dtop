@@ -50,7 +50,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from("  * Under tmux/screen with the default prefix, press the prefix, then a"),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Log View Scrolling",
+            "Log View",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
@@ -58,7 +58,7 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down",
         ),
-        Line::from("  G/End       Bottom"),
+        Line::from("  G/End       Bottom           t                  Timestamps"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Status Icons",

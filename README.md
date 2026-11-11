@@ -275,6 +275,10 @@ hosts:
 
 # Use Nerd Font icons for better visuals
 icons: nerd
+
+# Log lines as the container printed them, without dtop's timestamp
+# ('t' in the log view toggles it)
+timestamps: false
 ```
 
 **Or monitor specific application stacks:**

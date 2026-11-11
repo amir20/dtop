@@ -60,6 +60,7 @@ impl AppState {
         };
         let all = self.show_all_containers;
         let stats_header = self.show_system_header;
+        let timestamps = self.show_log_timestamps;
 
         // Build display path for notification (shorten home dir to ~)
         let display_path = config_path
@@ -85,6 +86,7 @@ impl AppState {
                 sort_direction,
                 all,
                 stats_header,
+                timestamps,
             },
         ) {
             Ok(()) => {
@@ -130,6 +132,7 @@ impl AppState {
         self.sort_state = SortState::default();
         self.show_all_containers = false;
         self.set_show_system_header(true);
+        self.show_log_timestamps = true;
 
         // Force re-sort with new settings
         self.force_sort_containers();
@@ -164,6 +167,7 @@ struct Preferences {
     sort_direction: String,
     all: bool,
     stats_header: bool,
+    timestamps: bool,
 }
 
 fn write_preferences(
@@ -203,6 +207,10 @@ fn write_preferences(
     mapping.insert(
         Value::String("stats_header".to_string()),
         Value::Bool(prefs.stats_header),
+    );
+    mapping.insert(
+        Value::String("timestamps".to_string()),
+        Value::Bool(prefs.timestamps),
     );
 
     // Create parent directories if needed

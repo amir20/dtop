@@ -62,6 +62,14 @@ hyperlinks: auto
 # Possible values: true (default), false
 stats_header: true
 
+# == Log Timestamps ==
+# Lead each line in the log view with the time Docker recorded for it. A line
+# that already starts with that same time (ISO 8601 / RFC 3339) shows it once.
+# Set to false to see lines exactly as the container printed them.
+# Press 't' in the log view to toggle it at runtime; Ctrl-S saves the current state.
+# Possible values: true (default), false
+timestamps: true
+
 # == App Logos ==
 # Show each image's app logo before the container name, on terminals that draw
 # kitty graphics placeholders (kitty >= 0.28, Ghostty, Rex). Other terminals
