@@ -904,9 +904,15 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      screen. Plain text, ASCII case-insensitive, matched against the line as shown.
      While the query is typed every key is text (`AppState::log_search_editing`)
    - URLs (`http://`, `https://`) in log lines are OSC 8 hyperlinks when `hyperlinks` is on
-     (`ui/log_links.rs`). Like the container names they are `Hyperlink` widgets drawn over
-     the rendered text. A URL that wraps gets one widget per row, each pointing at the whole
-     URL: `link_pieces` maps it through `log_wrap::wrap_breaks`
+     (`ui/log_links.rs`). A URL that wraps is one link per row, each pointing at the whole
+     URL: `link_pieces` maps it through `log_wrap::wrap_breaks`. **They are not `Hyperlink`
+     widgets.** Escapes inside cells only work for text that stays put: ratatui rewrites just
+     the cells that changed, so on scrolling logs an unchanged cell kept the previous frame's
+     link, and an opener whose closing cell wasn't rewritten leaked onto later text. Instead
+     the render records `AppState::log_links` (and underlines them), and after each draw
+     `LinkWriter` re-prints every link's cells between an opener and a closer, and re-prints
+     plain the cells that were linked on the previous frame. A link whose cells no longer
+     show its label (toast or popup on top) is dropped. `links.forget()` after a shell session
    - `y` copies the lines on screen as text, or the line a search is on, through
      `AppState::clipboard_request` (OSC 52, as Copy ID does)
    - Auto-scroll when at bottom, manual scroll preserves position

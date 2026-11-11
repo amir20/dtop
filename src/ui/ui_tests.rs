@@ -1129,38 +1129,38 @@ mod tests {
         ]);
         state.log_state = Some(log_state);
 
-        let render = |state: &mut AppState, styles: &UiStyles| {
+        let mut render = |styles: &UiStyles| {
             let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
-            terminal.draw(|f| render_ui(f, state, styles)).unwrap();
-            terminal.backend().buffer().clone()
+            terminal.draw(|f| render_ui(f, &mut state, styles)).unwrap();
+            (terminal.backend().buffer().clone(), state.log_links.clone())
         };
-        let plain = render(&mut state, &UiStyles::default());
-        let linked = render(&mut state, &UiStyles::default().with_hyperlinks(true));
+        let (plain, no_links) = render(&UiStyles::default());
+        assert!(no_links.is_empty());
+        let (linked, links) = render(&UiStyles::default().with_hyperlinks(true));
 
-        let opener = format!("\x1b]8;;{url}\x1b\\");
-        let symbols = |buffer: &Buffer, y: u16| -> Vec<String> {
-            (0..40)
-                .map(|x| buffer[(x, y)].symbol().to_string())
-                .collect()
-        };
         // The URL is too long for the row "GET " is on, so it starts row 2 and
-        // runs onto row 3, which ends with " done"
-        let second = symbols(&linked, 2);
-        assert_eq!(second[0], format!("{opener}h"));
-        // Lines wrap at 38: two columns are kept clear for the scrollbar
-        assert!(second[37].ends_with("\x1b]8;;\x1b\\"), "{:?}", second[37]);
-        let third = symbols(&linked, 3);
-        assert!(third[0].starts_with(&opener), "{:?}", third[0]);
-        let closers = |row: &[String]| row.iter().filter(|s| s.contains("\x1b]8;;\x1b\\")).count();
-        assert_eq!(closers(&third), 1);
-        assert!(symbols(&linked, 1).iter().all(|s| !s.contains('\x1b')));
+        // runs onto row 3 (lines wrap at 38: two columns are kept for the scrollbar)
+        let pieces: Vec<(u16, u16, &str)> =
+            links.iter().map(|l| (l.x, l.y, l.label.as_str())).collect();
+        assert_eq!(pieces, [(0, 2, &url[..38]), (0, 3, &url[38..])]);
+        assert!(links.iter().all(|l| l.url == url));
 
-        // Without the escapes, both renders show the same characters
-        let strip = |s: &str| s.replace(&opener, "").replace("\x1b]8;;\x1b\\", "");
+        // Same characters either way; the linked cells are underlined, and the
+        // buffer holds no escape sequence (the event loop writes the links)
         for y in 0..6 {
-            let linked_row: Vec<String> = symbols(&linked, y).iter().map(|s| strip(s)).collect();
-            assert_eq!(linked_row, symbols(&plain, y), "row {y}");
+            for x in 0..40 {
+                assert_eq!(linked[(x, y)].symbol(), plain[(x, y)].symbol());
+            }
         }
+        use ratatui::style::Modifier;
+        assert!(linked[(0, 2)].modifier.contains(Modifier::UNDERLINED));
+        assert!(!linked[(0, 1)].modifier.contains(Modifier::UNDERLINED));
+
+        // And the writer accepts them as drawn
+        let mut writer = crate::ui::log_links::LinkWriter::default();
+        let writes = writer.plan(&linked, &links);
+        assert_eq!(writes.len(), 2);
+        assert!(writes.iter().all(|w| w.url.as_deref() == Some(url)));
     }
 
     #[test]

@@ -11,8 +11,7 @@ use crate::core::log_search::highlight;
 use crate::core::log_wrap::{wrap_breaks, wrap_into};
 use crate::core::types::ContainerKey;
 
-use super::hyperlinks::Hyperlink;
-use super::log_links::link_pieces;
+use super::log_links::{LogLink, link_pieces};
 use super::render::UiStyles;
 
 /// Search matches, and those on the line `n`/`N` last jumped to
@@ -158,8 +157,8 @@ pub fn render_log_view(
     };
 
     let mut visible_rows: Vec<Line> = Vec::with_capacity(needed_rows);
-    // URLs to draw as hyperlinks: (row from the top of the view, column, text, URL)
-    let mut links: Vec<(usize, usize, String, String)> = Vec::new();
+    // Not under the help popup, which covers the text
+    let link_urls = styles.hyperlinks && !state.show_help;
     for (i, line) in log_state
         .formatted_lines
         .iter()
@@ -170,19 +169,20 @@ pub fn render_log_view(
         let first_row = visible_rows.len();
         wrap_into(&mut visible_rows, line, inner_width, indent);
 
-        if styles.hyperlinks && line.spans.iter().any(|s| s.content.contains("http")) {
+        if link_urls && line.spans.iter().any(|s| s.content.contains("http")) {
             let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
             let breaks = wrap_breaks(line, inner_width, indent);
             for piece in link_pieces(&text, &breaks, indent) {
-                // Rows scrolled off the top, or past the bottom, aren't drawn
+                // Rows scrolled off the top, or past the bottom, aren't drawn.
+                // The text starts on the row under the title.
                 let row = (first_row + piece.row).checked_sub(sub_line_offset);
                 if let Some(row) = row.filter(|&row| row < visible_height) {
-                    links.push((
-                        row,
-                        piece.column,
-                        text[piece.text].to_string(),
-                        text[piece.url].to_string(),
-                    ));
+                    state.log_links.push(LogLink {
+                        x: area.x + piece.column as u16,
+                        y: area.y + 1 + row as u16,
+                        label: text[piece.text].to_string(),
+                        url: text[piece.url].to_string(),
+                    });
                 }
             }
         }
@@ -209,17 +209,11 @@ pub fn render_log_view(
 
     f.render_widget(log_widget, area);
 
-    // A cell can't carry an escape sequence through `Paragraph`, so the links
-    // go on top of the drawn text, like the container list's (`Hyperlink`).
-    // The text starts on the row under the title.
-    for (row, column, label, url) in links {
-        let link_area = Rect {
-            x: area.x + column as u16,
-            y: area.y + 1 + row as u16,
-            width: (inner_width.saturating_sub(column)) as u16,
-            height: 1,
-        };
-        f.render_widget(Hyperlink::new(&label, url).style(styles.link), link_area);
+    // Underlined here; the event loop makes them links (`LinkWriter`)
+    for link in &state.log_links {
+        let width = unicode_width::UnicodeWidthStr::width(link.label.as_str()) as u16;
+        f.buffer_mut()
+            .set_style(Rect::new(link.x, link.y, width, 1), styles.link);
     }
 
     // Render scrollbar on the right side
