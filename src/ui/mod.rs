@@ -9,6 +9,7 @@ pub mod help;
 pub mod hyperlinks;
 pub mod icons;
 pub mod input;
+pub mod log_links;
 pub mod log_view;
 pub mod panes;
 pub mod program_status;

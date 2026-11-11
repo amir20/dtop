@@ -238,6 +238,48 @@ impl AppState {
         RenderAction::Render
     }
 
+    /// Handles 'y' in the log view: copy the line a search is on, or without
+    /// one the lines on screen, as text. The event loop writes it as OSC 52.
+    pub(super) fn handle_copy_log_lines(&mut self) -> RenderAction {
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+        let Some(state) = &mut self.log_state else {
+            return RenderAction::None;
+        };
+
+        let entries = match state.search.as_ref().and_then(|search| search.current) {
+            Some(current) => current..current + 1,
+            None => {
+                let total = state.total_rows(self.last_viewport_width);
+                let top = if self.is_at_bottom {
+                    total.saturating_sub(self.last_viewport_height)
+                } else {
+                    state.scroll_offset
+                };
+                state.entries_in_rows(top..top + self.last_viewport_height)
+            }
+        };
+        let lines: Vec<String> = state
+            .formatted_lines
+            .get(entries)
+            .unwrap_or_default()
+            .iter()
+            .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect();
+        if lines.is_empty() {
+            return RenderAction::None;
+        }
+
+        let count = lines.len();
+        self.clipboard_request = Some(lines.join("\n"));
+        self.show_notification(&format!(
+            "Copied {count} {}",
+            if count == 1 { "line" } else { "lines" }
+        ));
+        RenderAction::Render
+    }
+
     pub(super) fn handle_scroll_up(&mut self) -> RenderAction {
         // Only handle scroll in log view
         if !matches!(self.view_state, ViewState::LogView(_)) {
@@ -721,6 +763,56 @@ mod logs_only_tests {
         assert_eq!(
             state.notification.as_ref().map(|(m, _)| m.as_str()),
             Some("No matches for \"x\"")
+        );
+    }
+
+    /// 'y' copies the lines on screen, or just the one a search is on
+    #[test]
+    fn y_copies_the_visible_lines_or_the_current_match() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let mut state = state();
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![container("abc123def456", ContainerState::Running)],
+        ));
+        let key = ContainerKey::new("nas".to_string(), "abc123def456".to_string());
+        state.open_log_view(&key);
+        state.last_viewport_height = 3;
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('t'),
+            KeyModifiers::NONE,
+        )));
+        for i in 0..10 {
+            let msg = if i == 4 {
+                "ERROR boom".to_string()
+            } else {
+                format!("line {i}")
+            };
+            state.handle_log_line(
+                key.clone(),
+                LogEntry::parse(&format!("2025-10-29T10:15:{i:02}Z {msg}")).unwrap(),
+            );
+        }
+        let press = |state: &mut AppState, code| {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        };
+
+        // Following the bottom of a 3-row view
+        press(&mut state, KeyCode::Char('y'));
+        assert_eq!(
+            state.clipboard_request.take().as_deref(),
+            Some("line 7\nline 8\nline 9")
+        );
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("Copied 3 lines")
+        );
+
+        press_keys(&mut state, "/error");
+        press(&mut state, KeyCode::Char('y'));
+        assert_eq!(
+            state.clipboard_request.take().as_deref(),
+            Some("ERROR boom")
         );
     }
 }

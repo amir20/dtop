@@ -61,7 +61,9 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  G/End       Bottom           t                  Timestamps  /                    Search",
         ),
-        Line::from("  n/N         Next/previous match"),
+        Line::from(
+            "  n/N         Next/previous match              y    Copy visible lines (or the match)",
+        ),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Status Icons",

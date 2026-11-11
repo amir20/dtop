@@ -1108,6 +1108,61 @@ mod tests {
         assert_snapshot_with_redaction!(output);
     }
 
+    /// A URL in a log line is a hyperlink to the whole URL from every row it
+    /// wraps onto, and the text on screen is unchanged
+    #[test]
+    fn test_log_view_links_urls_across_wrapped_rows() {
+        use crate::core::types::LogState;
+        use crate::docker::logs::LogEntry;
+
+        let mut state = create_test_app_state();
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.view_state = ViewState::LogView(key.clone());
+        let url = "https://example.com/a/very/long/path/that/wraps?page=2";
+        let mut log_state = LogState::new(key, None);
+        log_state.set_show_timestamps(false);
+        log_state.set_entries(vec![
+            LogEntry::parse(&format!("2025-10-29T10:15:30Z GET {url} done")).unwrap(),
+        ]);
+        state.log_state = Some(log_state);
+
+        let render = |state: &mut AppState, styles: &UiStyles| {
+            let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+            terminal.draw(|f| render_ui(f, state, styles)).unwrap();
+            terminal.backend().buffer().clone()
+        };
+        let plain = render(&mut state, &UiStyles::default());
+        let linked = render(&mut state, &UiStyles::default().with_hyperlinks(true));
+
+        let opener = format!("\x1b]8;;{url}\x1b\\");
+        let symbols = |buffer: &Buffer, y: u16| -> Vec<String> {
+            (0..40)
+                .map(|x| buffer[(x, y)].symbol().to_string())
+                .collect()
+        };
+        // The URL is too long for the row "GET " is on, so it starts row 2 and
+        // runs onto row 3, which ends with " done"
+        let second = symbols(&linked, 2);
+        assert_eq!(second[0], format!("{opener}h"));
+        // Lines wrap at 38: two columns are kept clear for the scrollbar
+        assert!(second[37].ends_with("\x1b]8;;\x1b\\"), "{:?}", second[37]);
+        let third = symbols(&linked, 3);
+        assert!(third[0].starts_with(&opener), "{:?}", third[0]);
+        let closers = |row: &[String]| row.iter().filter(|s| s.contains("\x1b]8;;\x1b\\")).count();
+        assert_eq!(closers(&third), 1);
+        assert!(symbols(&linked, 1).iter().all(|s| !s.contains('\x1b')));
+
+        // Without the escapes, both renders show the same characters
+        let strip = |s: &str| s.replace(&opener, "").replace("\x1b]8;;\x1b\\", "");
+        for y in 0..6 {
+            let linked_row: Vec<String> = symbols(&linked, y).iter().map(|s| strip(s)).collect();
+            assert_eq!(linked_row, symbols(&plain, y), "row {y}");
+        }
+    }
+
     #[test]
     fn test_log_view_with_content() {
         let mut state = create_test_app_state();

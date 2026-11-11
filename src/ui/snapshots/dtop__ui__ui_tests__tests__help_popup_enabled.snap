@@ -22,7 +22,7 @@ dtop vX.X.X - 1 container ('?' for help, 'q' to quit)
             │ Log View                                                                                     │            
             │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            
             │   G/End       Bottom           t                  Timestamps  /                    Search    │            
-            │   n/N         Next/previous match                                                            │            
+            │   n/N         Next/previous match              y    Copy visible lines (or the match)        │            
             │                                                                                              │            
             │ Status Icons                                                                                 │            
             │ ✓ Healthy  ✖ Unhealthy  ◐ Starting  ▶ Running  ⏸ Paused  ■ Exited                            │            

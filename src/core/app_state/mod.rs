@@ -450,6 +450,7 @@ impl AppState {
                 _ => self.handle_scroll_page_down(),
             },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
+            KeyCode::Char('y') => self.handle_copy_log_lines(),
             KeyCode::Char('n') => self.handle_log_search_jump(true),
             KeyCode::Char('N') => self.handle_log_search_jump(false),
             KeyCode::Char('p') => self.handle_toggle_mark_project(),
