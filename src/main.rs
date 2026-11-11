@@ -45,6 +45,7 @@ use ui::app_logos;
 use ui::hyperlinks::HyperlinkMode;
 use ui::icons::{IconMode, IconStyle};
 use ui::input::keyboard_worker;
+use ui::log_links::{LinkWriter, write_links};
 use ui::program_status::ProgramStatus;
 use ui::render::{UiStyles, cleanup_expired_errors, render_ui};
 use ui::terminal_probe;
@@ -562,10 +563,13 @@ async fn run_event_loop(
         .with_background(config.background)
         .with_app_logos(config.app_logos);
 
+    // Which cells the terminal holds as log view hyperlinks
+    let mut links = LinkWriter::default();
+
     // Paint once up front. `process_events` blocks for up to `draw_interval`
     // waiting for the first event, so without this the terminal stays empty for
     // half a second even when the container list arrives immediately.
-    draw(terminal, &mut state, &styles, logos)?;
+    draw(terminal, &mut state, &styles, logos, &mut links)?;
 
     let mut window_title = WindowTitle::default();
 
@@ -614,20 +618,21 @@ async fn run_event_loop(
                     // so both are sent again
                     terminal.clear()?;
                     logos.forget_sent();
+                    links.forget();
                     window_title = WindowTitle::default();
-                    draw(terminal, &mut state, &styles, logos)?;
+                    draw(terminal, &mut state, &styles, logos, &mut links)?;
                     last_draw = std::time::Instant::now();
                 }
             }
             RenderAction::Render => {
                 // Force draw requested
-                draw(terminal, &mut state, &styles, logos)?;
+                draw(terminal, &mut state, &styles, logos, &mut links)?;
                 last_draw = std::time::Instant::now();
             }
             RenderAction::None => {
                 // Check if we should draw based on interval
                 if last_draw.elapsed() >= draw_interval {
-                    draw(terminal, &mut state, &styles, logos)?;
+                    draw(terminal, &mut state, &styles, logos, &mut links)?;
                     last_draw = std::time::Instant::now();
                 }
             }
@@ -648,16 +653,25 @@ fn draw(
     state: &mut AppState,
     styles: &UiStyles,
     logos: &mut app_logos::Uploads,
+    links: &mut LinkWriter,
 ) -> io::Result<()> {
     let uploads = logos.pending(state);
     if !uploads.is_empty() {
         write_raw(terminal, &uploads)?;
     }
     queue!(terminal.backend_mut(), BeginSynchronizedUpdate)?;
-    let drawn = terminal.draw(|f| render_ui(f, state, styles)).map(|_| ());
+    let drawn = terminal
+        .draw(|f| render_ui(f, state, styles))
+        .map(|frame| links.plan(frame.buffer, &state.log_links));
+    // The log view's URLs, as hyperlinks over the frame just drawn
+    let linked = match &drawn {
+        Ok(writes) => write_links(terminal.backend_mut(), writes),
+        Err(_) => Ok(()),
+    };
     // End the update even if the draw failed, or the terminal stops painting
     execute!(terminal.backend_mut(), EndSynchronizedUpdate)?;
-    drawn
+    drawn?;
+    linked
 }
 
 /// Tells the terminal what dtop is doing, if that changed (OSC 7501)

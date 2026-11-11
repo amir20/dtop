@@ -125,6 +125,7 @@ pub fn cleanup_expired_errors(state: &mut AppState) {
 /// Renders the main UI - either container list, log view, or action menu
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let size = f.area();
+    state.log_links.clear();
 
     // Render main content
     match &state.view_state {

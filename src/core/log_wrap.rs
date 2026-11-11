@@ -57,6 +57,14 @@ pub fn wrapped_rows(line: &Line, width: usize, indent: usize) -> usize {
     rows
 }
 
+/// Byte offsets (into the line's concatenated spans) where each wrapped row
+/// after the first starts
+pub fn wrap_breaks(line: &Line, width: usize, indent: usize) -> Vec<usize> {
+    let mut breaks = Vec::new();
+    for_each_break(line, width, indent, |at| breaks.push(at));
+    breaks
+}
+
 /// Appends `line`, wrapped to `width`, to `rows`. Rows after the first start
 /// with `indent` spaces.
 pub fn wrap_into<'a>(rows: &mut Vec<Line<'a>>, line: &'a Line, width: usize, indent: usize) {

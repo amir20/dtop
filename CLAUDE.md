@@ -613,6 +613,9 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
   a hash of the original appended, so `user@box` and `user_box` don't share a record.
 - `host/<host>`: `error` while the host is disconnected.
 - `container/<host>/<id>`: `error` while a *running* container is unhealthy.
+- `logs/<host>/<id>`: `done` when lines matching the log view's applied search stream in
+  (`LogSearch::new_matches`, counted in `LogState::push_entry`), so a tab left on a search
+  gets flagged when it hits. Cleared with the search or the log view.
 - The event loop writes only changed records, straight to the backend outside ratatui's
   buffer (a cell can't carry an escape sequence, see OSC 8 above). `cleanup_terminal` clears
   every record, since `error` records outlive the process; it runs even when the event loop
@@ -623,6 +626,7 @@ Unsupporting terminals ignore the sequence, so it is always sent and has no sett
   notification and would pop one up per progress step. Detection is by env var, so it can't
   see versions (Ghostty < 1.2 and older WezTerm also treat OSC 9 as a notification, the same
   risk cargo takes), and over SSH, where those variables are lost, no bar is sent.
+  The same bar pulses (`9;4;3`, no percentage) while the log view loads older lines.
 - Exits with a non-zero code are not reported: `docker stop` on an image that ignores
   SIGTERM exits 137, which would flag every routine stop.
 
@@ -899,6 +903,18 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      one (`LogState::find_match`), leaving the view alone when the line is already on
      screen. Plain text, ASCII case-insensitive, matched against the line as shown.
      While the query is typed every key is text (`AppState::log_search_editing`)
+   - URLs (`http://`, `https://`) in log lines are OSC 8 hyperlinks when `hyperlinks` is on
+     (`ui/log_links.rs`). A URL that wraps is one link per row, each pointing at the whole
+     URL: `link_pieces` maps it through `log_wrap::wrap_breaks`. **They are not `Hyperlink`
+     widgets.** Escapes inside cells only work for text that stays put: ratatui rewrites just
+     the cells that changed, so on scrolling logs an unchanged cell kept the previous frame's
+     link, and an opener whose closing cell wasn't rewritten leaked onto later text. Instead
+     the render records `AppState::log_links` (and underlines them), and after each draw
+     `LinkWriter` re-prints every link's cells between an opener and a closer, and re-prints
+     plain the cells that were linked on the previous frame. A link whose cells no longer
+     show its label (toast or popup on top) is dropped. `links.forget()` after a shell session
+   - `y` copies the lines on screen as text, or the line a search is on, through
+     `AppState::clipboard_request` (OSC 52, as Copy ID does)
    - Auto-scroll when at bottom, manual scroll preserves position
    - The title shows the container, host and position (`[LIVE]`, `[42%]`, `[Loading...]`),
      then as many key hints as fit (`log_title`: Esc back, t timestamps, / search, ? help)
@@ -1138,6 +1154,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `↑/↓` - Scroll through logs manually
 - `←/h` or `Esc` - Return to container list
 - `t` - Show/hide dtop's timestamps
+- `y` - Copy the lines on screen (or the line a search is on) to the clipboard
 - `/` - Search the loaded lines; `Enter` jumps to the newest match, `n`/`N` to the next/previous, `Esc` clears
 - `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)

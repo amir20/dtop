@@ -1108,6 +1108,61 @@ mod tests {
         assert_snapshot_with_redaction!(output);
     }
 
+    /// A URL in a log line is a hyperlink to the whole URL from every row it
+    /// wraps onto, and the text on screen is unchanged
+    #[test]
+    fn test_log_view_links_urls_across_wrapped_rows() {
+        use crate::core::types::LogState;
+        use crate::docker::logs::LogEntry;
+
+        let mut state = create_test_app_state();
+        let container =
+            create_test_container("abc123456789", "nginx", "local", 25.5, 45.2, 1024.0, 2048.0);
+        let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
+        state.containers.insert(key.clone(), container);
+        state.view_state = ViewState::LogView(key.clone());
+        let url = "https://example.com/a/very/long/path/that/wraps?page=2";
+        let mut log_state = LogState::new(key, None);
+        log_state.set_show_timestamps(false);
+        log_state.set_entries(vec![
+            LogEntry::parse(&format!("2025-10-29T10:15:30Z GET {url} done")).unwrap(),
+        ]);
+        state.log_state = Some(log_state);
+
+        let mut render = |styles: &UiStyles| {
+            let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+            terminal.draw(|f| render_ui(f, &mut state, styles)).unwrap();
+            (terminal.backend().buffer().clone(), state.log_links.clone())
+        };
+        let (plain, no_links) = render(&UiStyles::default());
+        assert!(no_links.is_empty());
+        let (linked, links) = render(&UiStyles::default().with_hyperlinks(true));
+
+        // The URL is too long for the row "GET " is on, so it starts row 2 and
+        // runs onto row 3 (lines wrap at 38: two columns are kept for the scrollbar)
+        let pieces: Vec<(u16, u16, &str)> =
+            links.iter().map(|l| (l.x, l.y, l.label.as_str())).collect();
+        assert_eq!(pieces, [(0, 2, &url[..38]), (0, 3, &url[38..])]);
+        assert!(links.iter().all(|l| l.url == url));
+
+        // Same characters either way; the linked cells are underlined, and the
+        // buffer holds no escape sequence (the event loop writes the links)
+        for y in 0..6 {
+            for x in 0..40 {
+                assert_eq!(linked[(x, y)].symbol(), plain[(x, y)].symbol());
+            }
+        }
+        use ratatui::style::Modifier;
+        assert!(linked[(0, 2)].modifier.contains(Modifier::UNDERLINED));
+        assert!(!linked[(0, 1)].modifier.contains(Modifier::UNDERLINED));
+
+        // And the writer accepts them as drawn
+        let mut writer = crate::ui::log_links::LinkWriter::default();
+        let writes = writer.plan(&linked, &links);
+        assert_eq!(writes.len(), 2);
+        assert!(writes.iter().all(|w| w.url.as_deref() == Some(url)));
+    }
+
     #[test]
     fn test_log_view_with_content() {
         let mut state = create_test_app_state();

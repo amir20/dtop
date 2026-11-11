@@ -16,6 +16,9 @@ pub struct LogSearch {
     pub editing: bool,
     /// Entry `n`/`N` last jumped to
     pub current: Option<usize>,
+    /// Lines that matched as they streamed in since the query was applied.
+    /// Reported to the terminal (`program_status`) so it can flag the tab.
+    pub new_matches: usize,
 }
 
 impl LogSearch {

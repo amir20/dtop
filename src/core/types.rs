@@ -538,6 +538,12 @@ impl LogState {
     pub fn push_entry(&mut self, entry: crate::docker::logs::LogEntry) {
         let repeats = entry.repeats(self.log_entries.last());
         let line = entry.format(self.show_timestamps, repeats);
+        if let Some(search) = &mut self.search
+            && !search.editing
+            && crate::core::log_search::matches(&line, &search.needle())
+        {
+            search.new_matches += 1;
+        }
         if let Some((width, total)) = self.rows_cache {
             let rows = wrapped_rows(&line, width, self.wrap_indent(width));
             self.line_rows.push(rows);
@@ -615,6 +621,25 @@ impl LogState {
             Some(current) => (0..current.min(count)).rev().find(hit),
             None => (0..count).rev().find(hit),
         }
+    }
+
+    /// The entries with at least one wrapped row inside `rows`, at the width
+    /// last given to `total_rows`
+    pub fn entries_in_rows(&self, rows: std::ops::Range<usize>) -> std::ops::Range<usize> {
+        let mut above = 0;
+        let mut first = None;
+        let mut end = 0;
+        for (index, &count) in self.line_rows.iter().enumerate() {
+            if above >= rows.end {
+                break;
+            }
+            if above + count > rows.start {
+                first.get_or_insert(index);
+                end = index + 1;
+            }
+            above += count;
+        }
+        first.unwrap_or(0)..end
     }
 
     /// Wrapped rows above entry `index`, at the width last given to `total_rows`

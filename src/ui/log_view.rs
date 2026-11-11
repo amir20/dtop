@@ -1,5 +1,6 @@
 use ratatui::{
     Frame,
+    layout::Rect,
     style::{Color, Style},
     text::{Line, Text},
     widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
@@ -7,9 +8,10 @@ use ratatui::{
 
 use crate::core::app_state::AppState;
 use crate::core::log_search::highlight;
-use crate::core::log_wrap::wrap_into;
+use crate::core::log_wrap::{wrap_breaks, wrap_into};
 use crate::core::types::ContainerKey;
 
+use super::log_links::{LogLink, link_pieces};
 use super::render::UiStyles;
 
 /// Search matches, and those on the line `n`/`N` last jumped to
@@ -155,6 +157,8 @@ pub fn render_log_view(
     };
 
     let mut visible_rows: Vec<Line> = Vec::with_capacity(needed_rows);
+    // Not under the help popup, which covers the text
+    let link_urls = styles.hyperlinks && !state.show_help;
     for (i, line) in log_state
         .formatted_lines
         .iter()
@@ -162,7 +166,27 @@ pub fn render_log_view(
         .enumerate()
     {
         let line = highlighted.get(i).and_then(Option::as_ref).unwrap_or(line);
+        let first_row = visible_rows.len();
         wrap_into(&mut visible_rows, line, inner_width, indent);
+
+        if link_urls && line.spans.iter().any(|s| s.content.contains("http")) {
+            let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+            let breaks = wrap_breaks(line, inner_width, indent);
+            for piece in link_pieces(&text, &breaks, indent) {
+                // Rows scrolled off the top, or past the bottom, aren't drawn.
+                // The text starts on the row under the title.
+                let row = (first_row + piece.row).checked_sub(sub_line_offset);
+                if let Some(row) = row.filter(|&row| row < visible_height) {
+                    state.log_links.push(LogLink {
+                        x: area.x + piece.column as u16,
+                        y: area.y + 1 + row as u16,
+                        label: text[piece.text].to_string(),
+                        url: text[piece.url].to_string(),
+                    });
+                }
+            }
+        }
+
         if visible_rows.len() >= needed_rows {
             break;
         }
@@ -184,6 +208,13 @@ pub fn render_log_view(
     );
 
     f.render_widget(log_widget, area);
+
+    // Underlined here; the event loop makes them links (`LinkWriter`)
+    for link in &state.log_links {
+        let width = unicode_width::UnicodeWidthStr::width(link.label.as_str()) as u16;
+        f.buffer_mut()
+            .set_style(Rect::new(link.x, link.y, width, 1), styles.link);
+    }
 
     // Render scrollbar on the right side
     let mut scrollbar_state = ScrollbarState::default()

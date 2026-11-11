@@ -17,9 +17,9 @@ use std::str::FromStr;
 use unicode_width::UnicodeWidthChar;
 
 /// Start of an OSC 8 hyperlink: `ESC ] 8 ; ;`
-const OSC8_PREFIX: &str = "\u{1b}]8;;";
+pub(super) const OSC8_PREFIX: &str = "\u{1b}]8;;";
 /// String Terminator: `ESC \`
-const ST: &str = "\u{1b}\\";
+pub(super) const ST: &str = "\u{1b}\\";
 
 /// When to render OSC 8 hyperlinks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -112,7 +112,7 @@ impl<'a> Hyperlink<'a> {
 /// Failing closed (no link) rather than stripping: a URL containing control
 /// characters is malformed anyway, and silently rewriting it could point the
 /// link somewhere the user did not configure.
-fn is_safe_url(url: &str) -> bool {
+pub(super) fn is_safe_url(url: &str) -> bool {
     !url.is_empty() && !url.chars().any(char::is_control)
 }
 

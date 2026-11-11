@@ -5,4 +5,5 @@
 - Press `Enter` to view container logs
 - Press `t` in the log view to show or hide dtop's timestamps
 - Press `/` in the log view to search; `n` and `N` jump between matches
+- Press `y` in the log view to copy the lines on screen to the clipboard
 - Connect to remote hosts with `dtop --host ssh://user@host`

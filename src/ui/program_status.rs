@@ -8,6 +8,8 @@
 //!   `error` with its summary; `idle` before the first one.
 //! - `host/<host>`: `error` while the host is disconnected.
 //! - `container/<host>/<id>`: `error` while a running container is unhealthy.
+//! - `logs/<host>/<id>`: `done` once lines matching the log view's search have
+//!   streamed in, with their count. It lasts as long as the search does.
 //!
 //! Only changes are written, and everything is cleared on quit, since dtop is
 //! then no longer watching and `error` records outlive the process.
@@ -15,7 +17,8 @@
 //! A bulk action's progress is also sent as OSC 9;4, the progress bar that
 //! Windows Terminal, ConEmu, Ghostty and WezTerm show, but only to those: other
 //! terminals (older iTerm2, kitty) read any OSC 9 as a desktop notification, and
-//! would pop one up for every progress step.
+//! would pop one up for every progress step. The same bar pulses (no
+//! percentage) while the log view loads older lines.
 
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -38,8 +41,8 @@ pub struct ProgramStatus {
     sent: Reports,
     /// Whether to also send OSC 9;4 progress
     progress_bar: bool,
-    /// The OSC 9;4 percentage last sent (None: no bar shown)
-    sent_progress: Option<u8>,
+    /// The OSC 9;4 bar last sent (None: no bar shown)
+    sent_progress: Option<ProgressBar>,
     /// [`fingerprint`] of the state last reported, to skip rebuilding the
     /// reports on the (usual) passes where nothing they show changed
     sent_fingerprint: Option<u64>,
@@ -76,10 +79,16 @@ impl ProgramStatus {
         self.sent = wanted;
 
         if self.progress_bar {
-            let progress = bulk_progress(state).map(|(_, percent)| percent);
+            // A bulk action's percentage wins over the log view's pulse
+            let progress = bulk_progress(state)
+                .map(|(_, percent)| ProgressBar::Percent(percent))
+                .or_else(|| loading_older_logs(state).then_some(ProgressBar::Busy));
             if progress != self.sent_progress {
                 match progress {
-                    Some(percent) => out.push_str(&format!("\x1b]9;4;1;{percent}\x07")),
+                    Some(ProgressBar::Percent(percent)) => {
+                        out.push_str(&format!("\x1b]9;4;1;{percent}\x07"))
+                    }
+                    Some(ProgressBar::Busy) => out.push_str("\x1b]9;4;3\x07"),
                     None => out.push_str(CLEAR_PROGRESS_BAR),
                 }
                 self.sent_progress = progress;
@@ -100,6 +109,30 @@ impl ProgramStatus {
 }
 
 const CLEAR_PROGRESS_BAR: &str = "\x1b]9;4;0\x07";
+
+/// What the OSC 9;4 progress bar shows
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProgressBar {
+    Percent(u8),
+    /// Working, with no known end (state 3, "indeterminate")
+    Busy,
+}
+
+/// Whether the log view is waiting on a page of older lines
+fn loading_older_logs(state: &AppState) -> bool {
+    state
+        .log_state
+        .as_ref()
+        .is_some_and(|log| log.fetching_older)
+}
+
+/// The log view's applied search and how many matching lines have arrived
+/// since, once there are any
+fn new_log_matches(state: &AppState) -> Option<(&crate::core::types::LogState, &str, usize)> {
+    let log = state.log_state.as_ref()?;
+    let search = log.search.as_ref()?;
+    (search.new_matches > 0).then(|| (log, search.input.value(), search.new_matches))
+}
 
 /// Terminals known to draw OSC 9;4 as a progress bar (the same set cargo uses).
 /// Off under tmux, which doesn't pass it through.
@@ -137,6 +170,12 @@ fn fingerprint(state: &AppState) -> u64 {
     }
     state.last_bulk_outcome.hash(&mut hasher);
     state.disconnected_hosts.hash(&mut hasher);
+    loading_older_logs(state).hash(&mut hasher);
+    if let Some((log, query, count)) = new_log_matches(state) {
+        log.container_key.hash(&mut hasher);
+        query.hash(&mut hasher);
+        count.hash(&mut hasher);
+    }
     (state.connected_hosts.len() > 1).hash(&mut hasher);
     let mut unhealthy = 0u64;
     for (key, container) in &state.containers {
@@ -192,6 +231,23 @@ fn reports(state: &AppState) -> Reports {
             let body = report("error", Some(&id), Some(&title), Some("Unhealthy"), None);
             reports.insert(id, body);
         }
+    }
+
+    if let Some((log, query, count)) = new_log_matches(state) {
+        let key = &log.container_key;
+        let id = format!(
+            "logs/{}/{}",
+            id_segment(&key.host_id),
+            id_segment(&key.container_id)
+        );
+        let name = state.containers.get(key).map(|c| c.name.as_str());
+        let title = format!("Logs: {}", name.unwrap_or(&key.container_id));
+        let lines = if count == 1 { "line" } else { "lines" };
+        let msg = format!("{count} new {lines} matching \"{query}\"");
+        reports.insert(
+            id.clone(),
+            report("done", Some(&id), Some(&title), Some(&msg), None),
+        );
     }
 
     reports
@@ -694,5 +750,80 @@ mod tests {
             with_bar.clear_all(),
             format!("{}{CLEAR_PROGRESS_BAR}", osc("state=clear"))
         );
+    }
+
+    fn log_line(msg: &str) -> crate::docker::logs::LogEntry {
+        crate::docker::logs::LogEntry::parse(&format!("2025-10-29T10:15:30Z {msg}")).unwrap()
+    }
+
+    /// A state with nginx's log view open
+    fn viewing_logs() -> (AppState, ContainerKey) {
+        use crate::core::types::{LogState, ViewState};
+        let mut state = state();
+        let nginx = container("abc123", "local");
+        let key = ContainerKey::new("local".to_string(), "abc123".to_string());
+        state.containers.insert(key.clone(), nginx);
+        state.view_state = ViewState::LogView(key.clone());
+        state.log_state = Some(LogState::new(key.clone(), None));
+        (state, key)
+    }
+
+    /// Lines that match the applied search as they arrive flag the tab, counted;
+    /// lines already loaded and lines that don't match do not
+    #[test]
+    fn new_search_matches_are_reported_until_the_search_is_dropped() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let (mut state, key) = viewing_logs();
+        let press = |state: &mut AppState, code| {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        };
+        let mut status = ProgramStatus::default();
+
+        state.handle_event(AppEvent::LogLine(key.clone(), log_line("ERROR old")));
+        for code in "/error".chars().map(KeyCode::Char).chain([KeyCode::Enter]) {
+            press(&mut state, code);
+        }
+        state.handle_event(AppEvent::LogLine(key.clone(), log_line("all good")));
+        assert!(!status.update(&state).contains("logs/"));
+
+        state.handle_event(AppEvent::LogLine(key.clone(), log_line("ERROR new")));
+        let id = "logs/local/abc123";
+        let title = base64(format!("Logs: {}", state.containers[&key].name));
+        assert_eq!(
+            status.update(&state),
+            osc(&format!(
+                "state=done:app=dtop:id={id}:title={title}:msg={}",
+                base64("1 new line matching \"error\"")
+            ))
+        );
+        state.handle_event(AppEvent::LogLine(key.clone(), log_line("error again")));
+        assert!(
+            status
+                .update(&state)
+                .contains(&base64("2 new lines matching \"error\""))
+        );
+
+        press(&mut state, KeyCode::Esc);
+        assert_eq!(status.update(&state), osc(&format!("state=clear:id={id}")));
+    }
+
+    #[test]
+    fn progress_bar_pulses_while_older_logs_load() {
+        let (mut state, _) = viewing_logs();
+        let mut status = ProgramStatus {
+            progress_bar: true,
+            ..ProgramStatus::default()
+        };
+        status.update(&state);
+
+        state.log_state.as_mut().unwrap().fetching_older = true;
+        assert!(status.update(&state).ends_with("\x1b]9;4;3\x07"));
+        state.log_state.as_mut().unwrap().fetching_older = false;
+        assert!(status.update(&state).ends_with(CLEAR_PROGRESS_BAR));
+
+        // Not sent to terminals that would read it as a notification
+        let mut plain = ProgramStatus::default();
+        state.log_state.as_mut().unwrap().fetching_older = true;
+        assert!(!plain.update(&state).contains("]9;4"));
     }
 }

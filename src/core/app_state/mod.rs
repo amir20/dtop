@@ -123,6 +123,9 @@ pub struct AppState {
     /// Text to put on the clipboard with OSC 52, taken by the event loop,
     /// which owns the terminal
     pub clipboard_request: Option<String>,
+    /// URLs the log view drew this frame, for the event loop to write as
+    /// OSC 8 hyperlinks (`ui/log_links.rs`). Rebuilt by every render.
+    pub log_links: Vec<crate::ui::log_links::LogLink>,
     /// Opens Shell and Logs in a terminal pane beside dtop (`--panes`)
     pub panes: Option<crate::ui::panes::Panes>,
     /// `dtop logs <id>`: the container to open the log view for once it is
@@ -198,6 +201,7 @@ impl AppState {
             marked_containers: HashSet::new(),
             bulk_progress: Vec::new(),
             clipboard_request: None,
+            log_links: Vec::new(),
             panes: None,
             logs_only: None,
             quit_with_log_view: false,
@@ -450,6 +454,7 @@ impl AppState {
                 _ => self.handle_scroll_page_down(),
             },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
+            KeyCode::Char('y') => self.handle_copy_log_lines(),
             KeyCode::Char('n') => self.handle_log_search_jump(true),
             KeyCode::Char('N') => self.handle_log_search_jump(false),
             KeyCode::Char('p') => self.handle_toggle_mark_project(),
