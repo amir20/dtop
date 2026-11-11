@@ -341,6 +341,11 @@ impl AppState {
             return self.handle_sort_selector_key(key);
         }
 
+        // Typing a log search: keys are text until Enter or Esc
+        if self.log_search_editing() {
+            return self.handle_log_search_key(key);
+        }
+
         // Ctrl modifiers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return match key.code {
@@ -445,6 +450,8 @@ impl AppState {
                 _ => self.handle_scroll_page_down(),
             },
             KeyCode::Char('b') => self.handle_scroll_page_up(),
+            KeyCode::Char('n') => self.handle_log_search_jump(true),
+            KeyCode::Char('N') => self.handle_log_search_jump(false),
             KeyCode::Char('p') => self.handle_toggle_mark_project(),
             _ => RenderAction::None,
         }

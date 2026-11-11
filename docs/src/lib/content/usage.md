@@ -4,4 +4,5 @@
 - Press `t` to show or hide the system stats header
 - Press `Enter` to view container logs
 - Press `t` in the log view to show or hide dtop's timestamps
+- Press `/` in the log view to search; `n` and `N` jump between matches
 - Connect to remote hosts with `dtop --host ssh://user@host`

@@ -892,6 +892,13 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      continuation rows indented to the message column (`LogState::wrap_indent`; no indent
      when timestamps are hidden or the view is under 60 columns). `LogState::line_rows`
      caches each line's row count per width, so the scroll math matches what is drawn
+   - `/` searches the loaded lines (`core/log_search.rs`, state in `LogState::search`, kept
+     apart from the container filter in `AppState::search_input` so that filter survives a
+     visit to the logs). Matches are highlighted at draw time, on the visible lines only;
+     nothing is hidden. Enter jumps to the newest match, `n`/`N` to the next newer/older
+     one (`LogState::find_match`), leaving the view alone when the line is already on
+     screen. Plain text, ASCII case-insensitive, matched against the line as shown.
+     While the query is typed every key is text (`AppState::log_search_editing`)
    - Auto-scroll when at bottom, manual scroll preserves position
    - Displays "[AUTO]" or "[MANUAL]" indicator in title
 3. **Action Menu** - Centered popup for container actions
@@ -1130,6 +1137,7 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `↑/↓` - Scroll through logs manually
 - `←/h` or `Esc` - Return to container list
 - `t` - Show/hide dtop's timestamps
+- `/` - Search the loaded lines; `Enter` jumps to the newest match, `n`/`N` to the next/previous, `Esc` clears
 - `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)
 

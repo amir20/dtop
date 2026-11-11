@@ -1,4 +1,5 @@
 use crate::core::app_state::AppState;
+use crate::core::log_search::LogSearch;
 use crate::core::types::{ContainerKey, LogState, RenderAction, ViewState};
 use crate::docker::logs::{LogEntry, fetch_older_logs};
 use crate::ui::panes::PaneKind;
@@ -129,6 +130,103 @@ impl AppState {
         self.show_log_timestamps = !self.show_log_timestamps;
         if let Some(state) = &mut self.log_state {
             state.set_show_timestamps(self.show_log_timestamps);
+        }
+        RenderAction::Render
+    }
+
+    /// Whether a log search query is being typed
+    pub(super) fn log_search_editing(&self) -> bool {
+        matches!(self.view_state, ViewState::LogView(_))
+            && !self.show_help
+            && self
+                .log_state
+                .as_ref()
+                .and_then(|state| state.search.as_ref())
+                .is_some_and(|search| search.editing)
+    }
+
+    /// Handles '/' in the log view: start typing a search
+    pub(super) fn handle_start_log_search(&mut self) -> RenderAction {
+        let Some(state) = &mut self.log_state else {
+            return RenderAction::None;
+        };
+        state.search = Some(LogSearch {
+            editing: true,
+            ..Default::default()
+        });
+        RenderAction::Render
+    }
+
+    /// A key while the query is typed: Enter applies it and jumps to the
+    /// newest match, Esc drops the search, anything else edits the text
+    pub(super) fn handle_log_search_key(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+    ) -> RenderAction {
+        use crossterm::event::KeyCode;
+        use tui_input::backend::crossterm::EventHandler;
+
+        let Some(state) = &mut self.log_state else {
+            return RenderAction::None;
+        };
+        let Some(search) = &mut state.search else {
+            return RenderAction::None;
+        };
+        match key.code {
+            KeyCode::Esc => state.search = None,
+            KeyCode::Enter if search.input.value().is_empty() => state.search = None,
+            KeyCode::Enter => {
+                search.editing = false;
+                return self.handle_log_search_jump(false);
+            }
+            _ => {
+                search
+                    .input
+                    .handle_event(&crossterm::event::Event::Key(key));
+            }
+        }
+        RenderAction::Render
+    }
+
+    /// Handles 'n' (`forward`, towards newer lines) and 'N' in the log view:
+    /// scroll to the next line that holds the search text
+    pub(super) fn handle_log_search_jump(&mut self, forward: bool) -> RenderAction {
+        // Rows of context kept above the line jumped to
+        const CONTEXT_ROWS: usize = 2;
+
+        if !matches!(self.view_state, ViewState::LogView(_)) {
+            return RenderAction::None;
+        }
+        let Some(state) = &mut self.log_state else {
+            return RenderAction::None;
+        };
+        let Some(search) = &state.search else {
+            return RenderAction::None;
+        };
+        let first_jump = search.current.is_none();
+
+        let Some(index) = state.find_match(forward) else {
+            let message = if first_jump {
+                format!("No matches for \"{}\"", search.input.value())
+            } else if forward {
+                "No newer matches".to_string()
+            } else {
+                "No older matches".to_string()
+            };
+            self.show_notification(&message);
+            return RenderAction::Render;
+        };
+        if let Some(search) = &mut state.search {
+            search.current = Some(index);
+        }
+
+        // Leave the view where it is when the line is already on screen
+        state.total_rows(self.last_viewport_width);
+        let row = state.rows_before(index);
+        let on_screen = state.scroll_offset..state.scroll_offset + self.last_viewport_height;
+        if !on_screen.contains(&row) {
+            state.scroll_offset = row.saturating_sub(CONTEXT_ROWS);
+            self.is_at_bottom = false;
         }
         RenderAction::Render
     }
@@ -500,5 +598,104 @@ mod logs_only_tests {
         state.open_log_view(&key);
         state.handle_log_line(key, entry("third"));
         assert_eq!(line(&state, 0), "third");
+    }
+
+    /// '/' types a query (keys are text, not commands), Enter jumps to the
+    /// newest match, n/N walk the matches, and Esc drops the search before a
+    /// second Esc leaves the view
+    #[test]
+    fn search_walks_the_matching_lines() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let entry = |second: usize, msg: &str| {
+            LogEntry::parse(&format!("2025-10-29T10:15:{second:02}Z {msg}")).unwrap()
+        };
+
+        let mut state = state();
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![container("abc123def456", ContainerState::Running)],
+        ));
+        let key = ContainerKey::new("nas".to_string(), "abc123def456".to_string());
+        state.open_log_view(&key);
+        state.last_viewport_height = 5;
+        for i in 0..40 {
+            let msg = if i % 10 == 3 { "ERROR boom" } else { "ok" };
+            state.handle_log_line(key.clone(), entry(i, msg));
+        }
+        let press = |state: &mut AppState, code: KeyCode| {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        };
+        let current = |state: &AppState| {
+            let log = state.log_state.as_ref().unwrap();
+            log.search.as_ref().and_then(|search| search.current)
+        };
+
+        // 'q' and 'n' are part of the query here, not quit and next
+        press(&mut state, KeyCode::Char('/'));
+        for c in "qn".chars() {
+            press(&mut state, KeyCode::Char(c));
+        }
+        assert!(!state.should_quit);
+        press(&mut state, KeyCode::Backspace);
+        press(&mut state, KeyCode::Backspace);
+        for c in "error".chars() {
+            press(&mut state, KeyCode::Char(c));
+        }
+        assert_eq!(current(&state), None);
+
+        // Enter lands on the newest match and scrolls it into view
+        press(&mut state, KeyCode::Enter);
+        assert_eq!(current(&state), Some(33));
+        assert!(!state.is_at_bottom);
+        assert_eq!(state.log_state.as_ref().unwrap().scroll_offset, 31);
+
+        press(&mut state, KeyCode::Char('N'));
+        assert_eq!(current(&state), Some(23));
+        press(&mut state, KeyCode::Char('n'));
+        assert_eq!(current(&state), Some(33));
+        // Nothing newer: stays put and says so
+        press(&mut state, KeyCode::Char('n'));
+        assert_eq!(current(&state), Some(33));
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("No newer matches")
+        );
+
+        // Older lines loaded above shift the entry the search is on
+        state.handle_log_batch_prepend(
+            key.clone(),
+            vec![entry(0, "older"), entry(0, "older")],
+            false,
+        );
+        assert_eq!(current(&state), Some(35));
+
+        press(&mut state, KeyCode::Esc);
+        assert!(state.log_state.as_ref().unwrap().search.is_none());
+        assert!(matches!(state.view_state, ViewState::LogView(_)));
+        press(&mut state, KeyCode::Esc);
+        assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    #[test]
+    fn search_without_a_match_says_so() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let mut state = state();
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![container("abc123def456", ContainerState::Running)],
+        ));
+        let key = ContainerKey::new("nas".to_string(), "abc123def456".to_string());
+        state.open_log_view(&key);
+        state.handle_log_line(
+            key,
+            LogEntry::parse("2025-10-29T10:15:30Z all good").unwrap(),
+        );
+        for code in [KeyCode::Char('/'), KeyCode::Char('x'), KeyCode::Enter] {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        }
+        assert_eq!(
+            state.notification.as_ref().map(|(m, _)| m.as_str()),
+            Some("No matches for \"x\"")
+        );
     }
 }
