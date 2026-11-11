@@ -221,9 +221,16 @@ impl AppState {
         }
 
         // Leave the view where it is when the line is already on screen
-        state.total_rows(self.last_viewport_width);
+        // While following the bottom, `scroll_offset` is only brought up to
+        // date by the next draw, and lines may have arrived since the last one
+        let total = state.total_rows(self.last_viewport_width);
+        let top = if self.is_at_bottom {
+            total.saturating_sub(self.last_viewport_height)
+        } else {
+            state.scroll_offset
+        };
         let row = state.rows_before(index);
-        let on_screen = state.scroll_offset..state.scroll_offset + self.last_viewport_height;
+        let on_screen = top..top + self.last_viewport_height;
         if !on_screen.contains(&row) {
             state.scroll_offset = row.saturating_sub(CONTEXT_ROWS);
             self.is_at_bottom = false;
@@ -622,6 +629,14 @@ mod logs_only_tests {
             let msg = if i % 10 == 3 { "ERROR boom" } else { "ok" };
             state.handle_log_line(key.clone(), entry(i, msg));
         }
+        // A match in the bottom rows is on screen already, so nothing moves
+        state.handle_log_line(key.clone(), entry(40, "visible line"));
+        press_keys(&mut state, "/visible");
+        assert!(state.is_at_bottom);
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Esc,
+            KeyModifiers::NONE,
+        )));
         let press = |state: &mut AppState, code: KeyCode| {
             state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
         };
@@ -643,7 +658,8 @@ mod logs_only_tests {
         }
         assert_eq!(current(&state), None);
 
-        // Enter lands on the newest match and scrolls it into view
+        // Enter lands on the newest match and scrolls it into view: following
+        // the bottom, rows 35..40 are showing, whatever the last draw recorded
         press(&mut state, KeyCode::Enter);
         assert_eq!(current(&state), Some(33));
         assert!(!state.is_at_bottom);
@@ -651,6 +667,7 @@ mod logs_only_tests {
 
         press(&mut state, KeyCode::Char('N'));
         assert_eq!(current(&state), Some(23));
+        assert_eq!(state.log_state.as_ref().unwrap().scroll_offset, 21);
         press(&mut state, KeyCode::Char('n'));
         assert_eq!(current(&state), Some(33));
         // Nothing newer: stays put and says so
@@ -674,6 +691,14 @@ mod logs_only_tests {
         assert!(matches!(state.view_state, ViewState::LogView(_)));
         press(&mut state, KeyCode::Esc);
         assert_eq!(state.view_state, ViewState::ContainerList);
+    }
+
+    /// Types `text` and presses Enter
+    fn press_keys(state: &mut AppState, text: &str) {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        for code in text.chars().map(KeyCode::Char).chain([KeyCode::Enter]) {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        }
     }
 
     #[test]
