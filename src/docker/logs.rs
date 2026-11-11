@@ -9,6 +9,9 @@ use crate::docker::connection::DockerHost;
 use crate::docker::json_formatter;
 use crate::docker::timestamp_prefix::duplicate_timestamp;
 
+/// Columns dtop's timestamp and the space after it take in a formatted line
+pub const TIMESTAMP_COLUMNS: usize = 20;
+
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
 pub struct LogEntry {
@@ -26,18 +29,27 @@ impl LogEntry {
     ///
     /// With `show_timestamp`, dtop's timestamp leads and the app's duplicate of
     /// it stays hidden. Without, the line reads as the app printed it.
-    pub fn format(&self, show_timestamp: bool) -> Line<'static> {
+    /// `repeats_previous` dims the timestamp: the line shares its second with
+    /// the one above, as the rows of a stack trace or a table do.
+    pub fn format(&self, show_timestamp: bool, repeats_previous: bool) -> Line<'static> {
         use chrono::Local;
         use ratatui::style::{Color, Modifier, Style};
 
         const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+        const REPEATED_STYLE: Style = Style::new().fg(Color::DarkGray);
 
         let mut line_spans = Vec::new();
         let mut text = &self.text;
         if show_timestamp {
             let local_timestamp = self.timestamp.with_timezone(&Local);
             let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-            line_spans.push(Span::styled(timestamp_str, TIMESTAMP_STYLE));
+            debug_assert_eq!(timestamp_str.len() + 1, TIMESTAMP_COLUMNS);
+            let style = if repeats_previous {
+                REPEATED_STYLE
+            } else {
+                TIMESTAMP_STYLE
+            };
+            line_spans.push(Span::styled(timestamp_str, style));
             line_spans.push(Span::raw(" "));
             text = self.without_own_timestamp.as_ref().unwrap_or(text);
         }
@@ -47,6 +59,11 @@ impl LogEntry {
         }
 
         Line::from(line_spans)
+    }
+
+    /// Whether this entry would show the same timestamp as `previous`
+    pub fn repeats(&self, previous: Option<&LogEntry>) -> bool {
+        previous.is_some_and(|p| p.timestamp.timestamp() == self.timestamp.timestamp())
     }
 
     /// Parse a Docker log line with RFC3339 timestamp
@@ -349,11 +366,11 @@ mod tests {
         )
         .unwrap();
 
-        let with = plain(&entry.format(true));
+        let with = plain(&entry.format(true, false));
         assert!(with.ends_with(":56 INF Starting server"), "{with}");
         assert_eq!(with.matches("2025-10-2").count(), 1, "{with}");
 
-        let without = entry.format(false);
+        let without = entry.format(false, false);
         assert_eq!(plain(&without), "2025-10-28T12:34:56Z INF Starting server");
         assert_ne!(without.spans[0].style, ratatui::style::Style::default());
     }
@@ -364,9 +381,9 @@ mod tests {
         let entry =
             LogEntry::parse("2025-10-28T12:34:56.789Z 2025-10-28T09:00:00Z job finished").unwrap();
         assert!(entry.without_own_timestamp.is_none());
-        assert!(plain(&entry.format(true)).ends_with(" 2025-10-28T09:00:00Z job finished"));
+        assert!(plain(&entry.format(true, false)).ends_with(" 2025-10-28T09:00:00Z job finished"));
         assert_eq!(
-            plain(&entry.format(false)),
+            plain(&entry.format(false, false)),
             "2025-10-28T09:00:00Z job finished"
         );
     }
