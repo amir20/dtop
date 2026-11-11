@@ -396,7 +396,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            plain(&entry.format(false)),
+            plain(&entry.text.lines[0]),
             "a       INFO    shutting down   {\"server\": \"http\"}"
         );
     }
@@ -408,7 +408,7 @@ mod tests {
             r#"2025-10-28T12:34:56.789Z {"time":"t","level":"debug","msg":"hi","args":{"z":1,"a":2}}"#,
         )
         .unwrap();
-        let keys: Vec<_> = plain(&entry.format(false))
+        let keys: Vec<_> = plain(&entry.text.lines[0])
             .split_whitespace()
             .map(|field| field.split('=').next().unwrap().to_string())
             .collect();
