@@ -6,6 +6,8 @@
 //! Docker's is reported: a line's other clocks (an event time, another zone's
 //! wall time that isn't a whole offset away) are left alone.
 
+use std::ops::Range;
+
 use chrono::NaiveDate;
 
 /// A zoned timestamp is a duplicate when it is this close to Docker's.
@@ -16,64 +18,86 @@ const TOLERANCE_MS: i64 = 2_000;
 const MAX_OFFSET_MS: i64 = 14 * 3_600_000;
 const QUARTER_HOUR_MS: i64 = 15 * 60_000;
 
-/// Returns how many leading bytes of `message` are a timestamp that repeats
-/// `docker_ms` (unix milliseconds), or 0 when there is none.
+/// Returns the bytes of `message` that are a timestamp repeating `docker_ms`
+/// (unix milliseconds), or `None` when there is none.
 ///
-/// The prefix covers the timestamp's own ANSI coloring, an optional pair of
-/// brackets and the whitespace after it, so `message[n..]` starts at the first
-/// real character of the line. Everything it can match is ASCII.
+/// The range covers the timestamp's own ANSI coloring, an optional pair of
+/// brackets and the separator after it (whitespace, `:`, `::`, ` - `, ` | `),
+/// so cutting it leaves the line starting at its first real character. When
+/// the bracket also holds a level (`[<time> INF] text`), only the time is in
+/// the range and the bracket stays: `[INF] text`. Everything it can match is
+/// ASCII.
 ///
 /// This runs on every log line, so it parses by hand and bails out on the
 /// first byte for lines that cannot start with a timestamp.
-pub fn timestamp_prefix_len(message: &str, docker_ms: i64) -> usize {
+pub fn duplicate_timestamp(message: &str, docker_ms: i64) -> Option<Range<usize>> {
     let s = message.as_bytes();
     match s.first() {
         Some(c) if c.is_ascii_digit() || *c == b'[' || *c == 0x1b => {}
-        _ => return 0,
+        _ => return None,
     }
 
     let mut colored = false;
-    let Some(mut i) = skip_ansi(s, 0, &mut colored) else {
-        return 0;
-    };
+    let mut i = skip_ansi(s, 0, &mut colored)?;
     let bracketed = s.get(i) == Some(&b'[');
     if bracketed {
-        let Some(next) = skip_ansi(s, i + 1, &mut colored) else {
-            return 0;
-        };
-        i = next;
+        i = skip_ansi(s, i + 1, &mut colored)?;
     }
+    let start = i;
 
-    let Some((ts, zoned, end)) = parse_timestamp(s, i) else {
-        return 0;
-    };
+    let (ts, zoned, end) = parse_timestamp(s, i)?;
+    if !matches_docker_time(ts, zoned, docker_ms) {
+        return None;
+    }
 
     // Only resets may follow: the color that was set for the timestamp has to be
     // turned off before the text, or cutting it away would uncolor the rest.
     let mut reset = false;
     i = skip_resets(s, end, &mut reset);
+    let mut range_start = 0;
     if bracketed {
-        if s.get(i) != Some(&b']') {
-            return 0;
+        if s.get(i) == Some(&b']') {
+            i = skip_resets(s, i + 1, &mut reset);
+        } else {
+            // "[<time> INF] text": keep the bracket around what is left. Not
+            // attempted with coloring, which would straddle the cut.
+            let closes = s[i..].iter().take(64).any(|&c| c == b']');
+            if colored || reset || !closes || start != 1 {
+                return None;
+            }
+            range_start = start;
         }
-        i = skip_resets(s, i + 1, &mut reset);
     }
     if colored && !reset {
-        return 0;
+        return None;
     }
 
-    let before_spaces = i;
-    while matches!(s.get(i), Some(b' ' | b'\t')) {
-        i += 1;
+    let after = skip_separator(s, i);
+    let needs_separator = !bracketed || range_start > 0;
+    if (needs_separator && after == i) || after >= s.len() {
+        return None;
     }
-    if (!bracketed && i == before_spaces) || i >= s.len() {
-        return 0;
-    }
+    Some(range_start..after)
+}
 
-    if matches_docker_time(ts, zoned, docker_ms) {
+/// Consumes what sets a timestamp apart from the text after it: whitespace,
+/// then at most one of `:`, `::`, ` - ` or ` | ` and the whitespace after that.
+fn skip_separator(s: &[u8], start: usize) -> usize {
+    let blanks = |mut i: usize| {
+        while matches!(s.get(i), Some(b' ' | b'\t')) {
+            i += 1;
+        }
         i
-    } else {
-        0
+    };
+    let i = blanks(start);
+    match s.get(i) {
+        Some(b':') if s.get(i + 1) == Some(&b':') => blanks(i + 2),
+        Some(b':') => blanks(i + 1),
+        // A dash or bar only with space on both sides, so "-5" keeps its sign
+        Some(b'-' | b'|') if i > start && matches!(s.get(i + 1), Some(b' ' | b'\t')) => {
+            blanks(i + 1)
+        }
+        _ => i,
     }
 }
 
@@ -265,8 +289,12 @@ mod tests {
             .timestamp_millis()
     }
 
-    fn rest(line: &str) -> &str {
-        &line[timestamp_prefix_len(line, docker_ms())..]
+    /// The line with its duplicate timestamp cut, or as it was
+    fn rest(line: &str) -> String {
+        match duplicate_timestamp(line, docker_ms()) {
+            Some(range) => format!("{}{}", &line[..range.start], &line[range.end..]),
+            None => line.to_string(),
+        }
     }
 
     #[test]
@@ -339,6 +367,37 @@ mod tests {
                 "2026-09-13 22:28:56.048 UTC [24] LOG:  shutting down",
                 "[24] LOG:  shutting down",
             ),
+            (
+                "a sign is not a dash",
+                "2026-09-13 22:28:56 -5 degrees",
+                "-5 degrees",
+            ),
+            (
+                "sabnzbd: double colon",
+                "2026-09-13 22:28:56,891::INFO::[database:386] Added job",
+                "INFO::[database:386] Added job",
+            ),
+            (
+                "jetty: colon",
+                "2026-09-13 22:28:56.073:INFO:oejs.x:jetty",
+                "INFO:oejs.x:jetty",
+            ),
+            (
+                "bazarr: dash",
+                "2026-09-13 22:28:56,412 - root (7f43) :  INFO - BAZARR",
+                "root (7f43) :  INFO - BAZARR",
+            ),
+            ("bar", "2026-09-13T22:28:56Z | INFO | ready", "INFO | ready"),
+            (
+                "cleanuparr: level inside the bracket",
+                "[2026-09-13 22:28:56.087 INF] Pruned 316 job runs",
+                "[INF] Pruned 316 job runs",
+            ),
+            (
+                "celery: colon and level inside the bracket",
+                "[2026-09-13 22:28:56,867: INFO/MainProcess] ready",
+                "[INFO/MainProcess] ready",
+            ),
         ];
         for (name, line, want) in cases {
             assert_eq!(rest(line), want, "{name}");
@@ -378,12 +437,8 @@ mod tests {
             ("non-ASCII start", "é2026-09-13T22:28:56Z hello"),
             // From the samples in issue #290
             (
-                "celery: text inside the bracket",
-                "[2026-09-13 22:28:56,867: INFO/MainProcess] ready",
-            ),
-            (
-                "jetty: glued to the level",
-                "2026-09-13 22:28:56.073:INFO:oejs.x:jetty",
+                "level in a colored bracket",
+                "\x1b[2m[2026-09-13 22:28:56.087 INF]\x1b[0m Pruned",
             ),
             ("time only", "[22:28:56] [INF] FFmpeg exited with code 0"),
             (
@@ -392,7 +447,7 @@ mod tests {
             ),
         ];
         for (name, line) in cases {
-            assert_eq!(timestamp_prefix_len(line, docker_ms()), 0, "{name}");
+            assert_eq!(duplicate_timestamp(line, docker_ms()), None, "{name}");
         }
     }
 

@@ -7,18 +7,18 @@ use ratatui::text::{Line, Span, Text};
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
 use crate::docker::json_formatter;
-use crate::docker::timestamp_prefix::timestamp_prefix_len;
+use crate::docker::timestamp_prefix::duplicate_timestamp;
 
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
-    /// Parsed ANSI text ready for rendering
+    /// Parsed ANSI text ready for rendering, as the app printed it
     pub text: Text<'static>,
-    /// A timestamp the app printed at the start of the line that repeats
-    /// `timestamp` (see `timestamp_prefix`), cut from `text`. Empty when the
-    /// line has none. Shown only in place of dtop's own timestamp.
-    pub own_timestamp: Vec<Span<'static>>,
+    /// `text` without the timestamp the app printed at the start of the line,
+    /// when that repeats `timestamp` (see `timestamp_prefix`). Shown next to
+    /// dtop's own timestamp, so the line carries the time once.
+    pub without_own_timestamp: Option<Text<'static>>,
 }
 
 impl LogEntry {
@@ -32,15 +32,17 @@ impl LogEntry {
 
         const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
-        let mut line_spans = if show_timestamp {
+        let mut line_spans = Vec::new();
+        let mut text = &self.text;
+        if show_timestamp {
             let local_timestamp = self.timestamp.with_timezone(&Local);
             let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-            vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")]
-        } else {
-            self.own_timestamp.clone()
-        };
+            line_spans.push(Span::styled(timestamp_str, TIMESTAMP_STYLE));
+            line_spans.push(Span::raw(" "));
+            text = self.without_own_timestamp.as_ref().unwrap_or(text);
+        }
 
-        if let Some(text_line) = self.text.lines.first() {
+        if let Some(text_line) = text.lines.first() {
             line_spans.extend(text_line.spans.iter().cloned());
         }
 
@@ -65,25 +67,20 @@ impl LogEntry {
             return Some(LogEntry {
                 timestamp,
                 text: json_formatter::format_json_as_text(&json_value),
-                own_timestamp: Vec::new(),
+                without_own_timestamp: None,
             });
         }
 
-        // Not JSON, try ANSI parsing for colored text. The prefix's coloring
-        // is closed before the text starts, so the two halves parse on their own.
-        let (prefix, message) =
-            message.split_at(timestamp_prefix_len(message, timestamp.timestamp_millis()));
-        let own_timestamp = ansi_text(prefix)
-            .lines
-            .into_iter()
-            .next()
-            .map(|line| line.spans)
-            .unwrap_or_default();
+        // Not JSON, try ANSI parsing for colored text. Any coloring of the
+        // duplicate timestamp is closed inside the cut, so what is left
+        // parses on its own.
+        let without_own_timestamp = duplicate_timestamp(message, timestamp.timestamp_millis())
+            .map(|cut| ansi_text(&format!("{}{}", &message[..cut.start], &message[cut.end..])));
 
         Some(LogEntry {
             timestamp,
             text: ansi_text(message),
-            own_timestamp,
+            without_own_timestamp,
         })
     }
 }
@@ -366,7 +363,7 @@ mod tests {
     fn test_unrelated_timestamp_is_kept() {
         let entry =
             LogEntry::parse("2025-10-28T12:34:56.789Z 2025-10-28T09:00:00Z job finished").unwrap();
-        assert!(entry.own_timestamp.is_empty());
+        assert!(entry.without_own_timestamp.is_none());
         assert!(plain(&entry.format(true)).ends_with(" 2025-10-28T09:00:00Z job finished"));
         assert_eq!(
             plain(&entry.format(false)),

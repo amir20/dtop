@@ -881,8 +881,10 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
    - A timestamp the app printed at the start of a line is hidden while dtop's is shown,
      but only if it repeats Docker's own (`docker/timestamp_prefix.rs`, ported from Dozzle:
      ISO 8601 / RFC 3339 shapes; zoned within 2s, zoneless a whole quarter-hour offset
-     away). It is kept in `LogEntry::own_timestamp` and shown again when dtop's is hidden.
-     JSON lines are never stripped
+     away). The separator after it goes too (whitespace, `:`, `::`, ` - `, ` | `), and
+     `[<time> INF] text` becomes `[INF] text`. The cut text is
+     `LogEntry::without_own_timestamp`; `text` stays as printed and is what shows when
+     dtop's timestamp is hidden. JSON lines are never stripped
    - Auto-scroll when at bottom, manual scroll preserves position
    - Displays "[AUTO]" or "[MANUAL]" indicator in title
 3. **Action Menu** - Centered popup for container actions
