@@ -75,6 +75,8 @@ pub struct AppState {
     pub sort_state: SortState,
     /// Whether to show all containers (including stopped ones)
     pub show_all_containers: bool,
+    /// Whether log lines lead with dtop's timestamp ('t' in the log view)
+    pub show_log_timestamps: bool,
     /// Action menu list state for selection tracking
     pub action_menu_state: ListState,
     /// The open details popup's content: `None` while its inspect is in flight
@@ -174,6 +176,7 @@ impl AppState {
             show_help: false,
             sort_state: SortState::new_with_direction(sort_field, sort_direction), // Use configured sort field and direction
             show_all_containers: show_all,
+            show_log_timestamps: true,
             action_menu_state: ListState::default(), // Default to no selection
             container_details: None,
             search_input: Input::default(),
@@ -423,7 +426,10 @@ impl AppState {
             KeyCode::Char('s') => self.handle_open_sort_selector(),
             KeyCode::Char('a') | KeyCode::Char('A') => self.handle_toggle_show_all(),
             KeyCode::Char('c') => self.handle_open_column_selector(),
-            KeyCode::Char('t') => self.handle_toggle_system_header(),
+            KeyCode::Char('t') => match &self.view_state {
+                ViewState::LogView(_) => self.handle_toggle_log_timestamps(),
+                _ => self.handle_toggle_system_header(),
+            },
             KeyCode::Right | KeyCode::Char('l') => self.handle_show_log_view(),
             KeyCode::Left | KeyCode::Char('h') => match &self.view_state {
                 // The menu and details footers offer ← to close

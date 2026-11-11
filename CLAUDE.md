@@ -150,6 +150,9 @@ stats_header: true
 # App logos next to container names on supporting terminals (default: true)
 app_logos: true
 
+# Lead each log line with dtop's timestamp (default: true; 't' in the log view toggles)
+timestamps: true
+
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
@@ -187,13 +190,14 @@ Global config options:
 - `columns`: List of column IDs to show, in order (e.g., ["status", "name", "cpu", "memory"])
 - `hyperlinks`: OSC 8 hyperlink mode for Dozzle links ("auto", "always", "never")
 - `stats_header`: Show the system stats header (default: true)
+- `timestamps`: Lead each log line with dtop's timestamp (default: true)
 - `app_logos`: Show app logos next to container names where the terminal supports them (default: true)
 
 See `config.example.yaml` for a complete example.
 
 ### Preferences Persistence
 
-Preferences (columns, sort field, sort direction, show-all, stats header) can be saved to the config file:
+Preferences (columns, sort field, sort direction, show-all, stats header, log timestamps) can be saved to the config file:
 
 - **Ctrl-S** - Save current preferences to config file (creates `~/.config/dtop/config.yaml` if no config exists)
 - **Ctrl-R** - Reset preferences to defaults (requires y/n confirmation)
@@ -871,7 +875,16 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
    - Search bar at bottom when in SearchMode (filters containers as you type)
 2. **Log View** - Full-screen log streaming for selected container
    - Shows last 100 lines initially, then follows new logs
-   - Timestamps displayed in yellow with bold formatting
+   - Timestamps displayed in yellow with bold formatting. `t` hides them
+     (`AppState::show_log_timestamps`, `timestamps: false` in config, saved by Ctrl-S);
+     `LogState::set_show_timestamps` reformats the cached lines
+   - A timestamp the app printed at the start of a line is hidden while dtop's is shown,
+     but only if it repeats Docker's own (`docker/timestamp_prefix.rs`, ported from Dozzle:
+     ISO 8601 / RFC 3339 shapes; zoned within 2s, zoneless a whole quarter-hour offset
+     away). The separator after it goes too (whitespace, `:`, `::`, ` - `, ` | `), and
+     `[<time> INF] text` becomes `[INF] text`. The cut text is
+     `LogEntry::without_own_timestamp`; `text` stays as printed and is what shows when
+     dtop's timestamp is hidden. JSON lines are never stripped
    - Auto-scroll when at bottom, manual scroll preserves position
    - Displays "[AUTO]" or "[MANUAL]" indicator in title
 3. **Action Menu** - Centered popup for container actions
@@ -1103,12 +1116,13 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 - `c` - Open column visibility selector
 - `t` - Show/hide the system stats header
 - `a` - Toggle showing all containers (including stopped containers)
-- `Ctrl-S` - Save preferences (columns, sort, all, stats header) to config file
+- `Ctrl-S` - Save preferences (columns, sort, all, stats header, log timestamps) to config file
 - `Ctrl-R` - Reset preferences to defaults (requires y/n confirmation)
 
 **Log View:**
 - `↑/↓` - Scroll through logs manually
 - `←/h` or `Esc` - Return to container list
+- `t` - Show/hide dtop's timestamps
 - `?` - Toggle help popup
 - Auto-scroll behavior: Automatically scrolls to bottom when new logs arrive (unless manually scrolled up)
 

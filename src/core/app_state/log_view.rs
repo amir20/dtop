@@ -72,6 +72,7 @@ impl AppState {
 
         // Create new log state for this container
         let mut new_log_state = LogState::new(container_key.clone(), container_created_at);
+        new_log_state.set_show_timestamps(self.show_log_timestamps);
 
         // Start streaming logs for this container
         if let Some(host) = self.connected_hosts.get(&container_key.host_id) {
@@ -121,6 +122,15 @@ impl AppState {
         self.view_state = ViewState::ContainerList;
 
         RenderAction::Render // Force draw - view changed
+    }
+
+    /// Handles 't' in the log view: show or hide dtop's timestamp on each line
+    pub(super) fn handle_toggle_log_timestamps(&mut self) -> RenderAction {
+        self.show_log_timestamps = !self.show_log_timestamps;
+        if let Some(state) = &mut self.log_state {
+            state.set_show_timestamps(self.show_log_timestamps);
+        }
+        RenderAction::Render
     }
 
     pub(super) fn handle_scroll_up(&mut self) -> RenderAction {
@@ -454,5 +464,43 @@ mod logs_only_tests {
         ));
         state.handle_exit_log_view();
         assert!(!state.should_quit);
+    }
+
+    /// 't' in the log view hides dtop's timestamp on loaded and later lines,
+    /// leaves the stats header alone, and carries over to the next log view
+    #[test]
+    fn t_toggles_timestamps_in_the_log_view() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let line = |state: &AppState, i: usize| -> String {
+            let lines = &state.log_state.as_ref().unwrap().formatted_lines;
+            lines[i].spans.iter().map(|s| s.content.as_ref()).collect()
+        };
+        let entry = |msg: &str| LogEntry::parse(&format!("2025-10-29T10:15:30Z {msg}")).unwrap();
+
+        let mut state = state();
+        state.handle_event(AppEvent::InitialContainerList(
+            "nas".to_string(),
+            vec![container("abc123def456", ContainerState::Running)],
+        ));
+        let key = ContainerKey::new("nas".to_string(), "abc123def456".to_string());
+        state.open_log_view(&key);
+        state.handle_log_line(key.clone(), entry("first"));
+        assert_ne!(line(&state, 0), "first");
+
+        state.handle_event(AppEvent::KeyInput(KeyEvent::new(
+            KeyCode::Char('t'),
+            KeyModifiers::NONE,
+        )));
+        assert!(state.show_system_header);
+        assert_eq!(line(&state, 0), "first");
+        state.handle_log_line(key.clone(), entry("second"));
+        assert_eq!(line(&state, 1), "second");
+        let widths = &state.log_state.as_ref().unwrap().line_widths;
+        assert_eq!(widths, &[5, 6]);
+
+        state.handle_exit_log_view();
+        state.open_log_view(&key);
+        state.handle_log_line(key, entry("third"));
+        assert_eq!(line(&state, 0), "third");
     }
 }

@@ -58,6 +58,10 @@ pub struct Config {
     /// Show app logos next to container names on terminals that support them (default: true)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_logos: Option<bool>,
+
+    /// Lead each log line with dtop's timestamp (default: true)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamps: Option<bool>,
 }
 
 impl Config {
@@ -195,6 +199,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -225,6 +230,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -250,6 +256,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -273,6 +280,12 @@ hosts:
         assert_eq!(config.hosts[2].host, "ssh://user@server2:2222");
         assert_eq!(config.hosts[0].dozzle, None);
         assert_eq!(config.app_logos, None);
+    }
+
+    #[test]
+    fn test_yaml_timestamps_off() {
+        let config: Config = serde_norway::from_str("timestamps: false").unwrap();
+        assert_eq!(config.timestamps, Some(false));
     }
 
     #[test]
@@ -356,6 +369,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let cli_filters = vec!["name=nginx".to_string()];
@@ -385,6 +399,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -413,6 +428,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -437,6 +453,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -461,6 +478,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -485,6 +503,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged = config.merge_with_cli_hosts(
@@ -514,6 +533,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
 
         let merged =
@@ -577,6 +597,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("columns:"));
@@ -614,6 +635,7 @@ sort_direction: asc
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            timestamps: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();
         assert!(yaml.contains("sort: memory"));

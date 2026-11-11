@@ -20,9 +20,9 @@ dtop vX.X.X - 1 container ('?' for help, 'q' to quit)
             │   Ctrl+S      Save preferences            Ctrl+R Reset to defaults                           │            
             │   * Under tmux/screen with the default prefix, press the prefix, then a                      │            
             │                                                                                              │            
-            │ Log View Scrolling                                                                           │            
+            │ Log View                                                                                     │            
             │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            
-            │   G/End       Bottom                                                                         │            
+            │   G/End       Bottom           t                  Timestamps                                 │            
             │                                                                                              │            
             │ Status Icons                                                                                 │            
             │ ✓ Healthy  ✖ Unhealthy  ◐ Starting  ▶ Running  ⏸ Paused  ■ Exited                            │            

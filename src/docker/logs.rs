@@ -2,36 +2,47 @@ use ansi_to_tui::IntoText;
 use bollard::query_parameters::LogsOptions;
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
-use ratatui::text::{Line, Text};
+use ratatui::text::{Line, Span, Text};
 
 use crate::core::types::{AppEvent, ContainerKey, EventSender};
 use crate::docker::connection::DockerHost;
 use crate::docker::json_formatter;
+use crate::docker::timestamp_prefix::duplicate_timestamp;
 
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
 pub struct LogEntry {
     pub timestamp: DateTime<Utc>,
-    /// Parsed ANSI text ready for rendering
+    /// Parsed ANSI text ready for rendering, as the app printed it
     pub text: Text<'static>,
+    /// `text` without the timestamp the app printed at the start of the line,
+    /// when that repeats `timestamp` (see `timestamp_prefix`). Shown next to
+    /// dtop's own timestamp, so the line carries the time once.
+    pub without_own_timestamp: Option<Text<'static>>,
 }
 
 impl LogEntry {
-    /// Format this log entry into a styled Line with timestamp and ANSI-parsed content.
-    /// The result is suitable for rendering in a ratatui Paragraph.
-    pub fn format(&self) -> Line<'static> {
+    /// Format this log entry into a styled Line suitable for a ratatui Paragraph.
+    ///
+    /// With `show_timestamp`, dtop's timestamp leads and the app's duplicate of
+    /// it stays hidden. Without, the line reads as the app printed it.
+    pub fn format(&self, show_timestamp: bool) -> Line<'static> {
         use chrono::Local;
         use ratatui::style::{Color, Modifier, Style};
-        use ratatui::text::Span;
 
         const TIMESTAMP_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
-        let local_timestamp = self.timestamp.with_timezone(&Local);
-        let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut line_spans = Vec::new();
+        let mut text = &self.text;
+        if show_timestamp {
+            let local_timestamp = self.timestamp.with_timezone(&Local);
+            let timestamp_str = local_timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+            line_spans.push(Span::styled(timestamp_str, TIMESTAMP_STYLE));
+            line_spans.push(Span::raw(" "));
+            text = self.without_own_timestamp.as_ref().unwrap_or(text);
+        }
 
-        let mut line_spans = vec![Span::styled(timestamp_str, TIMESTAMP_STYLE), Span::raw(" ")];
-
-        if let Some(text_line) = self.text.lines.first() {
+        if let Some(text_line) = text.lines.first() {
             line_spans.extend(text_line.spans.iter().cloned());
         }
 
@@ -44,6 +55,7 @@ impl LogEntry {
         // Find the first space which separates timestamp from message
         let space_idx = log_line.find(' ')?;
         let (timestamp_str, message) = log_line.split_at(space_idx);
+        let message = message.trim();
 
         // Parse the timestamp (Docker uses RFC3339 format)
         let timestamp = DateTime::parse_from_rfc3339(timestamp_str)
@@ -51,20 +63,33 @@ impl LogEntry {
             .with_timezone(&Utc);
 
         // Try to detect and format JSON
-        let text = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message.trim())
-        {
-            json_formatter::format_json_as_text(&json_value)
-        } else {
-            // Not JSON, try ANSI parsing for colored text
-            message
-                .trim()
-                .as_bytes()
-                .into_text()
-                .unwrap_or_else(|_| Text::from(message.to_string()))
-        };
+        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(message) {
+            return Some(LogEntry {
+                timestamp,
+                text: json_formatter::format_json_as_text(&json_value),
+                without_own_timestamp: None,
+            });
+        }
 
-        Some(LogEntry { timestamp, text })
+        // Not JSON, try ANSI parsing for colored text. Any coloring of the
+        // duplicate timestamp is closed inside the cut, so what is left
+        // parses on its own.
+        let without_own_timestamp = duplicate_timestamp(message, timestamp.timestamp_millis())
+            .map(|cut| ansi_text(&format!("{}{}", &message[..cut.start], &message[cut.end..])));
+
+        Some(LogEntry {
+            timestamp,
+            text: ansi_text(message),
+            without_own_timestamp,
+        })
     }
+}
+
+fn ansi_text(message: &str) -> Text<'static> {
+    message
+        .as_bytes()
+        .into_text()
+        .unwrap_or_else(|_| Text::from(message.to_string()))
 }
 
 /// Fetches older logs for pagination using density-based adaptive algorithm
@@ -310,6 +335,41 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn plain(line: &Line) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    /// The app's copy of Docker's timestamp is hidden behind dtop's, and comes
+    /// back (with its own coloring) when dtop's is turned off
+    #[test]
+    fn test_duplicate_timestamp_shows_once() {
+        let entry = LogEntry::parse(
+            "2025-10-28T12:34:56.789Z \x1b[90m2025-10-28T12:34:56Z\x1b[0m INF Starting server",
+        )
+        .unwrap();
+
+        let with = plain(&entry.format(true));
+        assert!(with.ends_with(":56 INF Starting server"), "{with}");
+        assert_eq!(with.matches("2025-10-2").count(), 1, "{with}");
+
+        let without = entry.format(false);
+        assert_eq!(plain(&without), "2025-10-28T12:34:56Z INF Starting server");
+        assert_ne!(without.spans[0].style, ratatui::style::Style::default());
+    }
+
+    /// A timestamp that isn't Docker's (here an event from hours earlier) stays
+    #[test]
+    fn test_unrelated_timestamp_is_kept() {
+        let entry =
+            LogEntry::parse("2025-10-28T12:34:56.789Z 2025-10-28T09:00:00Z job finished").unwrap();
+        assert!(entry.without_own_timestamp.is_none());
+        assert!(plain(&entry.format(true)).ends_with(" 2025-10-28T09:00:00Z job finished"));
+        assert_eq!(
+            plain(&entry.format(false)),
+            "2025-10-28T09:00:00Z job finished"
+        );
+    }
 
     #[test]
     fn test_parse_log_entry_valid() {
