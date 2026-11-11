@@ -371,21 +371,41 @@
     logEntries = [...logEntries, { ts: `2026-11-03 ${hh}:${mm}:${ss}`, msg: LOG_POOL[logSeq++ % LOG_POOL.length] }].slice(-24);
   }
 
-  let logTitle = "Logs: postgres-db (ops@db-eu) - Press ESC to return [LIVE]";
+  // `log_title`: key hints follow only where they fit, and none does at this width
+  let logTitle = "Logs: postgres-db (ops@db-eu) [LIVE]";
 
-  /** Each entry wrapped to the pane width (`Wrap { trim: false }`), newest last. */
+  /**
+   * `core/log_wrap.rs`: break at the last space that fits, or mid-word when a word is longer
+   * than the row. Rows after the first are indented to the message column, but only when the
+   * pane is at least three timestamps wide (`LogState::wrap_indent`).
+   */
+  function wrapLog(text, width, indent) {
+    const out = [];
+    let rest = text;
+    let cap = width;
+    while (rest.length > cap) {
+      const space = rest.lastIndexOf(" ", cap - 1);
+      const cut = space >= 0 && rest.length - (space + 1) > 0 ? space + 1 : cap;
+      out.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+      cap = width - indent;
+    }
+    out.push(rest);
+    return out;
+  }
+
+  /** Each entry wrapped to the pane width, newest last. */
   let logLines = $derived.by(() => {
     const lines = [];
     for (const entry of logEntries) {
-      const text = `${entry.ts} ${entry.msg}`;
-      for (let i = 0; i < text.length; i += LOG_COLS) {
-        const chunk = text.slice(i, i + LOG_COLS);
+      const indent = LOG_COLS >= 3 * (entry.ts.length + 1) ? entry.ts.length + 1 : 0;
+      wrapLog(`${entry.ts} ${entry.msg}`, LOG_COLS, indent).forEach((chunk, i) => {
         if (i === 0) {
           lines.push([seg(chunk.slice(0, entry.ts.length), "font-semibold text-(--c-warn)"), seg(chunk.slice(entry.ts.length))]);
         } else {
-          lines.push([seg(chunk)]);
+          lines.push([seg(" ".repeat(indent) + chunk)]);
         }
-      }
+      });
     }
     // The pane is as tall as dtop's screen; show the newest that fit
     return lines.slice(-(rows.length + 8));

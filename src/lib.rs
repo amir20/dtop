@@ -9,6 +9,8 @@ static GLOBAL_ALLOC: alloc_counter::CountingAllocator = alloc_counter::CountingA
 // Core modules
 pub mod core {
     pub mod app_state;
+    pub mod log_search;
+    pub mod log_wrap;
     pub mod system_stats;
     pub mod types;
 }

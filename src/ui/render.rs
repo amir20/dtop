@@ -125,6 +125,7 @@ pub fn cleanup_expired_errors(state: &mut AppState) {
 /// Renders the main UI - either container list, log view, or action menu
 pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     let size = f.area();
+    state.log_links.clear();
 
     // Render main content
     match &state.view_state {
@@ -161,8 +162,13 @@ pub fn render_ui(f: &mut Frame, state: &mut AppState, styles: &UiStyles) {
     }
 
     // Render search bar overlay if in SearchMode OR if there's an active filter
+    let log_search = match &state.view_state {
+        ViewState::LogView(_) => state.log_state.as_ref().and_then(|s| s.search.as_ref()),
+        _ => None,
+    };
     let show_search_bar = state.view_state == ViewState::SearchMode
-        || (!state.search_input.value().is_empty() && state.view_state == ViewState::ContainerList);
+        || (!state.search_input.value().is_empty() && state.view_state == ViewState::ContainerList)
+        || log_search.is_some();
 
     if show_search_bar {
         let search_area = ratatui::layout::Rect {
@@ -195,15 +201,27 @@ fn render_search_bar(
 ) {
     use ratatui::text::{Line, Span};
 
+    // The log view has its own search; everywhere else it is the container filter
+    let log_search = match &state.view_state {
+        ViewState::LogView(_) => state.log_state.as_ref().and_then(|s| s.search.as_ref()),
+        _ => None,
+    };
+    let input = log_search.map_or(&state.search_input, |search| &search.input);
+
     // Determine if we're in search mode (editing) or filter mode (applied)
-    let is_editing = state.view_state == ViewState::SearchMode;
+    let is_editing = match log_search {
+        Some(search) => search.editing,
+        None => state.view_state == ViewState::SearchMode,
+    };
 
     let search_text = if is_editing {
         // In search mode: show "/" prefix for editing
-        format!("/{}", state.search_input.value())
+        format!("/{}", input.value())
+    } else if log_search.is_some() {
+        format!("Search: {}  (n next, N previous, Esc clear)", input.value())
     } else {
         // Filter applied: show "Filtering: " prefix
-        format!("Filtering: {}", state.search_input.value())
+        format!("Filtering: {}", input.value())
     };
 
     // Create a paragraph with the search text using the search_bar style
@@ -218,7 +236,7 @@ fn render_search_bar(
     if is_editing {
         // Set the cursor position for the input
         // Cursor should be after the '/' and the current input text
-        let cursor_x = area.x + 1 + state.search_input.visual_cursor() as u16;
+        let cursor_x = area.x + 1 + input.visual_cursor() as u16;
         let cursor_y = area.y;
 
         // Make cursor visible at the input position

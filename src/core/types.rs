@@ -3,6 +3,7 @@ use ratatui::text::Line;
 use std::str::FromStr;
 use tokio::sync::mpsc;
 
+use crate::core::log_wrap::wrapped_rows;
 use crate::docker::logs::LogEntry;
 
 /// Host identifier for tracking which Docker host a container belongs to
@@ -427,11 +428,11 @@ pub struct LogState {
     /// Pre-formatted lines for rendering (cached to avoid reformatting every frame)
     pub formatted_lines: Vec<Line<'static>>,
 
-    /// Display width of each formatted line, so wrapping math doesn't re-measure
-    /// every line's unicode width on every frame
-    pub line_widths: Vec<usize>,
+    /// Wrapped rows each formatted line takes, so scrolling doesn't re-wrap
+    /// every line on every frame. Only meaningful while `rows_cache` is set.
+    line_rows: Vec<usize>,
 
-    /// Total wrapped rows as (viewport width, rows); None after a prepend or reset
+    /// (viewport width `line_rows` is for, their sum); None after a prepend or reset
     rows_cache: Option<(usize, usize)>,
 
     /// Current scroll offset in visual lines (not entry count)
@@ -460,6 +461,9 @@ pub struct LogState {
 
     /// Whether lines lead with dtop's timestamp; change it with `set_show_timestamps`
     show_timestamps: bool,
+
+    /// The `/` search, while one is typed or applied
+    pub search: Option<crate::core::log_search::LogSearch>,
 }
 
 impl LogState {
@@ -469,7 +473,7 @@ impl LogState {
             container_key,
             log_entries: Vec::new(),
             formatted_lines: Vec::new(),
-            line_widths: Vec::new(),
+            line_rows: Vec::new(),
             rows_cache: None,
             scroll_offset: 0,
             stream_handle: None,
@@ -480,6 +484,7 @@ impl LogState {
             container_created_at,
             fetching_older: false,
             show_timestamps: true,
+            search: None,
         }
     }
 
@@ -489,33 +494,62 @@ impl LogState {
             return;
         }
         self.show_timestamps = show;
-        self.formatted_lines = self.log_entries.iter().map(|e| e.format(show)).collect();
-        self.line_widths = self.formatted_lines.iter().map(Line::width).collect();
-        self.rows_cache = None;
+        self.reformat();
     }
 
     /// Set log entries and rebuild the formatted lines cache.
     /// Used in tests and when bulk-replacing entries.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_entries(&mut self, entries: Vec<crate::docker::logs::LogEntry>) {
-        self.formatted_lines = entries
-            .iter()
-            .map(|e| e.format(self.show_timestamps))
-            .collect();
-        self.line_widths = self.formatted_lines.iter().map(Line::width).collect();
-        self.rows_cache = None;
         self.log_entries = entries;
+        self.reformat();
     }
 
-    /// Append a streamed entry, keeping the formatted line, width and row caches in step.
+    fn reformat(&mut self) {
+        self.formatted_lines = self.format_entries(&self.log_entries);
+        self.rows_cache = None;
+    }
+
+    fn format_entries(&self, entries: &[crate::docker::logs::LogEntry]) -> Vec<Line<'static>> {
+        let mut previous = None;
+        entries
+            .iter()
+            .map(|entry| {
+                let line = entry.format(self.show_timestamps, entry.repeats(previous));
+                previous = Some(entry);
+                line
+            })
+            .collect()
+    }
+
+    /// Columns wrapped rows are indented by at `width`, so they hang under the
+    /// message instead of the timestamp. Zero when timestamps are hidden (the
+    /// line is shown as printed) or the view is too narrow to give up the columns.
+    pub fn wrap_indent(&self, width: usize) -> usize {
+        use crate::docker::logs::TIMESTAMP_COLUMNS;
+        if self.show_timestamps && width >= 3 * TIMESTAMP_COLUMNS {
+            TIMESTAMP_COLUMNS
+        } else {
+            0
+        }
+    }
+
+    /// Append a streamed entry, keeping the formatted line and row caches in step.
     pub fn push_entry(&mut self, entry: crate::docker::logs::LogEntry) {
-        let line = entry.format(self.show_timestamps);
-        let line_width = line.width();
-        if let Some((width, total)) = &mut self.rows_cache {
-            *total += wrapped_rows(line_width, *width);
+        let repeats = entry.repeats(self.log_entries.last());
+        let line = entry.format(self.show_timestamps, repeats);
+        if let Some(search) = &mut self.search
+            && !search.editing
+            && crate::core::log_search::matches(&line, &search.needle())
+        {
+            search.new_matches += 1;
+        }
+        if let Some((width, total)) = self.rows_cache {
+            let rows = wrapped_rows(&line, width, self.wrap_indent(width));
+            self.line_rows.push(rows);
+            self.rows_cache = Some((width, total + rows));
         }
         self.formatted_lines.push(line);
-        self.line_widths.push(line_width);
         self.log_entries.push(entry);
     }
 
@@ -526,19 +560,29 @@ impl LogState {
         mut entries: Vec<crate::docker::logs::LogEntry>,
         width: usize,
     ) -> usize {
-        let mut lines: Vec<Line<'static>> = entries
+        let mut lines = self.format_entries(&entries);
+        let indent = self.wrap_indent(width);
+        let rows = lines
             .iter()
-            .map(|e| e.format(self.show_timestamps))
-            .collect();
-        let mut widths: Vec<usize> = lines.iter().map(Line::width).collect();
-        let rows = widths.iter().map(|&w| wrapped_rows(w, width)).sum();
+            .map(|line| wrapped_rows(line, width, indent))
+            .sum();
+
+        // The line that was first may now repeat the timestamp above it
+        if let Some(first) = self.log_entries.first()
+            && first.repeats(entries.last())
+        {
+            self.formatted_lines[0] = first.format(self.show_timestamps, true);
+        }
+
+        // Entry indexes shift by the size of the batch
+        if let Some(current) = self.search.as_mut().and_then(|s| s.current.as_mut()) {
+            *current += entries.len();
+        }
 
         entries.append(&mut self.log_entries);
         self.log_entries = entries;
         lines.append(&mut self.formatted_lines);
         self.formatted_lines = lines;
-        widths.append(&mut self.line_widths);
-        self.line_widths = widths;
         self.rows_cache = None;
 
         rows
@@ -550,15 +594,62 @@ impl LogState {
         match self.rows_cache {
             Some((cached_width, total)) if cached_width == width => total,
             _ => {
-                let total = self
-                    .line_widths
-                    .iter()
-                    .map(|&w| wrapped_rows(w, width))
-                    .sum();
+                let indent = self.wrap_indent(width);
+                self.line_rows.clear();
+                self.line_rows.extend(
+                    self.formatted_lines
+                        .iter()
+                        .map(|line| wrapped_rows(line, width, indent)),
+                );
+                let total = self.line_rows.iter().sum();
                 self.rows_cache = Some((width, total));
                 total
             }
         }
+    }
+
+    /// The entry a search jump should land on: the nearest match after
+    /// (`forward`) or before the last one jumped to. Without one, the newest
+    /// match, since the view starts at the bottom.
+    pub fn find_match(&self, forward: bool) -> Option<usize> {
+        let search = self.search.as_ref()?;
+        let needle = search.needle();
+        let hit = |i: &usize| crate::core::log_search::matches(&self.formatted_lines[*i], &needle);
+        let count = self.formatted_lines.len();
+        match search.current {
+            Some(current) if forward => (current + 1..count).find(hit),
+            Some(current) => (0..current.min(count)).rev().find(hit),
+            None => (0..count).rev().find(hit),
+        }
+    }
+
+    /// The entries with at least one wrapped row inside `rows`, at the width
+    /// last given to `total_rows`
+    pub fn entries_in_rows(&self, rows: std::ops::Range<usize>) -> std::ops::Range<usize> {
+        let mut above = 0;
+        let mut first = None;
+        let mut end = 0;
+        for (index, &count) in self.line_rows.iter().enumerate() {
+            if above >= rows.end {
+                break;
+            }
+            if above + count > rows.start {
+                first.get_or_insert(index);
+                end = index + 1;
+            }
+            above += count;
+        }
+        first.unwrap_or(0)..end
+    }
+
+    /// Wrapped rows above entry `index`, at the width last given to `total_rows`
+    pub fn rows_before(&self, index: usize) -> usize {
+        self.line_rows.iter().take(index).sum()
+    }
+
+    /// Wrapped rows per formatted line, at the width last given to `total_rows`
+    pub fn line_rows(&self) -> &[usize] {
+        &self.line_rows
     }
 
     /// Calculate what percentage of log history the current visible page represents.
@@ -596,15 +687,6 @@ impl LogState {
         let percentage = (visible_offset / total_duration) * 100.0;
 
         Some(percentage.clamp(0.0, 100.0))
-    }
-}
-
-/// Terminal rows a line `line_width` columns wide takes when wrapped to `width`.
-pub fn wrapped_rows(line_width: usize, width: usize) -> usize {
-    if width == 0 || line_width <= width {
-        1
-    } else {
-        line_width.div_ceil(width)
     }
 }
 
@@ -1118,6 +1200,38 @@ mod tests {
         assert_eq!(Column::from_id("invalid"), None);
     }
 
+    /// A timestamp is dimmed when the line above shows the same one, however
+    /// the two lines arrived
+    #[test]
+    fn test_log_state_dims_repeated_timestamps() {
+        use crate::docker::logs::LogEntry;
+        use ratatui::style::Color;
+        let entry =
+            |second: u32| LogEntry::parse(&format!("2025-10-29T10:15:{second:02}Z x")).unwrap();
+        let dimmed = |state: &LogState| -> Vec<bool> {
+            state
+                .formatted_lines
+                .iter()
+                .map(|line| line.spans[0].style.fg == Some(Color::DarkGray))
+                .collect()
+        };
+
+        let mut state = LogState::new(ContainerKey::new("local".into(), "abc".into()), None);
+        state.set_entries(vec![entry(30), entry(30), entry(31)]);
+        assert_eq!(dimmed(&state), [false, true, false]);
+
+        state.push_entry(entry(31));
+        state.push_entry(entry(32));
+        assert_eq!(dimmed(&state), [false, true, false, true, false]);
+
+        // The line that was first now repeats the one prepended above it
+        state.prepend_entries(vec![entry(29), entry(30)], 80);
+        assert_eq!(
+            dimmed(&state),
+            [false, false, true, true, false, true, false]
+        );
+    }
+
     #[test]
     fn test_log_state_total_rows_tracks_pushes_and_prepends() {
         use crate::docker::logs::LogEntry;
@@ -1128,7 +1242,7 @@ mod tests {
             state
                 .formatted_lines
                 .iter()
-                .map(|l| wrapped_rows(l.width(), width))
+                .map(|l| wrapped_rows(l, width, state.wrap_indent(width)))
                 .sum()
         };
 
@@ -1148,7 +1262,7 @@ mod tests {
         let added = state.prepend_entries(vec![entry(&"z".repeat(60))], 25);
         assert_eq!(state.total_rows(25), before + added);
         assert_eq!(state.total_rows(25), recount(&state, 25));
-        assert_eq!(state.line_widths.len(), state.formatted_lines.len());
+        assert_eq!(state.line_rows().len(), state.formatted_lines.len());
         assert_eq!(state.log_entries.len(), state.formatted_lines.len());
     }
 }
