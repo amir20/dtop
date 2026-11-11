@@ -28,9 +28,16 @@ pub(crate) const PAUSED_POLL_INTERVAL: Duration = Duration::from_millis(250);
 ///
 /// Idles while `header_visible` is false, since nothing shows the result.
 pub fn system_stats_worker(tx: EventSender, header_visible: Arc<AtomicBool>) {
-    let hostname = System::host_name().unwrap_or_else(|| "localhost".to_string());
-    let mut sys = System::new();
-    let mut networks = Networks::new_with_refreshed_list();
+    let hostname = System::host_name().unwrap_or_else(|_| "localhost".to_string());
+    // Both fail only where sysinfo doesn't support the platform; leave the
+    // System line out there rather than show zeros.
+    let (mut sys, mut networks) = match (System::new(), Networks::new_with_refreshed_list()) {
+        (Ok(sys), Ok(networks)) => (sys, networks),
+        (Err(e), _) | (_, Err(e)) => {
+            tracing::warn!("System stats unavailable: {e}");
+            return;
+        }
+    };
     let mut last_refresh = Instant::now();
     let mut primed = false;
 
@@ -74,11 +81,12 @@ pub fn system_stats_worker(tx: EventSender, header_visible: Arc<AtomicBool>) {
 /// Builds a [`SystemStats`] from an already-refreshed [`System`] and [`Networks`],
 /// `elapsed` seconds after the previous refresh.
 fn sample(sys: &System, networks: &Networks, elapsed: f64, hostname: &str) -> SystemStats {
-    let load = System::load_average();
+    // Unsupported on Windows; shown as zeros, as sysinfo reported before 0.40
+    let load = System::load_average().map_or([0.0; 3], |l| [l.one, l.five, l.fifteen]);
 
     let (mut rx, mut tx) = (0u64, 0u64);
     for (name, data) in networks.iter() {
-        if !is_virtual_interface(name) {
+        if !is_virtual_interface(&name.to_string_lossy()) {
             rx += data.received();
             tx += data.transmitted();
         }
@@ -101,8 +109,8 @@ fn sample(sys: &System, networks: &Networks, elapsed: f64, hostname: &str) -> Sy
         swap_total_bytes: sys.total_swap(),
         net_rx_bytes_per_sec: rate(rx),
         net_tx_bytes_per_sec: rate(tx),
-        load_average: [load.one, load.five, load.fifteen],
-        uptime_secs: System::uptime(),
+        load_average: load,
+        uptime_secs: System::uptime().unwrap_or(0),
     }
 }
 
@@ -131,11 +139,11 @@ mod tests {
 
     #[test]
     fn sample_reads_this_machine() {
-        let mut sys = System::new();
+        let mut sys = System::new().unwrap();
         sys.refresh_cpu_usage();
         sys.refresh_memory();
 
-        let networks = Networks::new_with_refreshed_list();
+        let networks = Networks::new_with_refreshed_list().unwrap();
 
         let stats = sample(&sys, &networks, 0.0, "box");
 
