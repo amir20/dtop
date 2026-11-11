@@ -86,10 +86,40 @@ impl LogEntry {
 }
 
 fn ansi_text(message: &str) -> Text<'static> {
-    message
+    let mut text = message
         .as_bytes()
         .into_text()
-        .unwrap_or_else(|_| Text::from(message.to_string()))
+        .unwrap_or_else(|_| Text::from(message.to_string()));
+    if message.contains('\t') {
+        text.lines.iter_mut().for_each(expand_tabs);
+    }
+    text
+}
+
+/// Replaces each tab with spaces up to the next multiple of `TAB_WIDTH`
+/// columns, counted from the start of the message. A terminal cell can't hold
+/// a tab, so ratatui would draw nothing for one and run the fields together.
+fn expand_tabs(line: &mut Line<'static>) {
+    const TAB_WIDTH: usize = 8;
+    let mut column = 0;
+    for span in &mut line.spans {
+        if !span.content.contains('\t') {
+            column += span.width();
+            continue;
+        }
+        let mut expanded = String::with_capacity(span.content.len() + TAB_WIDTH);
+        for c in span.content.chars() {
+            if c == '\t' {
+                let spaces = TAB_WIDTH - column % TAB_WIDTH;
+                expanded.extend(std::iter::repeat_n(' ', spaces));
+                column += spaces;
+            } else {
+                expanded.push(c);
+                column += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+            }
+        }
+        span.content = expanded.into();
+    }
 }
 
 /// Fetches older logs for pagination using density-based adaptive algorithm
@@ -356,6 +386,33 @@ mod tests {
         let without = entry.format(false);
         assert_eq!(plain(&without), "2025-10-28T12:34:56Z INF Starting server");
         assert_ne!(without.spans[0].style, ratatui::style::Style::default());
+    }
+
+    /// Tabs become spaces up to the next tab stop, also across colored spans
+    #[test]
+    fn test_tabs_expand_to_tab_stops() {
+        let entry = LogEntry::parse(
+            "2025-10-28T12:34:56.789Z a\t\x1b[34mINFO\x1b[0m\tshutting down\t{\"server\": \"http\"}",
+        )
+        .unwrap();
+        assert_eq!(
+            plain(&entry.format(false)),
+            "a       INFO    shutting down   {\"server\": \"http\"}"
+        );
+    }
+
+    /// Keys stay in the order the app wrote them
+    #[test]
+    fn test_json_keeps_key_order() {
+        let entry = LogEntry::parse(
+            r#"2025-10-28T12:34:56.789Z {"time":"t","level":"debug","msg":"hi","args":{"z":1,"a":2}}"#,
+        )
+        .unwrap();
+        let keys: Vec<_> = plain(&entry.format(false))
+            .split_whitespace()
+            .map(|field| field.split('=').next().unwrap().to_string())
+            .collect();
+        assert_eq!(keys, ["time", "level", "msg", "args.z", "args.a"]);
     }
 
     /// A timestamp that isn't Docker's (here an event from hours earlier) stays
