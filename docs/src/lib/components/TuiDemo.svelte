@@ -371,7 +371,8 @@
     logEntries = [...logEntries, { ts: `2026-11-03 ${hh}:${mm}:${ss}`, msg: LOG_POOL[logSeq++ % LOG_POOL.length] }].slice(-24);
   }
 
-  let logTitle = "Logs: postgres-db (ops@db-eu) - Press ESC to return [LIVE]";
+  // `log_title`: key hints follow only where they fit, and none does at this width
+  let logTitle = "Logs: postgres-db (ops@db-eu) [LIVE]";
 
   /**
    * `core/log_wrap.rs`: break at the last space that fits, or mid-word when a word is longer

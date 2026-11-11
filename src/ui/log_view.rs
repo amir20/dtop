@@ -31,6 +31,30 @@ fn find_visible_start(line_rows: &[usize], visual_line: usize) -> (usize, usize)
     (line_rows.len().saturating_sub(1), 0)
 }
 
+/// Keys worth knowing in the log view, most useful first
+const KEY_HINTS: [&str; 4] = ["Esc back", "t timestamps", "/ search", "? help"];
+
+/// The title row: what is shown, then as many key hints as fit in `width`
+fn log_title(container: &str, host: &str, status: &str, width: usize) -> String {
+    use unicode_width::UnicodeWidthStr;
+
+    let mut title = format!("Logs: {container} ({host})");
+    if !status.is_empty() {
+        title.push(' ');
+        title.push_str(status);
+    }
+    let mut used = title.width();
+    for hint in KEY_HINTS {
+        used += 3 + hint.width();
+        if used > width {
+            break;
+        }
+        title.push_str(" · ");
+        title.push_str(hint);
+    }
+    title
+}
+
 /// Renders the log view for a specific container
 pub fn render_log_view(
     f: &mut Frame,
@@ -149,9 +173,12 @@ pub fn render_log_view(
     // Already wrapped (`log_wrap`), so the paragraph draws rows as they are
     let log_widget = Paragraph::new(Text::from(visible_rows)).block(
         Block::default()
-            .title(format!(
-                "Logs: {} ({}) - Press ESC to return {}",
-                container_name, container_key.host_id, status_indicator
+            .title(log_title(
+                container_name,
+                &container_key.host_id,
+                &status_indicator,
+                // The scrollbar's arrow takes the last column of the title row
+                area.width.saturating_sub(1) as usize,
             ))
             .style(styles.border),
     );
@@ -167,4 +194,27 @@ pub fn render_log_view(
     let scrollbar = Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight);
 
     f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::log_title;
+
+    #[test]
+    fn title_drops_hints_from_the_end_as_it_narrows() {
+        assert_eq!(
+            log_title("nginx", "local", "[LIVE]", 120),
+            "Logs: nginx (local) [LIVE] · Esc back · t timestamps · / search · ? help"
+        );
+        assert_eq!(
+            log_title("nginx", "local", "[LIVE]", 60),
+            "Logs: nginx (local) [LIVE] · Esc back · t timestamps"
+        );
+        assert_eq!(
+            log_title("nginx", "local", "[LIVE]", 30),
+            "Logs: nginx (local) [LIVE]"
+        );
+        // The name and status are never cut to make room
+        assert_eq!(log_title("nginx", "local", "", 5), "Logs: nginx (local)");
+    }
 }

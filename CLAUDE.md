@@ -900,7 +900,8 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      screen. Plain text, ASCII case-insensitive, matched against the line as shown.
      While the query is typed every key is text (`AppState::log_search_editing`)
    - Auto-scroll when at bottom, manual scroll preserves position
-   - Displays "[AUTO]" or "[MANUAL]" indicator in title
+   - The title shows the container, host and position (`[LIVE]`, `[42%]`, `[Loading...]`),
+     then as many key hints as fit (`log_title`: Esc back, t timestamps, / search, ? help)
 3. **Action Menu** - Centered popup for container actions
    - Shows available actions based on container state
    - Actions: Start (stopped), Stop (running), Restart (running), Remove (any state)
