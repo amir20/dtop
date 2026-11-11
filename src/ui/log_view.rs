@@ -1,28 +1,28 @@
 use ratatui::{
     Frame,
     text::{Line, Text},
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::core::app_state::AppState;
-use crate::core::types::{ContainerKey, wrapped_rows};
+use crate::core::log_wrap::wrap_into;
+use crate::core::types::ContainerKey;
 
 use super::render::UiStyles;
 
 /// Find the entry index and sub-line offset for a given visual line position.
 /// Returns (entry_index, sub_line_offset) where sub_line_offset is the number
 /// of visual lines into the entry that the scroll position falls.
-fn find_visible_start(line_widths: &[usize], visual_line: usize, width: usize) -> (usize, usize) {
+fn find_visible_start(line_rows: &[usize], visual_line: usize) -> (usize, usize) {
     let mut accumulated = 0;
-    for (i, &line_width) in line_widths.iter().enumerate() {
-        let rows = wrapped_rows(line_width, width);
+    for (i, &rows) in line_rows.iter().enumerate() {
         if accumulated + rows > visual_line {
             return (i, visual_line - accumulated);
         }
         accumulated += rows;
     }
     // Past the end — return last entry with no sub-offset
-    (line_widths.len().saturating_sub(1), 0)
+    (line_rows.len().saturating_sub(1), 0)
 }
 
 /// Renders the log view for a specific container
@@ -79,7 +79,7 @@ pub fn render_log_view(
     // Find the first visible entry and sub-line offset within it.
     // This also gives us the entry index for progress calculation.
     let (first_entry_idx, sub_line_offset) =
-        find_visible_start(&log_state.line_widths, actual_scroll, inner_width);
+        find_visible_start(log_state.line_rows(), actual_scroll);
 
     // Determine status indicator
     let status_indicator = if log_state.fetching_older {
@@ -96,39 +96,30 @@ pub fn render_log_view(
         String::new()
     };
 
-    // Collect only the visible slice of lines — O(viewport) instead of O(n).
-    // We need enough lines to fill visible_height + sub_line_offset (to account
+    // Wrap only the visible slice of lines — O(viewport) instead of O(n).
+    // We need enough rows to fill visible_height + sub_line_offset (to account
     // for the partial first entry that gets scrolled past).
     let needed_rows = visible_height + sub_line_offset;
-    let mut visible_lines: Vec<Line> = Vec::new();
-    let mut rows_collected = 0;
-
-    let visible = log_state.formatted_lines[first_entry_idx..]
-        .iter()
-        .zip(&log_state.line_widths[first_entry_idx..]);
-    for (line, &line_width) in visible {
-        visible_lines.push(line.clone());
-        rows_collected += wrapped_rows(line_width, inner_width);
-        if rows_collected >= needed_rows {
+    let indent = log_state.wrap_indent(inner_width);
+    let mut visible_rows: Vec<Line> = Vec::with_capacity(needed_rows);
+    for line in log_state.formatted_lines.iter().skip(first_entry_idx) {
+        wrap_into(&mut visible_rows, line, inner_width, indent);
+        if visible_rows.len() >= needed_rows {
             break;
         }
     }
+    visible_rows.drain(..sub_line_offset.min(visible_rows.len()));
+    visible_rows.truncate(visible_height);
 
-    let visible_text = Text::from(visible_lines);
-
-    // Paragraph::scroll() only needs the sub-line offset within the first entry,
-    // since we already sliced to the visible window.
-    let log_widget = Paragraph::new(visible_text)
-        .block(
-            Block::default()
-                .title(format!(
-                    "Logs: {} ({}) - Press ESC to return {}",
-                    container_name, container_key.host_id, status_indicator
-                ))
-                .style(styles.border),
-        )
-        .wrap(Wrap { trim: false })
-        .scroll((sub_line_offset as u16, 0));
+    // Already wrapped (`log_wrap`), so the paragraph draws rows as they are
+    let log_widget = Paragraph::new(Text::from(visible_rows)).block(
+        Block::default()
+            .title(format!(
+                "Logs: {} ({}) - Press ESC to return {}",
+                container_name, container_key.host_id, status_indicator
+            ))
+            .style(styles.border),
+    );
 
     f.render_widget(log_widget, area);
 

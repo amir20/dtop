@@ -885,6 +885,13 @@ The UI (`ui/render.rs`) uses pre-allocated styles to avoid per-frame allocations
      `[<time> INF] text` becomes `[INF] text`. The cut text is
      `LogEntry::without_own_timestamp`; `text` stays as printed and is what shows when
      dtop's timestamp is hidden. JSON lines are never stripped
+   - A timestamp is dimmed when the line above shows the same second (stack traces,
+     tables); `LogState` decides this when it formats a line, since it depends on the
+     neighbour (`LogEntry::repeats`)
+   - Long lines are wrapped by `core/log_wrap.rs`, not ratatui's `Wrap`: at spaces, with
+     continuation rows indented to the message column (`LogState::wrap_indent`; no indent
+     when timestamps are hidden or the view is under 60 columns). `LogState::line_rows`
+     caches each line's row count per width, so the scroll math matches what is drawn
    - Auto-scroll when at bottom, manual scroll preserves position
    - Displays "[AUTO]" or "[MANUAL]" indicator in title
 3. **Action Menu** - Centered popup for container actions

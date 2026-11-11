@@ -495,8 +495,6 @@ mod logs_only_tests {
         assert_eq!(line(&state, 0), "first");
         state.handle_log_line(key.clone(), entry("second"));
         assert_eq!(line(&state, 1), "second");
-        let widths = &state.log_state.as_ref().unwrap().line_widths;
-        assert_eq!(widths, &[5, 6]);
 
         state.handle_exit_log_view();
         state.open_log_view(&key);
