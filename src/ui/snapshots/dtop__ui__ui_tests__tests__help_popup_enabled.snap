@@ -3,11 +3,10 @@ source: src/ui/ui_tests.rs
 expression: output
 ---
 dtop vX.X.X - 1 container ('?' for help, 'q' to quit)                                                                   
-                                                                                                                        
-  ID        ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐e ▼         
+            ┌─────────────────────────────── Help - Press ? or ESC to close ───────────────────────────────┐            
+  ID        │                                                                                              │e ▼         
             │                                                                                              │            
-  abc1234567│                                                                                              │rs          
-            │ Navigation                                                                                   │            
+  abc1234567│ Navigation                                                                                   │rs          
             │   ↑/↓, j/k    Navigate/scroll (1 line)    →/l    View logs      ←/h    Exit logs             │            
             │   Enter       Action menu                 Esc    Close menu     ?      Toggle help           │            
             │   a           Show all containers         /      Filter         o      Open Dozzle           │            
@@ -22,7 +21,8 @@ dtop vX.X.X - 1 container ('?' for help, 'q' to quit)
             │                                                                                              │            
             │ Log View                                                                                     │            
             │   g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down │            
-            │   G/End       Bottom           t                  Timestamps                                 │            
+            │   G/End       Bottom           t                  Timestamps  /                    Search    │            
+            │   n/N         Next/previous match                                                            │            
             │                                                                                              │            
             │ Status Icons                                                                                 │            
             │ ✓ Healthy  ✖ Unhealthy  ◐ Starting  ▶ Running  ⏸ Paused  ■ Exited                            │            

@@ -461,6 +461,9 @@ pub struct LogState {
 
     /// Whether lines lead with dtop's timestamp; change it with `set_show_timestamps`
     show_timestamps: bool,
+
+    /// The `/` search, while one is typed or applied
+    pub search: Option<crate::core::log_search::LogSearch>,
 }
 
 impl LogState {
@@ -481,6 +484,7 @@ impl LogState {
             container_created_at,
             fetching_older: false,
             show_timestamps: true,
+            search: None,
         }
     }
 
@@ -564,6 +568,11 @@ impl LogState {
             self.formatted_lines[0] = first.format(self.show_timestamps, true);
         }
 
+        // Entry indexes shift by the size of the batch
+        if let Some(current) = self.search.as_mut().and_then(|s| s.current.as_mut()) {
+            *current += entries.len();
+        }
+
         entries.append(&mut self.log_entries);
         self.log_entries = entries;
         lines.append(&mut self.formatted_lines);
@@ -591,6 +600,26 @@ impl LogState {
                 total
             }
         }
+    }
+
+    /// The entry a search jump should land on: the nearest match after
+    /// (`forward`) or before the last one jumped to. Without one, the newest
+    /// match, since the view starts at the bottom.
+    pub fn find_match(&self, forward: bool) -> Option<usize> {
+        let search = self.search.as_ref()?;
+        let needle = search.needle();
+        let hit = |i: &usize| crate::core::log_search::matches(&self.formatted_lines[*i], &needle);
+        let count = self.formatted_lines.len();
+        match search.current {
+            Some(current) if forward => (current + 1..count).find(hit),
+            Some(current) => (0..current.min(count)).rev().find(hit),
+            None => (0..count).rev().find(hit),
+        }
+    }
+
+    /// Wrapped rows above entry `index`, at the width last given to `total_rows`
+    pub fn rows_before(&self, index: usize) -> usize {
+        self.line_rows.iter().take(index).sum()
     }
 
     /// Wrapped rows per formatted line, at the width last given to `total_rows`

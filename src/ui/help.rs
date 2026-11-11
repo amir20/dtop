@@ -58,7 +58,10 @@ pub fn render_help_popup(f: &mut Frame, styles: &UiStyles) {
         Line::from(
             "  g/Home      Top              Ctrl+U, b, PgUp    Page up     Ctrl+D, Space, PgDn  Page down",
         ),
-        Line::from("  G/End       Bottom           t                  Timestamps"),
+        Line::from(
+            "  G/End       Bottom           t                  Timestamps  /                    Search",
+        ),
+        Line::from("  n/N         Next/previous match"),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Status Icons",

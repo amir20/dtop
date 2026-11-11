@@ -66,7 +66,12 @@ impl AppState {
                 return self.handle_exit_search_mode();
             }
             ViewState::LogView(_) => {
-                // Exit log view
+                // A search is dropped first; the next Esc leaves the view
+                if let Some(state) = &mut self.log_state
+                    && state.search.take().is_some()
+                {
+                    return RenderAction::Render;
+                }
                 return self.handle_exit_log_view();
             }
             ViewState::ActionMenu(_) | ViewState::BulkActionMenu => {

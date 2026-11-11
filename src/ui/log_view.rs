@@ -1,14 +1,20 @@
 use ratatui::{
     Frame,
+    style::{Color, Style},
     text::{Line, Text},
     widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::core::app_state::AppState;
+use crate::core::log_search::highlight;
 use crate::core::log_wrap::wrap_into;
 use crate::core::types::ContainerKey;
 
 use super::render::UiStyles;
+
+/// Search matches, and those on the line `n`/`N` last jumped to
+const MATCH: Style = Style::new().fg(Color::Black).bg(Color::Yellow);
+const CURRENT_MATCH: Style = Style::new().fg(Color::Black).bg(Color::LightMagenta);
 
 /// Find the entry index and sub-line offset for a given visual line position.
 /// Returns (entry_index, sub_line_offset) where sub_line_offset is the number
@@ -101,8 +107,37 @@ pub fn render_log_view(
     // for the partial first entry that gets scrolled past).
     let needed_rows = visible_height + sub_line_offset;
     let indent = log_state.wrap_indent(inner_width);
+    // With a search, matching lines are redrawn with the matches highlighted.
+    // At most one line per row can show, so this stays O(viewport) too.
+    let needle = log_state.search.as_ref().map(|search| search.needle());
+    let current = log_state.search.as_ref().and_then(|search| search.current);
+    let highlighted: Vec<Option<Line<'static>>> = match needle.as_deref() {
+        Some(needle) if !needle.is_empty() => log_state
+            .formatted_lines
+            .iter()
+            .enumerate()
+            .skip(first_entry_idx)
+            .take(needed_rows)
+            .map(|(index, line)| {
+                let style = if current == Some(index) {
+                    CURRENT_MATCH
+                } else {
+                    MATCH
+                };
+                highlight(line, needle, style)
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+
     let mut visible_rows: Vec<Line> = Vec::with_capacity(needed_rows);
-    for line in log_state.formatted_lines.iter().skip(first_entry_idx) {
+    for (i, line) in log_state
+        .formatted_lines
+        .iter()
+        .skip(first_entry_idx)
+        .enumerate()
+    {
+        let line = highlighted.get(i).and_then(Option::as_ref).unwrap_or(line);
         wrap_into(&mut visible_rows, line, inner_width, indent);
         if visible_rows.len() >= needed_rows {
             break;

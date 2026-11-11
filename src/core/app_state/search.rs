@@ -3,6 +3,10 @@ use crate::core::types::{RenderAction, ViewState};
 
 impl AppState {
     pub(super) fn handle_enter_search_mode(&mut self) -> RenderAction {
+        if matches!(self.view_state, ViewState::LogView(_)) {
+            return self.handle_start_log_search();
+        }
+
         // Only allow entering search mode from ContainerList view
         if self.view_state != ViewState::ContainerList {
             return RenderAction::None;
