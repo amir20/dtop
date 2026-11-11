@@ -519,7 +519,7 @@ impl LogState {
     }
 
     /// Columns wrapped rows are indented by at `width`, so they hang under the
-    /// message instead of the timestamp. None when timestamps are hidden (the
+    /// message instead of the timestamp. Zero when timestamps are hidden (the
     /// line is shown as printed) or the view is too narrow to give up the columns.
     pub fn wrap_indent(&self, width: usize) -> usize {
         use crate::docker::logs::TIMESTAMP_COLUMNS;
