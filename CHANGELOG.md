@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.2] - 2026-11-11
+
+### Features
+
+- *(logs)* Toggle dtop's timestamp and hide duplicate app timestamps (#436)
+- *(logs)* Indent wrapped lines and dim repeated timestamps (#438)
+- *(logs)* Search in the log view (#439)
+- *(logs)* Show key hints in the log view title (#440)
+- *(logs)* Clickable URLs, copy, and terminal status for the log view (#442)
+
+### Bug Fixes
+
+- *(docs)* Make the home page demo unselectable
+- *(logs)* Expand tabs and keep JSON keys in their original order (#437)
+
 ## [0.11.1] - 2026-11-05
 
 ### Features
