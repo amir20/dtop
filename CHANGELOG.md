@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.3] - 2026-11-12
+
+### Features
+
+- *(panes)* Turn panes on from the config file (#443)
+
+### Bug Fixes
+
+- *(deps)* Update rust crate sysinfo to 0.40 (#406)
+
 ## [0.11.2] - 2026-11-11
 
 ### Features
