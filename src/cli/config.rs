@@ -62,6 +62,10 @@ pub struct Config {
     /// Lead each log line with dtop's timestamp (default: true)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamps: Option<bool>,
+
+    /// Open Shell and Logs in a tmux or Rex pane beside dtop (default: false)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub panes: Option<bool>,
 }
 
 impl Config {
@@ -199,6 +203,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -230,6 +235,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -256,6 +262,7 @@ mod tests {
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -286,6 +293,12 @@ hosts:
     fn test_yaml_timestamps_off() {
         let config: Config = serde_norway::from_str("timestamps: false").unwrap();
         assert_eq!(config.timestamps, Some(false));
+    }
+
+    #[test]
+    fn test_yaml_panes_on() {
+        let config: Config = serde_norway::from_str("panes: true").unwrap();
+        assert_eq!(config.panes, Some(true));
     }
 
     #[test]
@@ -369,6 +382,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -399,6 +413,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -428,6 +443,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -453,6 +469,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -478,6 +495,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -503,6 +521,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -533,6 +552,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
 
@@ -597,6 +617,7 @@ hosts:
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();
@@ -635,6 +656,7 @@ sort_direction: asc
             hyperlinks: None,
             stats_header: None,
             app_logos: None,
+            panes: None,
             timestamps: None,
         };
         let yaml = serde_norway::to_string(&config).unwrap();

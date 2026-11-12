@@ -187,6 +187,7 @@ struct Args {
 
     /// Open Shell and Logs in a terminal pane beside dtop instead of taking
     /// over its screen. Applies inside tmux, or inside Rex with its CLI on PATH.
+    /// Also set with `panes: true` in the config file.
     #[arg(long)]
     panes: bool,
 
@@ -471,7 +472,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             stats_header,
             timestamps: merged_config.timestamps.unwrap_or(true),
             header_visible,
-            panes: ui::panes::Panes::detect(args.panes),
+            // Like --all, the flag can only turn panes on
+            panes: ui::panes::Panes::detect(args.panes || merged_config.panes.unwrap_or(false)),
             logs_only,
         },
     )

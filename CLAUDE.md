@@ -153,6 +153,9 @@ app_logos: true
 # Lead each log line with dtop's timestamp (default: true; 't' in the log view toggles)
 timestamps: true
 
+# Open Shell and Logs in a tmux or Rex pane beside dtop (default: false; same as --panes)
+panes: false
+
 # Show all containers (default: false, shows only running containers)
 # Set to true to show all containers including stopped, exited, and paused containers
 all: false
@@ -192,6 +195,8 @@ Global config options:
 - `stats_header`: Show the system stats header (default: true)
 - `timestamps`: Lead each log line with dtop's timestamp (default: true)
 - `app_logos`: Show app logos next to container names where the terminal supports them (default: true)
+- `panes`: Open Shell and Logs in a tmux or Rex pane (default: false). Like `all`, `--panes` can only
+  turn it on; not saved by Ctrl-S
 
 See `config.example.yaml` for a complete example.
 
@@ -658,7 +663,7 @@ under tmux/screen. On by default where supported; `app_logos: false` in config t
 
 `--panes` (`ui/panes.rs`) opens Shell and Logs in a pane split right of dtop's, instead of taking
 over dtop's screen. Two backends, detected at startup; without either (or without the flag) dtop
-behaves as before:
+behaves as before. `panes: true` in the config file does the same as the flag:
 - **tmux** (`$TMUX` and `$TMUX_PANE` set, `tmux` on `PATH`): `tmux split-window -h -t <pane> -- …`.
   tmux runs where dtop runs, so this works over SSH too. Checked first: in tmux inside Rex,
   dtop's pane is a tmux pane.
