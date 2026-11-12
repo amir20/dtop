@@ -77,6 +77,13 @@ timestamps: true
 # Possible values: true (default), false
 app_logos: true
 
+# == Panes ==
+# Open Shell and Logs in a pane split beside dtop instead of taking over its
+# screen. Applies inside tmux, or inside Rex with its CLI on PATH; elsewhere
+# dtop opens them in place. Same as --panes, which can only turn it on.
+# Possible values: true, false (default)
+panes: false
+
 # == Columns ==
 # Column visibility and order.
 # List only the columns you want to see, in the order you want them.
