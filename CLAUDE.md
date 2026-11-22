@@ -683,6 +683,20 @@ behaves as before. `panes: true` in the config file does the same as the flag:
   settings don't apply there. Each pane opens its own connection (a fork can't reuse the
   parent's, since the multiplexer starts the pane's process).
 
+### Piped Output (snapshot)
+
+When stdout isn't a terminal and no subcommand is given, `main.rs` calls `cli/snapshot.rs::run`
+before any terminal setup: it connects to every host (`connect_and_verify_host`, failures to
+stderr), lists containers with `DockerHost::list_containers` (the same listing the container
+manager uses), inspects each for start time and restart count, samples running containers with
+`stats::sample_container_stats`, sorts with `sorting::compare_containers` (shared with the TUI)
+and prints a space-aligned table of the visible columns, Host only with several hosts.
+- `sample_container_stats` takes the second frame of a stats stream unsmoothed (`alpha` 1.0):
+  the first frame has no previous sample, so its CPU and rates read zero, and the TUI's EMA would
+  report ~30% of the real value after two frames. About 1-2s; 5s timeout.
+- Cells drop control characters (names and hosts can come from a shared config). A closed pipe
+  (`dtop | head`) is not an error.
+
 ### Configuration Loading
 
 The `Config` struct (`cli/config.rs`) handles YAML configuration file loading:

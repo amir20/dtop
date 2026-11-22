@@ -21,7 +21,9 @@ const SHORT_ID_LEN: usize = 12;
 /// ID if it is shorter.
 /// When the container last started. Docker reports a container that never
 /// started as the zero time, `0001-01-01T00:00:00Z`.
-fn started_at(inspect: &bollard::models::ContainerInspectResponse) -> Option<DateTime<Utc>> {
+pub(crate) fn started_at(
+    inspect: &bollard::models::ContainerInspectResponse,
+) -> Option<DateTime<Utc>> {
     let started = inspect.state.as_ref()?.started_at.as_ref()?;
     DateTime::parse_from_rfc3339(started)
         .ok()
@@ -159,18 +161,14 @@ impl DockerHost {
         self
     }
 
-    /// Fetches the current list of containers and starts monitoring them.
+    /// Lists this host's containers (its filters applied, stopped ones
+    /// included), each paired with its full ID.
     ///
-    /// Also used to re-synchronize after the daemon comes back, so the emitted
-    /// [`AppEvent::InitialContainerList`] is the authoritative list for this host.
-    ///
-    /// Returns `false` when the daemon could not be queried.
-    async fn fetch_initial_containers(
+    /// Start times and restart counts are left empty: the list API carries
+    /// neither, so they need an inspect per container.
+    pub async fn list_containers(
         &self,
-        tx: &EventSender,
-        active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
-        restart_backfill: &mut Option<tokio::task::JoinHandle<()>>,
-    ) -> bool {
+    ) -> Result<Vec<(String, Container)>, bollard::errors::Error> {
         let mut list_options = ListContainersOptions {
             all: true, // Fetch all containers (including stopped ones)
             ..Default::default()
@@ -181,23 +179,9 @@ impl DockerHost {
             list_options.filters = Some(self.filters.clone());
         }
 
-        let list_options = Some(list_options);
+        let container_list = self.docker.list_containers(Some(list_options)).await?;
 
-        let container_list = match self.docker.list_containers(list_options).await {
-            Ok(list) => list,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to list containers for host '{}': {}",
-                    self.host_id,
-                    e
-                );
-                return false;
-            }
-        };
-
-        let mut initial_containers = Vec::new();
-        let mut pending_restart_counts = Vec::new();
-
+        let mut containers = Vec::with_capacity(container_list.len());
         for container in container_list {
             let full_id = container.id.clone().unwrap_or_default();
             if full_id.is_empty() {
@@ -235,34 +219,63 @@ impl DockerHost {
                 .as_ref()
                 .and_then(|status| status.parse().ok());
 
-            // Check if container is running before moving state
-            let is_running = state == ContainerState::Running;
+            containers.push((
+                full_id,
+                Container {
+                    id: truncated_id,
+                    name,
+                    state,
+                    health,
+                    created,
+                    // The list API carries neither; see the inspect backfill
+                    started: None,
+                    stats: ContainerStats::default(),
+                    host_id: self.host_id.clone(),
+                    dozzle_url: self.dozzle_url.clone(),
+                    restart_count: None,
+                    compose_project,
+                    image: container.image.clone(),
+                    ports,
+                },
+            ));
+        }
+        Ok(containers)
+    }
 
-            let container_info = Container {
-                id: truncated_id.clone(),
-                name: name.clone(),
-                state,
-                health,
-                created,
-                // Backfilled below with the restart count; the list API
-                // carries neither.
-                started: None,
-                stats: ContainerStats::default(),
-                host_id: self.host_id.clone(),
-                dozzle_url: self.dozzle_url.clone(),
-                restart_count: None,
-                compose_project,
-                image: container.image.clone(),
-                ports,
-            };
-
-            initial_containers.push(container_info);
-            pending_restart_counts.push((full_id, truncated_id.clone()));
-
-            // Only start monitoring for running containers
-            if is_running {
-                self.start_container_monitoring(&truncated_id, tx, active_containers);
+    /// Fetches the current list of containers and starts monitoring them.
+    ///
+    /// Also used to re-synchronize after the daemon comes back, so the emitted
+    /// [`AppEvent::InitialContainerList`] is the authoritative list for this host.
+    ///
+    /// Returns `false` when the daemon could not be queried.
+    async fn fetch_initial_containers(
+        &self,
+        tx: &EventSender,
+        active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
+        restart_backfill: &mut Option<tokio::task::JoinHandle<()>>,
+    ) -> bool {
+        let listed = match self.list_containers().await {
+            Ok(list) => list,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to list containers for host '{}': {}",
+                    self.host_id,
+                    e
+                );
+                return false;
             }
+        };
+
+        let mut initial_containers = Vec::with_capacity(listed.len());
+        let mut pending_restart_counts = Vec::with_capacity(listed.len());
+
+        for (full_id, container) in listed {
+            // Only start monitoring for running containers
+            if container.state == ContainerState::Running {
+                self.start_container_monitoring(&container.id, tx, active_containers);
+            }
+            pending_restart_counts.push((full_id, container.id.clone()));
+            initial_containers.push(container);
         }
 
         // Send the full list in one event. An empty list is still sent so a

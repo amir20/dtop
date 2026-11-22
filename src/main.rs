@@ -27,7 +27,7 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -39,7 +39,7 @@ use cli::config::Config;
 use cli::connect::{establish_connections, spawn_remaining_connections_handler};
 use core::app_state::AppState;
 use core::system_stats::system_stats_worker;
-use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection};
+use core::types::{AppEvent, Column, ColumnConfig, RenderAction, SortDirection, SortState};
 use docker::connection::{DockerHost, container_manager};
 use ui::app_logos;
 use ui::hyperlinks::HyperlinkMode;
@@ -366,6 +366,18 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         config_path
     };
+
+    // Piped or redirected: print one plain table instead of drawing the TUI
+    if args.command.is_none() && !io::stdout().is_terminal() {
+        let sort = SortState::new_with_direction(sort_field, sort_direction);
+        return cli::snapshot::run(
+            &merged_config,
+            show_all,
+            sort,
+            &column_config.visible_columns(),
+        )
+        .await;
+    }
 
     // Create event channel
     let (tx, mut rx) = mpsc::channel::<AppEvent>(1000);

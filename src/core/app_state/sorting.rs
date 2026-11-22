@@ -4,6 +4,7 @@ use crate::core::types::{
     ViewState,
 };
 use chrono::{DateTime, Utc};
+use std::cmp::Ordering;
 use std::time::Duration;
 
 /// Minimum time between sorts to avoid re-sorting on every frame
@@ -37,6 +38,53 @@ fn status_severity(container: &Container) -> u8 {
         ContainerState::Created => 8,
         ContainerState::Unknown => 9,
     }
+}
+
+/// Orders two containers for the list: by the sort field in its direction,
+/// then by host so the order is stable.
+pub fn compare_containers(a: &Container, b: &Container, sort: SortState) -> Ordering {
+    let ord = match sort.field {
+        // `Option`'s ordering already places `None` before `Some`, which
+        // matches the previous hand-written match exactly.
+        Column::Uptime => uptime_since(a).cmp(&uptime_since(b)),
+        Column::Created => a.created.cmp(&b.created),
+        Column::Name => a.name.cmp(&b.name),
+        Column::Id => a.id.cmp(&b.id),
+        Column::Host => a.host_id.cmp(&b.host_id),
+        Column::Compose => a.compose_project.cmp(&b.compose_project),
+        Column::Image => a.image.cmp(&b.image),
+        Column::Ports => a.ports.cmp(&b.ports),
+        // `total_cmp` gives a deterministic total order over floats
+        // (including NaN) without needing to unwrap `partial_cmp`.
+        Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),
+        Column::Memory => a.stats.memory.total_cmp(&b.stats.memory),
+        Column::Pids => a.stats.pids_current.cmp(&b.stats.pids_current),
+        Column::NetTx => a
+            .stats
+            .network_tx_bytes_per_sec
+            .total_cmp(&b.stats.network_tx_bytes_per_sec),
+        Column::NetRx => a
+            .stats
+            .network_rx_bytes_per_sec
+            .total_cmp(&b.stats.network_rx_bytes_per_sec),
+        Column::DiskRead => a
+            .stats
+            .disk_read_bytes_per_sec
+            .total_cmp(&b.stats.disk_read_bytes_per_sec),
+        Column::DiskWrite => a
+            .stats
+            .disk_write_bytes_per_sec
+            .total_cmp(&b.stats.disk_write_bytes_per_sec),
+        Column::Status => status_severity(a).cmp(&status_severity(b)),
+        Column::Restarts => a.restart_count.cmp(&b.restart_count),
+    };
+    let ord = if sort.direction == SortDirection::Descending {
+        ord.reverse()
+    } else {
+        ord
+    };
+    // Use host_id as tiebreaker for stable ordering
+    ord.then_with(|| a.host_id.cmp(&b.host_id))
 }
 
 impl AppState {
@@ -176,53 +224,8 @@ impl AppState {
             })
             .collect();
 
-        let direction = self.sort_state.direction;
-        let sort_field = self.sort_state.field;
-
-        key_container_pairs.sort_by(|(_, a), (_, b)| {
-            let ord = match sort_field {
-                // `Option`'s ordering already places `None` before `Some`, which
-                // matches the previous hand-written match exactly.
-                Column::Uptime => uptime_since(a).cmp(&uptime_since(b)),
-                Column::Created => a.created.cmp(&b.created),
-                Column::Name => a.name.cmp(&b.name),
-                Column::Id => a.id.cmp(&b.id),
-                Column::Host => a.host_id.cmp(&b.host_id),
-                Column::Compose => a.compose_project.cmp(&b.compose_project),
-                Column::Image => a.image.cmp(&b.image),
-                Column::Ports => a.ports.cmp(&b.ports),
-                // `total_cmp` gives a deterministic total order over floats
-                // (including NaN) without needing to unwrap `partial_cmp`.
-                Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),
-                Column::Memory => a.stats.memory.total_cmp(&b.stats.memory),
-                Column::Pids => a.stats.pids_current.cmp(&b.stats.pids_current),
-                Column::NetTx => a
-                    .stats
-                    .network_tx_bytes_per_sec
-                    .total_cmp(&b.stats.network_tx_bytes_per_sec),
-                Column::NetRx => a
-                    .stats
-                    .network_rx_bytes_per_sec
-                    .total_cmp(&b.stats.network_rx_bytes_per_sec),
-                Column::DiskRead => a
-                    .stats
-                    .disk_read_bytes_per_sec
-                    .total_cmp(&b.stats.disk_read_bytes_per_sec),
-                Column::DiskWrite => a
-                    .stats
-                    .disk_write_bytes_per_sec
-                    .total_cmp(&b.stats.disk_write_bytes_per_sec),
-                Column::Status => status_severity(a).cmp(&status_severity(b)),
-                Column::Restarts => a.restart_count.cmp(&b.restart_count),
-            };
-            let ord = if direction == SortDirection::Descending {
-                ord.reverse()
-            } else {
-                ord
-            };
-            // Use host_id as tiebreaker for stable ordering
-            ord.then_with(|| a.host_id.cmp(&b.host_id))
-        });
+        let sort_state = self.sort_state;
+        key_container_pairs.sort_by(|(_, a), (_, b)| compare_containers(a, b, sort_state));
 
         // Extract sorted keys
         self.sorted_container_keys = key_container_pairs
