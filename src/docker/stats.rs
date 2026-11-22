@@ -15,18 +15,36 @@ const INITIAL_STATS_RETRY_DELAY: Duration = Duration::from_secs(1);
 /// Upper bound on the stats retry backoff.
 const MAX_STATS_RETRY_DELAY: Duration = Duration::from_secs(5);
 
+/// How long [`sample_container_stats`] waits for the frames it needs.
+const SAMPLE_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Exponentially smoothed values carried across samples.
 ///
 /// These survive a reconnect: the container kept running, so its previous
 /// smoothed values are still the best estimate to blend the next sample into.
-#[derive(Default)]
 struct SmoothedStats {
+    /// Weight of each new sample; 1.0 turns smoothing off
+    alpha: f64,
     cpu: Option<f64>,
     memory: Option<f64>,
     net_tx: Option<f64>,
     net_rx: Option<f64>,
     disk_read: Option<f64>,
     disk_write: Option<f64>,
+}
+
+impl Default for SmoothedStats {
+    fn default() -> Self {
+        Self {
+            alpha: ALPHA,
+            cpu: None,
+            memory: None,
+            net_tx: None,
+            net_rx: None,
+            disk_read: None,
+            disk_write: None,
+        }
+    }
 }
 
 /// Why a single pass over the stats stream stopped.
@@ -93,6 +111,50 @@ pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: 
         tokio::time::sleep(delay).await;
         delay = (delay * 2).min(MAX_STATS_RETRY_DELAY);
     }
+}
+
+/// Takes one unsmoothed reading of a container's stats, for a one-off snapshot.
+///
+/// A stream's first frame has no previous sample, so its CPU and rates read
+/// zero; the second, about a second later, is the first real reading. If the
+/// second doesn't arrive in time, the first is returned (memory and PIDs are
+/// still right in it).
+pub async fn sample_container_stats(
+    host: &DockerHost,
+    truncated_id: &str,
+) -> Option<ContainerStats> {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+    let mut smoothed = SmoothedStats {
+        alpha: 1.0,
+        ..Default::default()
+    };
+    let mut cached_cgroup_path = None;
+    let stream = stream_stats_once(
+        host,
+        truncated_id,
+        &tx,
+        &mut smoothed,
+        &mut cached_cgroup_path,
+    );
+    tokio::pin!(stream);
+    let deadline = tokio::time::sleep(SAMPLE_TIMEOUT);
+    tokio::pin!(deadline);
+
+    let mut latest = None;
+    for _ in 0..2 {
+        tokio::select! {
+            Some(AppEvent::ContainerStat(_, stats)) = rx.recv() => latest = Some(stats),
+            _ = &mut stream => {
+                // The stream ended; keep whatever it sent before it did
+                while let Ok(AppEvent::ContainerStat(_, stats)) = rx.try_recv() {
+                    latest = Some(stats);
+                }
+                break;
+            }
+            _ = &mut deadline => break,
+        }
+    }
+    latest
 }
 
 /// Opens the stats stream once and pumps it until it ends.
@@ -182,12 +244,14 @@ async fn stream_stats_once(
                 prev_timestamp = Some(Instant::now());
 
                 // Apply exponential moving average (first value passes through unsmoothed)
-                let cpu = ema(smoothed.cpu, cpu_percent, ALPHA);
-                let memory = ema(smoothed.memory, memory_percent, ALPHA);
-                let network_tx_bytes_per_sec = ema(smoothed.net_tx, net_tx_rate, ALPHA);
-                let network_rx_bytes_per_sec = ema(smoothed.net_rx, net_rx_rate, ALPHA);
-                let disk_read_bytes_per_sec = ema(smoothed.disk_read, disk_read_rate, ALPHA);
-                let disk_write_bytes_per_sec = ema(smoothed.disk_write, disk_write_rate, ALPHA);
+                let cpu = ema(smoothed.cpu, cpu_percent, smoothed.alpha);
+                let memory = ema(smoothed.memory, memory_percent, smoothed.alpha);
+                let network_tx_bytes_per_sec = ema(smoothed.net_tx, net_tx_rate, smoothed.alpha);
+                let network_rx_bytes_per_sec = ema(smoothed.net_rx, net_rx_rate, smoothed.alpha);
+                let disk_read_bytes_per_sec =
+                    ema(smoothed.disk_read, disk_read_rate, smoothed.alpha);
+                let disk_write_bytes_per_sec =
+                    ema(smoothed.disk_write, disk_write_rate, smoothed.alpha);
 
                 // Update smoothed values for next iteration
                 smoothed.cpu = Some(cpu);

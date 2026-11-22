@@ -220,7 +220,7 @@ pub fn host_display_id(host_config: &HostConfig) -> String {
 /// Rejects configs where two hosts get the same id. Everything is keyed by host id,
 /// so two such hosts would be merged: one's containers would replace the other's,
 /// and actions on them could reach the wrong daemon.
-fn check_unique_host_ids(hosts: &[HostConfig]) -> Result<(), String> {
+pub(crate) fn check_unique_host_ids(hosts: &[HostConfig]) -> Result<(), String> {
     let mut seen = HashMap::with_capacity(hosts.len());
     for host in hosts {
         if let Some(other) = seen.insert(host_display_id(host), &host.host) {

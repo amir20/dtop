@@ -240,6 +240,19 @@ Options:
 
 ```
 
+### Piping and redirecting
+
+When its output isn't a terminal, dtop prints one plain-text table of containers and exits instead of
+starting the TUI, so it works with `grep`, `awk` and files:
+
+```sh
+dtop | grep nginx
+dtop --all --host ssh://user@server > containers.txt
+```
+
+The table uses the same columns, filters, hosts and sort as the TUI. CPU, memory and network come from a
+short sample of each running container, so it takes about two seconds.
+
 ## Configuration File
 
 `dtop` supports command line flags or configuration file. The configuration file reads from the following locations (in priority order):
