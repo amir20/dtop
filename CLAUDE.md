@@ -313,7 +313,7 @@ src/
 ├── core/                  # Core application logic
 │   ├── app_state/        # Central state manager (modularized)
 │   │   ├── mod.rs        # AppState struct and main event dispatcher
-│   │   ├── actions.rs    # Action menu handling (start/stop/restart/remove)
+│   │   ├── actions.rs    # Action menu handling (start/stop/restart/pause/unpause/remove)
 │   │   ├── container_events.rs  # Container lifecycle event handlers
 │   │   ├── integrations.rs      # Dozzle integration handlers
 │   │   ├── log_view.rs   # Log view event handlers
@@ -327,7 +327,7 @@ src/
 │   ├── details.rs        # Inspect for the details popup
 │   ├── logs.rs           # Log streaming
 │   ├── stats.rs          # Stats streaming and calculation
-│   └── actions.rs        # Container actions (start/stop/restart/remove)
+│   └── actions.rs        # Container actions (start/stop/restart/pause/unpause/remove)
 │
 ├── ui/                    # UI rendering and input handling
 │   ├── input.rs          # Keyboard worker
@@ -414,7 +414,7 @@ src/
 
 7. **Container Actions** (`docker/actions.rs::execute_container_action`)
    - Async execution of Docker container actions
-   - Supports: Start, Stop, Restart, Remove
+   - Supports: Start, Stop, Restart, Pause, Unpause, Remove
    - Stop/Restart use 10-second timeout before force kill
    - Remove uses force option to remove even if running
    - Sends progress events (InProgress, Success, Error) back to main event loop
@@ -734,6 +734,8 @@ The application supports interactive container management through an action menu
 - **Start**: Available for Exited, Created, Dead containers
 - **Stop**: Available for Running, Paused containers (10-second timeout)
 - **Restart**: Available for Running containers (10-second timeout)
+- **Pause**: Available for Running containers
+- **Unpause**: Available for Paused containers
 - **Remove**: Available for any state except Restarting/Removing (forced removal)
 - **Details**: Available in every state (listed last, never in the bulk menu). Opens a popup
   filled by one inspect (`docker/details.rs`): image, command, created/started, last exit code

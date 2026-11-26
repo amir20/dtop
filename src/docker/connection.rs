@@ -783,6 +783,22 @@ impl DockerHost {
             .map_err(|e| format!("Failed to restart container: {e}"))
     }
 
+    /// Pauses a container (freezes its processes)
+    pub async fn pause_container(&self, container_id: &str) -> Result<(), String> {
+        self.docker
+            .pause_container(container_id)
+            .await
+            .map_err(|e| format!("Failed to pause container: {e}"))
+    }
+
+    /// Unpauses a paused container
+    pub async fn unpause_container(&self, container_id: &str) -> Result<(), String> {
+        self.docker
+            .unpause_container(container_id)
+            .await
+            .map_err(|e| format!("Failed to unpause container: {e}"))
+    }
+
     /// Removes a container (with force option if needed)
     pub async fn remove_container(&self, container_id: &str) -> Result<(), String> {
         use bollard::query_parameters::RemoveContainerOptions;

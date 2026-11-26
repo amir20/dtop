@@ -2432,6 +2432,7 @@ mod tests {
                 ContainerAction::Start,
                 ContainerAction::Stop,
                 ContainerAction::Restart,
+                ContainerAction::Pause,
                 ContainerAction::Remove,
             ]
         );
@@ -2465,7 +2466,7 @@ mod tests {
         let (mut state, _) = create_bulk_state();
         press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        for _ in 0..3 {
+        for _ in 0..4 {
             press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         }
 
@@ -2792,7 +2793,7 @@ mod tests {
         let (mut state, keys) = create_bulk_state();
         press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        for _ in 0..3 {
+        for _ in 0..4 {
             press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         }
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
@@ -2894,7 +2895,7 @@ mod tests {
         let (mut state, keys) = create_bulk_state();
         press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        for _ in 0..3 {
+        for _ in 0..4 {
             press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         }
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
@@ -3011,7 +3012,7 @@ mod tests {
         let (mut state, _) = create_bulk_state();
         press(&mut state, KeyCode::Char('a'), KeyModifiers::CONTROL);
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
-        for _ in 0..3 {
+        for _ in 0..4 {
             press(&mut state, KeyCode::Down, KeyModifiers::NONE);
         }
         press(&mut state, KeyCode::Enter, KeyModifiers::NONE);
