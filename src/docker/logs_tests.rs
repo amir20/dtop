@@ -8,6 +8,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -37,8 +39,21 @@ fn line(n: u32) -> String {
     )
 }
 
+/// What the fake daemon serves.
+struct Script {
+    history: Vec<u32>,
+    /// Live lines for each `follow=true` request in turn. All but the last
+    /// stream end after their lines, as when the container stops; the last
+    /// stays open.
+    follows: Vec<Vec<u32>>,
+    /// Drop non-follow responses mid-body, as a broken connection does
+    broken: bool,
+    follow_requests: AtomicUsize,
+}
+
 /// Serves `/containers/{id}/logs` from `history`, plus `live` appended to a
 /// `follow=true` response, applying dockerd's `since`/`until`/`tail` rules.
+/// Inspect reports the container running.
 struct FakeLogs {
     path: PathBuf,
     task: JoinHandle<()>,
@@ -46,17 +61,27 @@ struct FakeLogs {
 
 impl FakeLogs {
     fn start(name: &str, history: Vec<u32>, live: Vec<u32>) -> Self {
+        Self::start_with(name, history, vec![live], false)
+    }
+
+    fn start_with(name: &str, history: Vec<u32>, follows: Vec<Vec<u32>>, broken: bool) -> Self {
         let path =
             std::env::temp_dir().join(format!("dtop-test-{}-{name}.sock", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let listener = UnixListener::bind(&path).expect("bind fake docker socket");
+        let script = Arc::new(Script {
+            history,
+            follows,
+            broken,
+            follow_requests: AtomicUsize::new(0),
+        });
 
         let task = tokio::spawn(async move {
             loop {
                 let Ok((stream, _)) = listener.accept().await else {
                     return;
                 };
-                tokio::spawn(serve(stream, history.clone(), live.clone()));
+                tokio::spawn(serve(stream, Arc::clone(&script)));
             }
         });
 
@@ -76,7 +101,7 @@ impl Drop for FakeLogs {
     }
 }
 
-async fn serve(mut stream: UnixStream, history: Vec<u32>, live: Vec<u32>) {
+async fn serve(mut stream: UnixStream, script: Arc<Script>) {
     let mut buffer = Vec::new();
     loop {
         let head_end = loop {
@@ -93,6 +118,18 @@ async fn serve(mut stream: UnixStream, history: Vec<u32>, live: Vec<u32>) {
         buffer.drain(..head_end);
 
         let target = request.split_whitespace().nth(1).unwrap_or("");
+        if !target.contains("/logs") {
+            // Inspect
+            let body = r#"{"State":{"Running":true}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            if stream.write_all(response.as_bytes()).await.is_err() {
+                return;
+            }
+            continue;
+        }
         let query: HashMap<&str, &str> = target
             .split_once('?')
             .map(|(_, q)| q.split('&').filter_map(|kv| kv.split_once('=')).collect())
@@ -111,16 +148,20 @@ async fn serve(mut stream: UnixStream, history: Vec<u32>, live: Vec<u32>) {
             (since == 0 || t >= Utc.timestamp_opt(since, 0).unwrap())
                 && (until == 0 || t <= Utc.timestamp_opt(until, 0).unwrap())
         };
-        let mut lines: Vec<u32> = history.iter().copied().filter(in_window).collect();
+        let mut lines: Vec<u32> = script.history.iter().copied().filter(in_window).collect();
         if let Some(tail) = query.get("tail").and_then(|v| v.parse::<usize>().ok()) {
             lines = lines.split_off(lines.len().saturating_sub(tail));
         }
+        let mut last_follow = false;
         if follow {
+            let n = script.follow_requests.fetch_add(1, Ordering::SeqCst);
+            let live = &script.follows[n.min(script.follows.len() - 1)];
+            last_follow = n + 1 >= script.follows.len();
             lines.extend(live.iter().copied().filter(in_window));
         }
         let body: String = lines.into_iter().map(line).collect();
 
-        if follow {
+        if follow || script.broken {
             let head =
                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n";
             let chunk = format!("{:x}\r\n{body}\r\n", body.len());
@@ -129,8 +170,20 @@ async fn serve(mut stream: UnixStream, history: Vec<u32>, live: Vec<u32>) {
             {
                 return;
             }
-            // Keep following until the client goes away
-            std::future::pending::<()>().await;
+            if !follow {
+                // Hang up mid-body
+                let _ = stream.flush().await;
+                return;
+            }
+            if last_follow {
+                // Keep following until the client goes away
+                std::future::pending::<()>().await;
+            }
+            // The container stopped: end the stream
+            if stream.write_all(b"0\r\n\r\n").await.is_err() {
+                return;
+            }
+            continue;
         }
 
         let response = format!(
@@ -230,4 +283,44 @@ async fn older_logs_stay_paged_at_the_container_start() {
 
     assert_eq!(fetch(5).await, (vec![3, 4], true));
     assert_eq!(fetch(3).await, (vec![1, 2], false));
+}
+
+/// The follow stream ends when the container stops; once it runs again the
+/// stream is re-opened from the last line shown, without repeating it.
+#[tokio::test]
+async fn streaming_reopens_after_the_follow_stream_ends() {
+    let fake = FakeLogs::start_with("logs-reopen", vec![1, 2], vec![vec![3], vec![4, 5]], false);
+    let (tx, mut rx) = mpsc::channel(100);
+    let task = tokio::spawn(stream_container_logs(fake.host(), "abc".to_string(), tx));
+
+    let mut live = Vec::new();
+    while live.len() < 3 {
+        match tokio::time::timeout(TIMEOUT, rx.recv()).await {
+            Ok(Some(AppEvent::LogLine(_, entry))) => live.push(numbers(&[entry])[0]),
+            Ok(Some(_)) => {}
+            other => panic!("stream stopped after {live:?}: {other:?}"),
+        }
+    }
+
+    assert_eq!(live, [3, 4, 5]);
+    task.abort();
+}
+
+/// A read that breaks partway sends nothing (what arrived is the oldest part of
+/// the window, so prepending it would leave a gap) and doesn't claim the history
+/// ended; widening the window on errors used to end in `false`.
+#[tokio::test]
+async fn older_logs_keep_more_history_after_a_broken_read() {
+    let fake = FakeLogs::start_with("logs-broken", (1..=5).collect(), vec![vec![]], true);
+    let (tx, mut rx) = mpsc::channel(100);
+
+    fetch_older_logs(fake.host(), "abc".to_string(), ts(5), ts(5), None, 1000, tx).await;
+
+    let Ok(Some(AppEvent::LogBatchPrepend(_, batch, has_more))) =
+        tokio::time::timeout(TIMEOUT, rx.recv()).await
+    else {
+        panic!("no batch sent");
+    };
+    assert!(batch.is_empty(), "a partial window would leave a gap");
+    assert!(has_more, "a broken read is not the start of the history");
 }

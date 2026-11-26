@@ -10,17 +10,6 @@ impl AppState {
         host_id: String,
         container_list: Vec<Container>,
     ) -> RenderAction {
-        // Remember *which container* is selected, not just its row. A resync resets
-        // the host's stats to zero, so under a stats-based sort every row compares
-        // equal and the list can come back in a different order — holding the row
-        // index would silently move the cursor onto a different container, and the
-        // next Enter would open the action menu on it.
-        let selected_key = self
-            .table_state
-            .selected()
-            .and_then(|index| self.sorted_container_keys.get(index))
-            .cloned();
-
         // This is the authoritative list for the host. Drop anything we still hold
         // for it first, since the same event is re-sent to re-synchronize after the
         // host reconnects and containers may have been removed in the meantime.
@@ -33,38 +22,21 @@ impl AppState {
 
         self.prune_marks();
 
-        // Force immediate sort when loading the container list
-        // (this also rebuilds `sorted_container_keys`)
+        // Force immediate sort when loading the container list. This rebuilds
+        // `sorted_container_keys` and keeps the cursor on the selected container:
+        // a resync resets the host's stats to zero, so under a stats-based sort
+        // the list can come back in a different order.
         self.force_sort_containers();
-
-        match selected_key.and_then(|key| self.index_of_container(&key)) {
-            // The selected container is still listed — follow it to its new row.
-            Some(index) => self.table_state.select(Some(index)),
-            // It went away (or nothing was selected): fall back to the first row,
-            // keeping any existing selection in range.
-            None => self.ensure_selection(),
-        }
+        self.ensure_selection();
 
         RenderAction::Render // Force draw - table structure changed
     }
 
-    /// Returns the row index of a container in the currently sorted list.
-    fn index_of_container(&self, key: &ContainerKey) -> Option<usize> {
-        self.sorted_container_keys.iter().position(|k| k == key)
-    }
-
     pub(super) fn handle_container_created(&mut self, container: Container) -> RenderAction {
         let key = ContainerKey::new(container.host_id.clone(), container.id.clone());
-        let is_new = !self.containers.contains_key(&key);
-        self.containers.insert(key.clone(), container);
+        self.containers.insert(key, container);
 
-        // Only add to sorted keys if this is a genuinely new container
-        // (avoid duplicates during restarts where container already exists)
-        if is_new {
-            self.sorted_container_keys.push(key);
-        }
-
-        // Force immediate sort when new container is added
+        // Force immediate sort when new container is added (rebuilds the keys)
         self.force_sort_containers();
 
         // The container may be filling an empty (possibly filtered) list, in
@@ -76,10 +48,11 @@ impl AppState {
 
     pub(super) fn handle_container_destroyed(&mut self, key: ContainerKey) -> RenderAction {
         self.containers.remove(&key);
-        self.sorted_container_keys.retain(|k| k != &key);
         self.marked_containers.remove(&key);
 
-        // Adjust selection if needed
+        // Rebuilds the keys, keeping the cursor on the selected container when
+        // it survives (a row above it going away would shift it)
+        self.force_sort_containers();
         self.ensure_selection();
 
         RenderAction::Render // Force draw - table structure changed

@@ -3,11 +3,8 @@ mod core;
 mod docker;
 mod ui;
 
-// Test-only allocation counting allocator. `main.rs` is a separate crate root
-// that recompiles the module tree (including the allocation-regression tests),
-// so it needs its own copy of the allocator and global registration.
+// Test-only allocation counting allocator, used by allocation-regression tests.
 #[cfg(test)]
-#[path = "alloc_counter.rs"]
 mod alloc_counter;
 
 #[cfg(test)]
@@ -265,8 +262,12 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let (config, config_path) = if let Some(path) = args.config.clone() {
         (Config::load_from(&path)?, Some(path))
     } else if cli_provided {
-        // User explicitly provided --host, don't load config for hosts
-        (Config::default(), None)
+        // User explicitly provided --host, don't load config for hosts. Ctrl-S still
+        // saves to the file a plain `dtop` would load (it only rewrites preference
+        // keys), so it doesn't create a ~/.config/dtop/config.yaml that shadows it.
+        // A found file that isn't a dtop config isn't one to write to.
+        let path = Config::load_with_path().ok().and_then(|(_, path)| path);
+        (Config::default(), path)
     } else {
         // Load config file if it exists
         Config::load_with_path()?
@@ -357,14 +358,6 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         ColumnConfig::from_config_strings(cols)
     } else {
         ColumnConfig::default()
-    };
-    // Only pass config_path when the config file is actually being used,
-    // to avoid silently overwriting a config file the user didn't intend to use.
-    // A file named with --config was intended, even alongside --host.
-    let config_path_for_state = if cli_provided && args.config.is_none() {
-        None
-    } else {
-        config_path
     };
 
     // Piped or redirected: print one plain table instead of drawing the TUI
@@ -480,7 +473,8 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             sort_field,
             sort_direction,
             column_config,
-            config_path: config_path_for_state,
+            // Ctrl-S saves here; the default path is used only when no config exists
+            config_path,
             stats_header,
             timestamps: merged_config.timestamps.unwrap_or(true),
             header_visible,

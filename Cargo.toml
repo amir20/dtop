@@ -47,7 +47,6 @@ sysinfo = { version = "0.40", default-features = false, features = ["system", "n
 
 [dev-dependencies]
 insta = { version = "1.48", features = ["filters"] }
-mockall = "0.15"
 tokio = { version = "1", features = ["test-util"] }
 
 [profile.release]

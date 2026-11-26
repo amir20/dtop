@@ -628,7 +628,8 @@ mod tests {
             "expected the OSC 8 opener at ({x}, {y})"
         );
         // ...the terminator on the last...
-        assert_eq!(linked[(x + 4, y)].symbol(), "x\u{1b}]8;;\u{1b}\\");
+        let closer = linked[(x + 4, y)].symbol();
+        assert!(closer.starts_with("x\u{1b}]8;id=") && closer.ends_with(";\u{1b}\\"));
         // ...and the middle of the label stays ordinary text, so the row still
         // snapshots and copy-pastes as "nginx".
         assert_eq!(linked[(x + 1, y)].symbol(), "g");
@@ -674,9 +675,9 @@ mod tests {
             "\u{1b}]8;;http://localhost:8080/container/e855f52b69e3\u{1b}\\c",
             "opener should sit on the first character of the name"
         );
-        assert_eq!(
-            linked[(x + 18, y)].symbol(),
-            "i\u{1b}]8;;\u{1b}\\",
+        let closer = linked[(x + 18, y)].symbol();
+        assert!(
+            closer.starts_with("i\u{1b}]8;id=") && closer.ends_with(";\u{1b}\\"),
             "terminator should sit on the LAST character of the name, meaning the \
              overlay's replayed Name column width matches the table's"
         );
@@ -902,6 +903,65 @@ mod tests {
             emitted.contains("10.0%"),
             "the CPU percentage after the link was swallowed by the diff"
         );
+    }
+
+    /// Two linked names of the same length ending in the same char swap rows.
+    /// The diff rewrites each opener (its URL changed); the closer must differ
+    /// too, or it is skipped and the link stays open over the rest of the screen.
+    #[test]
+    fn test_swapped_hyperlink_rows_still_emit_closers() {
+        use ratatui::backend::CrosstermBackend;
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct Tap(Arc<Mutex<Vec<u8>>>);
+        impl Write for Tap {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut state = create_test_app_state();
+        for (id, name) in [("aaaaaaaaaaaa", "alpha_x"), ("bbbbbbbbbbbb", "bravo_x")] {
+            state.handle_event(AppEvent::ContainerCreated(dozzle_container(
+                id,
+                name,
+                "http://localhost:8080",
+            )));
+        }
+        state.sort_state = SortState::new(Column::Name);
+        state.force_sort_containers();
+
+        let sink = Arc::new(Mutex::new(Vec::new()));
+        let mut terminal = Terminal::with_options(
+            CrosstermBackend::new(Tap(sink.clone())),
+            ratatui::TerminalOptions {
+                viewport: ratatui::Viewport::Fixed(ratatui::layout::Rect::new(0, 0, 162, 20)),
+            },
+        )
+        .unwrap();
+        let styles = UiStyles::default().with_hyperlinks(true);
+        terminal
+            .draw(|f| render_ui(f, &mut state, &styles))
+            .unwrap();
+
+        sink.lock().unwrap().clear();
+        state.sort_state.direction = state.sort_state.direction.toggle();
+        state.force_sort_containers();
+        terminal
+            .draw(|f| render_ui(f, &mut state, &styles))
+            .unwrap();
+
+        let emitted = String::from_utf8_lossy(&sink.lock().unwrap()).to_string();
+        let openers = emitted.matches("\u{1b}]8;;http").count();
+        let closers = emitted.matches("\u{1b}]8;id=").count();
+        assert_eq!(openers, 2, "both rows' openers should be rewritten");
+        assert_eq!(closers, openers, "every rewritten opener needs a closer");
     }
 
     #[test]
@@ -1701,6 +1761,27 @@ mod tests {
         );
 
         assert_snapshot_with_redaction!(output);
+    }
+
+    /// A long error is shortened; a multi-byte char straddling the cut must not
+    /// panic (it used to slice at byte 77).
+    #[test]
+    fn test_long_non_ascii_connection_error_does_not_panic() {
+        let mut state = create_test_app_state();
+        let styles = UiStyles::default();
+        // 76 ASCII bytes, then 'é' occupies bytes 76..78.
+        let message = format!("{}é{}", "x".repeat(76), "y".repeat(20));
+        state.connection_errors.insert(
+            "user@server1".to_string(),
+            (message, std::time::Instant::now()),
+        );
+
+        let mut terminal = Terminal::new(TestBackend::new(140, 25)).unwrap();
+        terminal
+            .draw(|f| {
+                render_ui(f, &mut state, &styles);
+            })
+            .unwrap();
     }
 
     #[test]

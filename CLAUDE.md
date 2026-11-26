@@ -208,7 +208,7 @@ Preferences (columns, sort field, sort direction, show-all, stats header, log ti
 - **Ctrl-R** - Reset preferences to defaults (requires y/n confirmation)
 
 **Behavior:**
-- Saving preserves other config keys (hosts, icons, filters)
+- Saving preserves other config keys (hosts, icons, filters), but it rewrites the file, so comments in it are dropped
 - Notifications show success/confirmation messages (auto-dismiss after 2 seconds)
 - Reset affects in-memory state only; saved config is not deleted
 
@@ -339,8 +339,7 @@ src/
 │   ├── icons.rs          # Icon sets (Unicode and Nerd Font)
 │   └── ui_tests.rs       # UI snapshot tests
 │
-├── lib.rs                # Library root with module declarations
-└── main.rs               # Binary entry point
+└── main.rs               # Binary entry point (the only crate root)
 ```
 
 ### Core Components
@@ -381,6 +380,8 @@ src/
      shows a "reconnecting" banner, and the host is pinged with a capped backoff
      (1s → 5s) until it answers. On success `HostReconnected` is emitted and the
      container list is re-fetched, which re-synchronizes state for that host.
+     A list the daemon rejects with a 4xx (a bad `--filter`) is reported as a
+     connection error and the host is not retried, since it would fail the same way.
 
 4. **Stats Streaming** (`docker/stats.rs::stream_container_stats`)
    - One async task per container that streams real-time stats
@@ -405,6 +406,11 @@ src/
    - Uses `ansi-to-tui` to parse ANSI escape codes for colored output
    - Preserves whitespace and formatting from original logs
    - Sends each log line as `AppEvent::LogLine` event with pre-parsed Text
+   - Re-opens the follow stream when it ends (container restart, daemon restart) once inspect
+     says the container runs again, with a capped backoff (1s → 5s), from the newest line seen.
+     A removed container or a daemon refusal (4xx/501, e.g. an unreadable log driver) ends it
+   - `LogState` keeps at most `MAX_LOG_ENTRIES` lines; the oldest are dropped (and can be
+     fetched again by scrolling up), except while an older-logs fetch is in flight
 
 6. **Keyboard Worker** (`ui/input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms
@@ -1124,7 +1130,6 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 
 ### Dev Dependencies
 - **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)
-- **Mockall**: Mock generation for testing
 
 ## Performance Considerations
 

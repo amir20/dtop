@@ -1,7 +1,7 @@
 use crate::core::app_state::AppState;
 use crate::core::types::{
-    Column, Container, ContainerState, HealthStatus, RenderAction, SortDirection, SortState,
-    ViewState,
+    Column, Container, ContainerState, ContainerStats, HealthStatus, RenderAction, SortDirection,
+    SortState, ViewState,
 };
 use chrono::{DateTime, Utc};
 use std::cmp::Ordering;
@@ -21,6 +21,20 @@ fn uptime_since(container: &Container) -> Option<DateTime<Utc>> {
     container
         .started
         .filter(|_| container.state == ContainerState::Running)
+}
+
+/// Compares a stats column. Stats of a container that isn't running are stale
+/// (the list blanks them), so it sorts as no value, like `uptime_since`.
+fn cmp_live_stats(
+    a: &Container,
+    b: &Container,
+    cmp: impl FnOnce(&ContainerStats, &ContainerStats) -> Ordering,
+) -> Ordering {
+    let live = |c: &Container| c.state == ContainerState::Running;
+    match (live(a), live(b)) {
+        (true, true) => cmp(&a.stats, &b.stats),
+        (a_live, b_live) => a_live.cmp(&b_live),
+    }
 }
 
 fn status_severity(container: &Container) -> u8 {
@@ -56,25 +70,25 @@ pub fn compare_containers(a: &Container, b: &Container, sort: SortState) -> Orde
         Column::Ports => a.ports.cmp(&b.ports),
         // `total_cmp` gives a deterministic total order over floats
         // (including NaN) without needing to unwrap `partial_cmp`.
-        Column::Cpu => a.stats.cpu.total_cmp(&b.stats.cpu),
-        Column::Memory => a.stats.memory.total_cmp(&b.stats.memory),
-        Column::Pids => a.stats.pids_current.cmp(&b.stats.pids_current),
-        Column::NetTx => a
-            .stats
-            .network_tx_bytes_per_sec
-            .total_cmp(&b.stats.network_tx_bytes_per_sec),
-        Column::NetRx => a
-            .stats
-            .network_rx_bytes_per_sec
-            .total_cmp(&b.stats.network_rx_bytes_per_sec),
-        Column::DiskRead => a
-            .stats
-            .disk_read_bytes_per_sec
-            .total_cmp(&b.stats.disk_read_bytes_per_sec),
-        Column::DiskWrite => a
-            .stats
-            .disk_write_bytes_per_sec
-            .total_cmp(&b.stats.disk_write_bytes_per_sec),
+        Column::Cpu => cmp_live_stats(a, b, |a, b| a.cpu.total_cmp(&b.cpu)),
+        Column::Memory => cmp_live_stats(a, b, |a, b| a.memory.total_cmp(&b.memory)),
+        Column::Pids => cmp_live_stats(a, b, |a, b| a.pids_current.cmp(&b.pids_current)),
+        Column::NetTx => cmp_live_stats(a, b, |a, b| {
+            a.network_tx_bytes_per_sec
+                .total_cmp(&b.network_tx_bytes_per_sec)
+        }),
+        Column::NetRx => cmp_live_stats(a, b, |a, b| {
+            a.network_rx_bytes_per_sec
+                .total_cmp(&b.network_rx_bytes_per_sec)
+        }),
+        Column::DiskRead => cmp_live_stats(a, b, |a, b| {
+            a.disk_read_bytes_per_sec
+                .total_cmp(&b.disk_read_bytes_per_sec)
+        }),
+        Column::DiskWrite => cmp_live_stats(a, b, |a, b| {
+            a.disk_write_bytes_per_sec
+                .total_cmp(&b.disk_write_bytes_per_sec)
+        }),
         Column::Status => status_severity(a).cmp(&status_severity(b)),
         Column::Restarts => a.restart_count.cmp(&b.restart_count),
     };
@@ -83,8 +97,10 @@ pub fn compare_containers(a: &Container, b: &Container, sort: SortState) -> Orde
     } else {
         ord
     };
-    // Use host_id as tiebreaker for stable ordering
+    // Tiebreakers for a stable order (the containers come from a HashMap)
     ord.then_with(|| a.host_id.cmp(&b.host_id))
+        .then_with(|| a.name.cmp(&b.name))
+        .then_with(|| a.id.cmp(&b.id))
 }
 
 impl AppState {
@@ -196,6 +212,14 @@ impl AppState {
             return;
         }
 
+        // Rows are selected by index, so remember which container is selected
+        // and follow it to its new row
+        let selected_key = self
+            .table_state
+            .selected()
+            .and_then(|index| self.sorted_container_keys.get(index))
+            .cloned();
+
         // Update last sort time
         self.last_sort_time = std::time::Instant::now();
         // Get the search filter (case-insensitive)
@@ -232,5 +256,146 @@ impl AppState {
             .into_iter()
             .map(|(key, _)| key.clone())
             .collect();
+
+        match selected_key.and_then(|key| self.sorted_container_keys.iter().position(|k| *k == key))
+        {
+            Some(index) => self.table_state.select(Some(index)),
+            // It went away (or nothing was selected): keep the row in range
+            None => self.clamp_selection(),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) mod tests {
+    use super::*;
+    use crate::core::types::{AppEvent, ColumnConfig, ContainerKey};
+    use std::collections::HashMap;
+    use tokio::sync::mpsc;
+
+    pub(in crate::core::app_state) fn state(sort: Column) -> AppState {
+        let (tx, _rx) = mpsc::channel(10);
+        AppState::new(
+            HashMap::new(),
+            tx,
+            false,
+            sort,
+            None,
+            ColumnConfig::default(),
+            None,
+        )
+    }
+
+    pub(in crate::core::app_state) fn container(
+        id: &str,
+        state: ContainerState,
+        cpu: f64,
+    ) -> Container {
+        Container {
+            id: id.to_string(),
+            name: id.to_string(),
+            state,
+            health: None,
+            created: None,
+            started: None,
+            stats: ContainerStats {
+                cpu,
+                ..Default::default()
+            },
+            host_id: "local".to_string(),
+            dozzle_url: None,
+            restart_count: None,
+            compose_project: None,
+            image: None,
+            ports: None,
+        }
+    }
+
+    fn selected(state: &AppState) -> Option<&str> {
+        let index = state.table_state.selected()?;
+        Some(&state.sorted_container_keys[index].container_id)
+    }
+
+    /// The cursor stays on its container when another one sorts above it
+    #[test]
+    fn selection_follows_the_container_when_the_list_resorts() {
+        let mut state = state(Column::Name);
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                container("api", ContainerState::Running, 0.0),
+                container("web", ContainerState::Running, 0.0),
+            ],
+        ));
+        state.table_state.select(Some(0));
+        assert_eq!(selected(&state), Some("api"));
+
+        state.handle_event(AppEvent::ContainerCreated(container(
+            "aaa",
+            ContainerState::Running,
+            0.0,
+        )));
+        assert_eq!(selected(&state), Some("api"));
+
+        // A row above it going away doesn't move it either
+        state.handle_event(AppEvent::ContainerDestroyed(ContainerKey::new(
+            "local".to_string(),
+            "aaa".to_string(),
+        )));
+        assert_eq!(selected(&state), Some("api"));
+    }
+
+    /// A stopped container's last stats don't put it above running ones
+    #[test]
+    fn stats_sorts_ignore_stopped_containers() {
+        let running = container("run", ContainerState::Running, 5.0);
+        let stopped = container("old", ContainerState::Exited, 90.0);
+        let sort = SortState::new(Column::Cpu); // descending
+        assert_eq!(compare_containers(&running, &stopped, sort), Ordering::Less);
+        let ascending = SortState {
+            direction: SortDirection::Ascending,
+            ..sort
+        };
+        assert_eq!(
+            compare_containers(&running, &stopped, ascending),
+            Ordering::Greater
+        );
+    }
+
+    /// Equal sort keys on one host fall back to name, then id
+    #[test]
+    fn ties_break_by_name_then_id() {
+        let sort = SortState::new(Column::Cpu);
+        let a = container("b-id", ContainerState::Running, 1.0);
+        let mut b = container("a-id", ContainerState::Running, 1.0);
+        b.name = "zeta".to_string();
+        assert_eq!(compare_containers(&a, &b, sort), Ordering::Less);
+        b.name = a.name.clone();
+        assert_eq!(compare_containers(&a, &b, sort), Ordering::Greater);
+    }
+
+    /// Pressing '/' again starts a fresh search with the old filter lifted
+    #[test]
+    fn reentering_search_clears_the_applied_filter() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        let mut state = state(Column::Name);
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![
+                container("api", ContainerState::Running, 0.0),
+                container("web", ContainerState::Running, 0.0),
+            ],
+        ));
+        let press = |state: &mut AppState, code| {
+            state.handle_event(AppEvent::KeyInput(KeyEvent::new(code, KeyModifiers::NONE)));
+        };
+        press(&mut state, KeyCode::Char('/'));
+        press(&mut state, KeyCode::Char('w'));
+        press(&mut state, KeyCode::Enter);
+        assert_eq!(state.sorted_container_keys.len(), 1);
+
+        press(&mut state, KeyCode::Char('/'));
+        assert_eq!(state.sorted_container_keys.len(), 2);
+        assert!(state.table_state.selected().is_some());
     }
 }

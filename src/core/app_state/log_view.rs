@@ -107,12 +107,8 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Stop log streaming and cleanup log state
-        if let Some(mut state) = self.log_state.take()
-            && let Some(handle) = state.stream_handle.take()
-        {
-            handle.abort();
-        }
+        // Dropping the log state stops its streaming and fetch tasks
+        self.log_state = None;
 
         // `dtop logs <id>` exists only for this log view
         if self.quit_with_log_view {
@@ -455,7 +451,10 @@ impl AppState {
 
         let visual_lines_prepended = state.prepend_entries(log_entries, self.last_viewport_width);
 
-        state.oldest_timestamp = oldest;
+        // An empty batch (a failed read) leaves the cursor where it was
+        if oldest.is_some() {
+            state.oldest_timestamp = oldest;
+        }
         state.has_more_history = has_more_history;
         state.total_loaded += num_entries;
         state.fetching_older = false;
@@ -519,7 +518,7 @@ impl AppState {
             let container_created = self.containers.get(&key).and_then(|c| c.created);
             let tx_clone = self.event_tx.clone();
 
-            tokio::spawn(async move {
+            state.older_logs_handle = Some(tokio::spawn(async move {
                 fetch_older_logs(
                     host_clone,
                     container_id,
@@ -530,7 +529,7 @@ impl AppState {
                     tx_clone,
                 )
                 .await;
-            });
+            }));
         }
 
         RenderAction::None // Don't render yet, wait for LogBatchPrepend

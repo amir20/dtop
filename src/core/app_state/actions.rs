@@ -239,7 +239,9 @@ impl AppState {
         let mut skipped = 0;
         let mut by_host: HashMap<HostId, Vec<ContainerKey>> = HashMap::new();
         for key in targets {
-            if !self.connected_hosts.contains_key(&key.host_id) {
+            if !self.connected_hosts.contains_key(&key.host_id)
+                || self.disconnected_hosts.contains(&key.host_id)
+            {
                 // Stays marked, so it can be retried once the host is back
                 skipped += 1;
                 continue;
@@ -634,5 +636,47 @@ impl AppState {
         self.view_state = ViewState::ContainerList;
         self.action_menu_state.select(None);
         Some(RenderAction::Render)
+    }
+}
+
+#[cfg(test)]
+mod disconnected_host_tests {
+    use crate::core::app_state::sorting::tests::{container, state};
+    use crate::core::types::{
+        AppEvent, Column, ContainerAction, ContainerKey, ContainerState, ViewState,
+    };
+
+    /// A bulk action skips containers on a host that dropped, and keeps them marked
+    #[test]
+    fn bulk_action_skips_a_disconnected_host() {
+        use crate::docker::connection::DockerHost;
+        use bollard::{API_DEFAULT_VERSION, Docker};
+        use std::collections::HashMap;
+
+        let mut state = state(Column::Name);
+        // Never touches a daemon: the HTTP client connects lazily
+        let docker =
+            Docker::connect_with_http("http://127.0.0.1:1", 1, API_DEFAULT_VERSION).unwrap();
+        let host = DockerHost::new("local".to_string(), docker, None, HashMap::new(), true);
+        state.handle_event(AppEvent::HostConnected(host));
+        state.handle_event(AppEvent::InitialContainerList(
+            "local".to_string(),
+            vec![container("api", ContainerState::Running, 0.0)],
+        ));
+        state.handle_event(AppEvent::HostDisconnected("local".to_string()));
+
+        let key = ContainerKey::new("local".to_string(), "api".to_string());
+        state.marked_containers.insert(key.clone());
+        state.view_state = ViewState::BulkActionMenu;
+        let stop = state
+            .bulk_actions()
+            .iter()
+            .position(|a| *a == ContainerAction::Stop)
+            .unwrap();
+        state.action_menu_state.select(Some(stop));
+        state.handle_execute_bulk_action();
+
+        assert!(state.marked_containers.contains(&key));
+        assert!(state.bulk_progress.is_empty());
     }
 }

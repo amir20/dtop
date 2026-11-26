@@ -454,6 +454,10 @@ pub struct LogState {
     /// Handle to the log streaming task (for cancellation)
     pub stream_handle: Option<tokio::task::JoinHandle<()>>,
 
+    /// Handle to the running older-logs fetch, so a batch for a closed view
+    /// can't land as a reopened view's initial load
+    pub older_logs_handle: Option<tokio::task::JoinHandle<()>>,
+
     /// Timestamp of the oldest log currently loaded (for pagination cursor)
     pub oldest_timestamp: Option<DateTime<Utc>>,
 
@@ -479,6 +483,24 @@ pub struct LogState {
     pub search: Option<crate::core::log_search::LogSearch>,
 }
 
+/// Most log entries kept; older ones are dropped and fetched again by scrolling up
+const MAX_LOG_ENTRIES: usize = 50_000;
+/// Entries allowed past the cap before a trim, so the trim (a memmove of every
+/// entry) runs once per this many lines rather than on every line
+const LOG_TRIM_SLACK: usize = 5_000;
+
+impl Drop for LogState {
+    /// Leaving or replacing the log view stops its tasks
+    fn drop(&mut self) {
+        for handle in [self.stream_handle.take(), self.older_logs_handle.take()]
+            .into_iter()
+            .flatten()
+        {
+            handle.abort();
+        }
+    }
+}
+
 impl LogState {
     /// Create a new LogState for a container
     pub fn new(container_key: ContainerKey, container_created_at: Option<DateTime<Utc>>) -> Self {
@@ -490,6 +512,7 @@ impl LogState {
             rows_cache: None,
             scroll_offset: 0,
             stream_handle: None,
+            older_logs_handle: None,
             oldest_timestamp: None,
             newest_timestamp: None,
             has_more_history: false,
@@ -564,6 +587,35 @@ impl LogState {
         }
         self.formatted_lines.push(line);
         self.log_entries.push(entry);
+        self.trim_oldest();
+    }
+
+    /// Drops the oldest entries once past `MAX_LOG_ENTRIES`, keeping every
+    /// index and row count in step so a scrolled-up view stays on its lines.
+    fn trim_oldest(&mut self) {
+        // A fetch in flight was cut from the old cursor: its batch would land
+        // in front of the kept lines and lose the ones dropped in between
+        if self.log_entries.len() <= MAX_LOG_ENTRIES + LOG_TRIM_SLACK || self.fetching_older {
+            return;
+        }
+        // Without row counts the scroll can't be kept; the next draw measures them
+        let Some((width, total)) = self.rows_cache else {
+            return;
+        };
+        let n = self.log_entries.len() - MAX_LOG_ENTRIES;
+        let rows: usize = self.line_rows.drain(..n).sum();
+        self.rows_cache = Some((width, total - rows));
+        self.scroll_offset = self.scroll_offset.saturating_sub(rows);
+        self.log_entries.drain(..n);
+        self.formatted_lines.drain(..n);
+        // The new first line has no line above to repeat
+        self.formatted_lines[0] = self.log_entries[0].format(self.show_timestamps, false);
+        if let Some(search) = &mut self.search {
+            search.current = search.current.and_then(|current| current.checked_sub(n));
+        }
+        // The dropped lines can be fetched again by scrolling up
+        self.oldest_timestamp = Some(self.log_entries[0].timestamp);
+        self.has_more_history = true;
     }
 
     /// Insert older entries before the loaded ones. Returns how many wrapped rows
@@ -1277,5 +1329,61 @@ mod tests {
         assert_eq!(state.total_rows(25), recount(&state, 25));
         assert_eq!(state.line_rows().len(), state.formatted_lines.len());
         assert_eq!(state.log_entries.len(), state.formatted_lines.len());
+    }
+
+    /// Past the cap the oldest lines go, and every index into them follows
+    #[test]
+    fn test_log_state_trims_oldest_entries_in_step() {
+        use crate::core::log_search::LogSearch;
+        use crate::docker::logs::LogEntry;
+        let entry = |i: usize| LogEntry::parse(&format!("2025-10-29T10:15:30Z line {i}")).unwrap();
+
+        let mut state = LogState::new(ContainerKey::new("local".into(), "abc".into()), None);
+        state.total_rows(80);
+        for i in 0..MAX_LOG_ENTRIES + LOG_TRIM_SLACK {
+            state.push_entry(entry(i));
+        }
+        // Scrolled up to line 52_000, with a search on line 53_000
+        state.scroll_offset = 52_000;
+        state.search = Some(LogSearch {
+            current: Some(53_000),
+            ..Default::default()
+        });
+
+        state.push_entry(entry(MAX_LOG_ENTRIES + LOG_TRIM_SLACK));
+        let dropped = LOG_TRIM_SLACK + 1;
+        assert_eq!(state.log_entries.len(), MAX_LOG_ENTRIES);
+        assert_eq!(state.formatted_lines.len(), MAX_LOG_ENTRIES);
+        assert_eq!(state.line_rows().len(), MAX_LOG_ENTRIES);
+        assert_eq!(state.total_rows(80), MAX_LOG_ENTRIES);
+        assert_eq!(state.scroll_offset, 52_000 - dropped);
+        assert_eq!(
+            state.search.as_ref().unwrap().current,
+            Some(53_000 - dropped)
+        );
+        let first: String = state.formatted_lines[0]
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(first.ends_with(&format!("line {dropped}")), "{first}");
+        // Not dimmed, though it shares its second with the dropped line above
+        assert_ne!(
+            state.formatted_lines[0].spans[0].style,
+            state.formatted_lines[1].spans[0].style
+        );
+        assert!(state.has_more_history);
+        assert_eq!(state.oldest_timestamp, Some(state.log_entries[0].timestamp));
+
+        // While an older-logs fetch is in flight nothing is dropped: its batch
+        // was cut from the old cursor and would land in front of the kept lines
+        state.fetching_older = true;
+        for i in 0..=LOG_TRIM_SLACK {
+            state.push_entry(entry(i));
+        }
+        assert_eq!(
+            state.log_entries.len(),
+            MAX_LOG_ENTRIES + LOG_TRIM_SLACK + 1
+        );
     }
 }

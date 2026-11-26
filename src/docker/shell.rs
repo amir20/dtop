@@ -18,6 +18,28 @@ pub async fn run_shell_session(
     host: &DockerHost,
     container_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let result = shell_session(host, container_id).await;
+
+    // Restore the TUI's terminal on every exit path, a failed exec included
+    let restored = (|| {
+        terminal::disable_raw_mode()?;
+        execute!(
+            io::stdout(),
+            EnterAlternateScreen,
+            Clear(ClearType::All),
+            cursor::Hide
+        )?;
+        terminal::enable_raw_mode()
+    })();
+
+    result?;
+    Ok(restored?)
+}
+
+async fn shell_session(
+    host: &DockerHost,
+    container_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use tracing::debug;
 
     debug!("Starting shell session for container: {}", container_id);
@@ -215,16 +237,6 @@ pub async fn run_shell_session(
         .and_then(|exec| exec.exit_code);
     let no_shell = matches!(exit_code, Some(126 | 127))
         && started.elapsed() < std::time::Duration::from_secs(1);
-
-    // Restore terminal state
-    terminal::disable_raw_mode()?;
-    execute!(
-        io::stdout(),
-        EnterAlternateScreen,
-        Clear(ClearType::All),
-        cursor::Hide
-    )?;
-    terminal::enable_raw_mode()?;
 
     if no_shell {
         return Err("No shell found in the container".into());

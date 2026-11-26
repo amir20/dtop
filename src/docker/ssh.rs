@@ -259,9 +259,23 @@ async fn launch_master(destination: &str) -> Result<Arc<openssh::Session>, opens
     builder.control_persist(openssh::ControlPersist::IdleFor(MASTER_IDLE_EXIT_SECS));
 
     let (builder, destination) = builder.resolve(destination);
-    let tempdir = builder.launch_master(destination).await?;
+    let tempdir = builder
+        .launch_master(reject_option_like(destination)?)
+        .await?;
 
     Ok(Arc::new(openssh::Session::new_process_mux(tempdir)))
+}
+
+/// openssh passes the resolved host to `ssh` with no `--`, so a host from a
+/// shared config like `-oProxyCommand=...` would be read as an option.
+fn reject_option_like(host: &str) -> Result<&str, openssh::Error> {
+    if host.starts_with('-') {
+        return Err(openssh::Error::Connect(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Invalid SSH host {host:?}"),
+        )));
+    }
+    Ok(host)
 }
 
 /// Opens a `docker system dial-stdio` channel on an existing master.
@@ -462,6 +476,20 @@ mod tests {
     fn destination_without_port() {
         let uri: hyper::Uri = "ssh://user@msi.lan/v1.53/_ping".parse().unwrap();
         assert_eq!(ssh_destination(&uri).unwrap(), "ssh://user@msi.lan");
+    }
+
+    /// The host must not reach `ssh` as an option
+    #[tokio::test]
+    async fn launch_rejects_a_host_that_looks_like_an_option() {
+        for destination in ["ssh://-oProxyCommand=x", "ssh://me@-oProxyCommand=x:22"] {
+            match launch_master(destination).await {
+                Err(openssh::Error::Connect(err)) => {
+                    assert_eq!(err.kind(), io::ErrorKind::InvalidInput, "{destination}")
+                }
+                Err(other) => panic!("{destination}: {other}"),
+                Ok(_) => panic!("{destination} launched"),
+            }
+        }
     }
 
     #[test]

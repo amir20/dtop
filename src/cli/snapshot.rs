@@ -36,7 +36,7 @@ pub async fn run(
         futures_util::future::join_all(config.hosts.iter().map(connect_and_verify_host))
             .await
             .into_iter()
-            .filter_map(|result| result.map_err(|e| eprintln!("dtop: {e}")).ok())
+            .filter_map(|result| result.map_err(|e| eprintln!("dtop: {}", clean(&e))).ok())
             .collect();
     if connected.is_empty() {
         return Err("Failed to connect to any Docker hosts".into());
@@ -64,7 +64,11 @@ async fn read_host(host: &DockerHost, show_all: bool) -> Vec<Container> {
     let listed = match host.list_containers().await {
         Ok(listed) => listed,
         Err(e) => {
-            eprintln!("dtop: failed to list containers on '{}': {e}", host.host_id);
+            eprintln!(
+                "dtop: failed to list containers on '{}': {}",
+                clean(&host.host_id),
+                clean(&e.to_string())
+            );
             return Vec::new();
         }
     };

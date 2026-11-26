@@ -77,23 +77,27 @@ fn in_multiplexer(env: &impl Fn(&str) -> Option<String>) -> bool {
 /// Whether a terminal, named by its XTVERSION reply, draws Nerd Font icons
 /// without the user installing a Nerd Font.
 fn has_builtin_nerd_font(name: &str) -> bool {
+    // Rex renders with Ghostty's engine and bundles Symbols Nerd Font; kitty's
+    // built-in Nerd Font symbols came in 0.36.
+    name.to_ascii_lowercase().starts_with("wezterm") || is_ghostty_rex_or_kitty(name, 36)
+}
+
+/// Whether a terminal, named by its XTVERSION reply, is Ghostty, Rex, or kitty
+/// 0.`min_kitty_minor` or newer.
+pub(crate) fn is_ghostty_rex_or_kitty(name: &str, min_kitty_minor: u32) -> bool {
     let lower = name.to_ascii_lowercase();
-    if lower.starts_with("ghostty") || lower.starts_with("wezterm") {
+    // Rex replies `rex <version>`; don't match names that merely start "rex".
+    if lower.starts_with("ghostty") || lower == "rex" || lower.starts_with("rex ") {
         return true;
     }
-    // Rex renders with Ghostty's engine and bundles Symbols Nerd Font.
-    // It replies `rex <version>`; don't match names that merely start "rex".
-    if lower == "rex" || lower.starts_with("rex ") {
-        return true;
-    }
-    // kitty replies `kitty(0.36.4)`; built-in Nerd Font symbols came in 0.36.
+    // kitty replies `kitty(0.36.4)`
     if let Some(version) = lower.strip_prefix("kitty(") {
         let mut parts = version
             .split(['.', ')'])
             .map(|p| p.parse::<u32>().unwrap_or(0));
         let major = parts.next().unwrap_or(0);
         let minor = parts.next().unwrap_or(0);
-        return (major, minor) >= (0, 36);
+        return (major, minor) >= (0, min_kitty_minor);
     }
     false
 }
