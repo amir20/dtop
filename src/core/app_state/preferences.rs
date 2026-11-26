@@ -41,10 +41,7 @@ impl AppState {
     /// Handles Ctrl-S: Save all preferences to config file
     pub fn handle_save_preferences(&mut self) -> RenderAction {
         // Only allow in container list view
-        if !matches!(
-            self.view_state,
-            ViewState::ContainerList | ViewState::SearchMode
-        ) {
+        if self.view_state != ViewState::ContainerList {
             return RenderAction::None;
         }
 
@@ -108,10 +105,7 @@ impl AppState {
     /// Handles Ctrl-R: Show reset confirmation prompt
     pub fn handle_reset_preferences_prompt(&mut self) -> RenderAction {
         // Only allow in container list view
-        if !matches!(
-            self.view_state,
-            ViewState::ContainerList | ViewState::SearchMode
-        ) {
+        if self.view_state != ViewState::ContainerList {
             return RenderAction::None;
         }
 
@@ -155,11 +149,6 @@ fn default_config_path() -> PathBuf {
         })
 }
 
-/// Writes preferences to the config file, preserving other keys (hosts, icons, etc.)
-///
-/// Uses atomic write (write to temp file, then rename) to prevent corruption on crash.
-/// Returns an error if the existing config file contains invalid YAML rather than
-/// silently replacing it.
 /// The preference keys written to the config file.
 struct Preferences {
     columns: Vec<String>,
@@ -170,12 +159,22 @@ struct Preferences {
     timestamps: bool,
 }
 
+/// Writes preferences to the config file, preserving other keys (hosts, icons, etc.)
+///
+/// Uses atomic write (write to temp file, then rename) to prevent corruption on crash.
+/// Returns an error if the existing config file contains invalid YAML rather than
+/// silently replacing it.
 fn write_preferences(
     path: &PathBuf,
     prefs: Preferences,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use serde_norway::Value;
     use std::fs;
+    use std::io::Write;
+
+    // Write to the file a symlink points at; renaming over the link would
+    // replace it with a regular file.
+    let path = &fs::canonicalize(path).unwrap_or_else(|_| path.clone());
 
     // Read existing config or create empty mapping
     let mut config: Value = if path.exists() {
@@ -187,6 +186,10 @@ fn write_preferences(
     } else {
         Value::Mapping(Default::default())
     };
+    // An empty file parses as null
+    if config.is_null() {
+        config = Value::Mapping(Default::default());
+    }
 
     // Ensure we have a mapping
     let mapping = config
@@ -222,7 +225,13 @@ fn write_preferences(
     // This prevents corruption if the process crashes mid-write
     let temp_path = path.with_extension("yaml.tmp");
     let yaml = serde_norway::to_string(&config)?;
-    fs::write(&temp_path, &yaml)?;
+    let mut temp = fs::File::create(&temp_path)?;
+    // Keep the existing file's mode (e.g. 0600) rather than the umask default
+    if let Ok(meta) = fs::metadata(path) {
+        temp.set_permissions(meta.permissions())?;
+    }
+    temp.write_all(yaml.as_bytes())?;
+    drop(temp);
 
     // Rename is atomic on Unix; on Windows it's still safer than direct write
     fs::rename(&temp_path, path).or_else(|_| {
@@ -234,4 +243,64 @@ fn write_preferences(
 
     tracing::info!("Preferences saved to {:?}", path);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn prefs() -> Preferences {
+        Preferences {
+            columns: vec!["name".to_string()],
+            sort: "cpu".to_string(),
+            sort_direction: "desc".to_string(),
+            all: true,
+            stats_header: true,
+            timestamps: true,
+        }
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("dtop-prefs-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_save_to_empty_file() {
+        let dir = temp_dir("empty");
+        let path = dir.join("config.yaml");
+        std::fs::write(&path, "").unwrap();
+        write_preferences(&path, prefs()).unwrap();
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("sort: cpu")
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_save_keeps_symlink_and_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = temp_dir("link");
+        let real = dir.join("real.yaml");
+        let link = dir.join("config.yaml");
+        std::fs::write(&real, "hosts:\n  - host: local\n").unwrap();
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        write_preferences(&link, prefs()).unwrap();
+
+        let link_type = std::fs::symlink_metadata(&link).unwrap().file_type();
+        assert!(link_type.is_symlink(), "the symlink must survive the save");
+        let contents = std::fs::read_to_string(&real).unwrap();
+        assert!(contents.contains("sort: cpu") && contents.contains("host: local"));
+        let mode = std::fs::metadata(&real).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

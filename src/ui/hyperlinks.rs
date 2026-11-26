@@ -172,14 +172,25 @@ impl Widget for Hyperlink<'_> {
             &format!("{OSC8_PREFIX}{}{ST}{first_char}", self.url),
             first_width,
         );
+        // The closer carries an id derived from the URL (ignored by terminals:
+        // an empty URI ends the link) so it differs between links. Otherwise,
+        // when two same-length names ending in the same char swap rows, the diff
+        // rewrites the opener but skips the identical closer, leaving the link open.
         self.write_cell(
             buf,
             last_x,
             area.y,
-            &format!("{last_char}{OSC8_PREFIX}{ST}"),
+            &format!("{last_char}\u{1b}]8;id={:08x};{ST}", url_id(&self.url)),
             last_width,
         );
     }
+}
+
+/// FNV-1a hash of a URL, to tell links' closers apart.
+fn url_id(url: &str) -> u32 {
+    url.bytes().fold(0x811c_9dc5, |hash, byte| {
+        (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+    })
 }
 
 impl Hyperlink<'_> {
@@ -319,7 +330,13 @@ mod widget_tests {
         assert_eq!(buf[(3, 0)].symbol(), "g");
         assert_eq!(buf[(4, 0)].symbol(), "i");
         assert_eq!(buf[(5, 0)].symbol(), "n");
-        assert_eq!(buf[(6, 0)].symbol(), "x\u{1b}]8;;\u{1b}\\");
+        assert_eq!(
+            buf[(6, 0)].symbol(),
+            format!(
+                "x\u{1b}]8;id={:08x};\u{1b}\\",
+                url_id("https://example.com/x")
+            )
+        );
         // Nothing outside the label is touched.
         assert_eq!(buf[(7, 0)].symbol(), " ");
         assert_eq!(buf[(1, 0)].symbol(), " ");
@@ -364,7 +381,7 @@ mod widget_tests {
         let buf = render("nginx", 3);
         assert!(buf[(2, 0)].symbol().ends_with('n'));
         assert_eq!(buf[(3, 0)].symbol(), "g");
-        assert_eq!(buf[(4, 0)].symbol(), "i\u{1b}]8;;\u{1b}\\");
+        assert!(buf[(4, 0)].symbol().starts_with("i\u{1b}]8;id="));
         assert_eq!(buf[(5, 0)].symbol(), " ", "must not write past the area");
     }
 

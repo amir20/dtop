@@ -208,7 +208,7 @@ Preferences (columns, sort field, sort direction, show-all, stats header, log ti
 - **Ctrl-R** - Reset preferences to defaults (requires y/n confirmation)
 
 **Behavior:**
-- Saving preserves other config keys (hosts, icons, filters)
+- Saving preserves other config keys (hosts, icons, filters), but it rewrites the file, so comments in it are dropped
 - Notifications show success/confirmation messages (auto-dismiss after 2 seconds)
 - Reset affects in-memory state only; saved config is not deleted
 
@@ -339,8 +339,7 @@ src/
 │   ├── icons.rs          # Icon sets (Unicode and Nerd Font)
 │   └── ui_tests.rs       # UI snapshot tests
 │
-├── lib.rs                # Library root with module declarations
-└── main.rs               # Binary entry point
+└── main.rs               # Binary entry point (the only crate root)
 ```
 
 ### Core Components
@@ -1124,7 +1123,6 @@ The `CHANGELOG.md` file is automatically maintained and should be committed to t
 
 ### Dev Dependencies
 - **Insta**: Snapshot testing (use `cargo insta accept` to accept snapshots)
-- **Mockall**: Mock generation for testing
 
 ## Performance Considerations
 
