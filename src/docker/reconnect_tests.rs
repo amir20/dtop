@@ -89,6 +89,9 @@ impl Drop for FakeDocker {
     }
 }
 
+/// A container list the fake daemon answers with a 400, as for a bad filter.
+const REJECTED_LIST: &str = "<rejected>";
+
 /// Serves requests on one connection until the client goes away.
 async fn handle_connection(
     mut stream: UnixStream,
@@ -150,6 +153,16 @@ async fn handle_connection(
             "OK".to_string()
         } else if path.contains("/info") {
             r#"{"NCPU":4,"MemTotal":8589934592}"#.to_string()
+        } else if path.contains("/containers/json") && containers_json == REJECTED_LIST {
+            let body = r#"{"message":"invalid filter 'status=runing'"}"#;
+            let response = format!(
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            if stream.write_all(response.as_bytes()).await.is_err() {
+                return;
+            }
+            continue;
         } else if path.contains("/containers/json") {
             containers_json.to_string()
         } else if path.contains("/containers/") && path.ends_with("/json") {
@@ -467,4 +480,57 @@ async fn container_manager_stops_when_event_channel_closes() {
         .await
         .expect("container manager should exit once the channel closes")
         .expect("container manager panicked");
+}
+
+/// A list the daemon rejects (a misspelled filter) can't be fixed by
+/// retrying: it is reported once and the manager stops, rather than the host
+/// flapping disconnected/reconnected every second.
+#[tokio::test]
+async fn rejected_container_list_is_reported_not_retried() {
+    let path = socket_path("rejected-list");
+    let _daemon = FakeDocker::start(&path, REJECTED_LIST);
+
+    let (tx, mut rx) = mpsc::channel::<AppEvent>(100);
+    let manager = tokio::spawn(container_manager(docker_host(&path), tx));
+
+    let error = wait_for(&mut rx, "ConnectionError", |event| match event {
+        AppEvent::HostDisconnected(_) => panic!("a rejected request is not a disconnect"),
+        AppEvent::ConnectionError(_, error) => Some(error.clone()),
+        _ => None,
+    })
+    .await;
+    assert!(error.contains("status=runing"), "{error}");
+
+    tokio::time::timeout(EVENT_TIMEOUT, manager)
+        .await
+        .expect("container manager should stop on a rejected list")
+        .expect("container manager panicked");
+}
+
+/// A container listed while restarting has no stats task; when it dies it
+/// must still be shown as exited.
+#[tokio::test]
+async fn unmonitored_container_that_dies_is_shown_exited() {
+    const CONTAINERS: &str =
+        r#"[{"Id":"aaaaaaaaaaaa1111","Names":["/web"],"State":"restarting","Created":1700000000}]"#;
+    const EVENTS: &str = concat!(
+        r#"{"Type":"container","Action":"die","Actor":{"ID":"aaaaaaaaaaaa1111"}}"#,
+        "\n",
+    );
+
+    let path = socket_path("restarting-dies");
+    let _daemon = FakeDocker::start_with_events(&path, CONTAINERS, EVENTS);
+    let (tx, mut rx) = mpsc::channel::<AppEvent>(100);
+    let manager = tokio::spawn(container_manager(docker_host(&path), tx));
+
+    let exited = wait_for(&mut rx, "the exit", |event| match event {
+        AppEvent::ContainerStateChanged(key, state) => {
+            Some((key.container_id.clone(), state.clone()))
+        }
+        _ => None,
+    })
+    .await;
+    assert_eq!(exited, ("aaaaaaaaaaaa".to_string(), ContainerState::Exited));
+
+    manager.abort();
 }

@@ -247,13 +247,13 @@ impl DockerHost {
     /// Also used to re-synchronize after the daemon comes back, so the emitted
     /// [`AppEvent::InitialContainerList`] is the authoritative list for this host.
     ///
-    /// Returns `false` when the daemon could not be queried.
+    /// Returns the error when the daemon could not be queried.
     async fn fetch_initial_containers(
         &self,
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
         restart_backfill: &mut Option<tokio::task::JoinHandle<()>>,
-    ) -> bool {
+    ) -> Result<(), bollard::errors::Error> {
         let listed = match self.list_containers().await {
             Ok(list) => list,
             Err(e) => {
@@ -262,7 +262,7 @@ impl DockerHost {
                     self.host_id,
                     e
                 );
-                return false;
+                return Err(e);
             }
         };
 
@@ -270,8 +270,12 @@ impl DockerHost {
         let mut pending_restart_counts = Vec::with_capacity(listed.len());
 
         for (full_id, container) in listed {
-            // Only start monitoring for running containers
-            if container.state == ContainerState::Running {
+            // Monitor running and paused containers: the stats stream works
+            // across a pause, and there is no event to re-arm it on unpause
+            if matches!(
+                container.state,
+                ContainerState::Running | ContainerState::Paused
+            ) {
                 self.start_container_monitoring(&container.id, tx, active_containers);
             }
             pending_restart_counts.push((full_id, container.id.clone()));
@@ -295,7 +299,7 @@ impl DockerHost {
             previous.abort();
         }
 
-        true
+        Ok(())
     }
 
     /// Fetches restart counts and start times in the background and streams
@@ -350,6 +354,7 @@ impl DockerHost {
         &self,
         tx: &EventSender,
         active_containers: &mut HashMap<String, tokio::task::JoinHandle<()>>,
+        since: i64,
     ) {
         // Start with base filters (type and event are always needed)
         let mut filters = HashMap::new();
@@ -395,6 +400,7 @@ impl DockerHost {
         }
 
         let events_options = EventsOptions {
+            since: Some(since.to_string()),
             filters: Some(filters),
             ..Default::default()
         };
@@ -556,11 +562,17 @@ impl DockerHost {
         let key = ContainerKey::new(self.host_id.clone(), truncated_id.clone());
 
         // Get container details
-        if let Ok(inspect) = self
+        let inspect = self
             .docker
             .inspect_container(container_id, None::<InspectContainerOptions>)
             .await
-        {
+            .inspect_err(|e| {
+                tracing::warn!(
+                    "Failed to inspect started container {truncated_id} on host '{}': {e}",
+                    self.host_id
+                )
+            });
+        if let Ok(inspect) = inspect {
             let labels = inspect
                 .config
                 .as_ref()
@@ -661,13 +673,14 @@ impl DockerHost {
         // Stop stats monitoring but keep the container in the list
         if let Some(handle) = active_containers.remove(&truncated_id) {
             handle.abort();
-
-            // Send state change event instead of destroying the container
-            let key = ContainerKey::new(self.host_id.clone(), truncated_id);
-            let _ = tx
-                .send(AppEvent::ContainerStateChanged(key, ContainerState::Exited))
-                .await;
         }
+
+        // Also for unmonitored ones, e.g. a container listed as restarting
+        // that gives up: it would otherwise show "restarting" forever
+        let key = ContainerKey::new(self.host_id.clone(), truncated_id);
+        let _ = tx
+            .send(AppEvent::ContainerStateChanged(key, ContainerState::Exited))
+            .await;
     }
 
     /// Handles a container destroy event (when container is actually removed)
@@ -846,13 +859,38 @@ pub async fn container_manager(host: DockerHost, tx: EventSender) {
         });
 
         // Fetch the container list and start monitoring; then follow the event
-        // stream until the connection to the daemon breaks.
-        if host
+        // stream until the connection to the daemon breaks. Events are read
+        // from before the list, so changes made while it loads aren't lost.
+        // Replaying a few is harmless: they apply in order and converge.
+        // shortcut: the margin absorbs up to 30s of clock skew with the daemon;
+        // use the daemon's clock (`SystemTime` from info) if that proves short.
+        let events_since = Utc::now().timestamp() - 30;
+        match host
             .fetch_initial_containers(&tx, &mut active_containers, &mut restart_backfill)
             .await
         {
-            host.monitor_docker_events(&tx, &mut active_containers)
-                .await;
+            Ok(()) => {
+                host.monitor_docker_events(&tx, &mut active_containers, events_since)
+                    .await;
+            }
+            // The daemon rejected the request (e.g. a misspelled filter):
+            // retrying can't fix it, so report it instead of flapping
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 400..=499,
+                message,
+            }) => {
+                let _ = tx
+                    .send(AppEvent::ConnectionError(host.host_id.clone(), message))
+                    .await;
+                for (_, handle) in active_containers.drain() {
+                    handle.abort();
+                }
+                if let Some(handle) = restart_backfill.take() {
+                    handle.abort();
+                }
+                return;
+            }
+            Err(_) => {}
         }
 
         // The per-container stats streams die with the connection; drop them so

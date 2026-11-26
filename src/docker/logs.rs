@@ -12,6 +12,10 @@ use crate::docker::timestamp_prefix::duplicate_timestamp;
 /// Columns dtop's timestamp and the space after it take in a formatted line
 pub const TIMESTAMP_COLUMNS: usize = 20;
 
+/// Backoff while waiting to re-open a follow stream, as for stats streams
+const INITIAL_FOLLOW_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
+const MAX_FOLLOW_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// A parsed log entry with timestamp and ANSI-parsed content
 #[derive(Clone, Debug)]
 pub struct LogEntry {
@@ -72,7 +76,8 @@ impl LogEntry {
         // Find the first space which separates timestamp from message
         let space_idx = log_line.find(' ')?;
         let (timestamp_str, message) = log_line.split_at(space_idx);
-        let message = message.trim();
+        // Only the separator goes: leading spaces are the app's indentation
+        let message = message[1..].trim_end();
 
         // Parse the timestamp (Docker uses RFC3339 format)
         let timestamp = DateTime::parse_from_rfc3339(timestamp_str)
@@ -245,7 +250,16 @@ pub async fn fetch_older_logs(
                         batch_logs.push(log_entry);
                     }
                 }
-                Err(_) => break,
+                Err(e) => {
+                    // Widening the window on a broken read would end in "no
+                    // more history"; hand back what arrived and leave it open
+                    tracing::warn!("Failed to fetch older logs for {container_id}: {e}");
+                    batch_logs.drain(..batch_logs.len().saturating_sub(batch_size));
+                    let _ = tx
+                        .send(AppEvent::LogBatchPrepend(key, batch_logs, true))
+                        .await;
+                    return;
+                }
             }
         }
 
@@ -297,6 +311,7 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
     let key = ContainerKey::new(host.host_id.clone(), container_id.clone());
 
     const INITIAL_BATCH_SIZE: usize = 1000;
+    let opened_at = Utc::now();
 
     // Phase 1: Fetch initial batch (most recent 1000 logs)
     let historical_options = Some(LogsOptions {
@@ -344,37 +359,84 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
         return; // Channel closed
     }
 
-    // Phase 2: Start streaming new logs from after the last timestamp
-    let streaming_options = Some(LogsOptions {
-        follow: true, // Stream logs in real-time
-        stdout: true, // Include stdout
-        stderr: true, // Include stderr
-        timestamps: true,
-        // NOTE: Bollard's LogsOptions uses i32 for timestamps (Y2038 limitation)
-        // Whole seconds only, so this replays the rest of the last historical
-        // log's second; those lines are skipped below (strictly newer, with the
-        // same accepted equal-nanosecond caveat as `fetch_older_logs`).
-        since: last_timestamp.map(|ts| ts.timestamp() as i32).unwrap_or(0),
-        ..Default::default()
-    });
+    // Phase 2: Stream new logs from after the last timestamp. The follow
+    // stream ends whenever the container stops (or the daemon restarts), so it
+    // is re-opened from the last line seen once the container runs again.
+    let mut delay = INITIAL_FOLLOW_RETRY_DELAY;
+    loop {
+        // Fixed per stream, so stdout/stderr lines a little out of order still show
+        let shown_until = last_timestamp;
+        let streaming_options = Some(LogsOptions {
+            follow: true, // Stream logs in real-time
+            stdout: true, // Include stdout
+            stderr: true, // Include stderr
+            timestamps: true,
+            // NOTE: Bollard's LogsOptions uses i32 for timestamps (Y2038 limitation)
+            // Whole seconds only, so this replays the rest of the last
+            // log's second; those lines are skipped below (strictly newer, with the
+            // same accepted equal-nanosecond caveat as `fetch_older_logs`).
+            // With no line yet, `opened_at`: 0 would replay the whole history.
+            since: last_timestamp.unwrap_or(opened_at).timestamp() as i32,
+            ..Default::default()
+        });
 
-    let mut log_stream = host.docker.logs(&container_id, streaming_options);
+        let mut log_stream = host.docker.logs(&container_id, streaming_options);
 
-    while let Some(log_result) = log_stream.next().await {
-        match log_result {
-            Ok(log_output) => {
-                let log_line = log_output.to_string().replace('\r', "");
-                if let Some(log_entry) = LogEntry::parse(&log_line)
-                    && last_timestamp.is_none_or(|last| log_entry.timestamp > last)
-                    && tx
-                        .send(AppEvent::LogLine(key.clone(), log_entry))
-                        .await
-                        .is_err()
-                {
-                    break; // Channel closed, stop streaming
+        while let Some(log_result) = log_stream.next().await {
+            match log_result {
+                Ok(log_output) => {
+                    let log_line = log_output.to_string().replace('\r', "");
+                    if let Some(log_entry) = LogEntry::parse(&log_line)
+                        && shown_until.is_none_or(|last| log_entry.timestamp > last)
+                    {
+                        last_timestamp = last_timestamp.max(Some(log_entry.timestamp));
+                        delay = INITIAL_FOLLOW_RETRY_DELAY;
+                        if tx
+                            .send(AppEvent::LogLine(key.clone(), log_entry))
+                            .await
+                            .is_err()
+                        {
+                            return; // Channel closed, stop streaming
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Log stream for {container_id} broke: {e}");
+                    break;
                 }
             }
-            Err(_) => break,
+        }
+
+        // Wait for the container to run again; a removed one ends the view's stream
+        loop {
+            if tx.is_closed() {
+                return;
+            }
+            tokio::time::sleep(delay).await;
+            delay = (delay * 2).min(MAX_FOLLOW_RETRY_DELAY);
+            match host
+                .docker
+                .inspect_container(
+                    &container_id,
+                    None::<bollard::query_parameters::InspectContainerOptions>,
+                )
+                .await
+            {
+                Ok(inspect)
+                    if inspect
+                        .state
+                        .as_ref()
+                        .and_then(|s| s.running)
+                        .unwrap_or(false) =>
+                {
+                    break;
+                }
+                Err(bollard::errors::Error::DockerResponseServerError {
+                    status_code: 404, ..
+                }) => return,
+                // Stopped, or the daemon is unreachable: keep waiting
+                _ => {}
+            }
         }
     }
 }
@@ -460,6 +522,13 @@ mod tests {
         let entry = LogEntry::parse(log_line).expect("Should parse log line with multiple spaces");
 
         assert!(!entry.text.lines.is_empty());
+    }
+
+    /// A stack trace's indentation is the app's, not part of the separator
+    #[test]
+    fn test_parse_log_entry_keeps_indentation() {
+        let entry = LogEntry::parse("2025-10-28T12:34:56.789Z     at main.rs:10  \n").unwrap();
+        assert_eq!(plain(&entry.text.lines[0]), "    at main.rs:10");
     }
 
     #[test]

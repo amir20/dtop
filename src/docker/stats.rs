@@ -73,7 +73,7 @@ enum StreamOutcome {
 /// * `tx` - Event sender channel
 pub async fn stream_container_stats(host: DockerHost, truncated_id: String, tx: EventSender) {
     let mut smoothed = SmoothedStats::default();
-    let mut cached_cgroup_path: Option<std::path::PathBuf> = None;
+    let mut cached_cgroup_path: CgroupPathCache = None;
     let mut delay = INITIAL_STATS_RETRY_DELAY;
 
     loop {
@@ -167,7 +167,7 @@ async fn stream_stats_once(
     truncated_id: &str,
     tx: &EventSender,
     smoothed: &mut SmoothedStats,
-    cached_cgroup_path: &mut Option<std::path::PathBuf>,
+    cached_cgroup_path: &mut CgroupPathCache,
 ) -> StreamOutcome {
     let stats_options = StatsOptions {
         stream: true,
@@ -208,7 +208,11 @@ async fn stream_stats_once(
                         let path = cached_cgroup_path.take();
                         match tokio::task::spawn_blocking(move || {
                             let mut path = path;
-                            let res = extract_cgroup_v2_disk_bytes(&id, &mut path);
+                            let res = extract_cgroup_v2_disk_bytes(
+                                std::path::Path::new(CGROUP_ROOT),
+                                &id,
+                                &mut path,
+                            );
                             (res, path)
                         })
                         .await
@@ -372,7 +376,7 @@ pub fn calculate_memory_percentage(stats: &ContainerStatsResponse) -> f64 {
     };
 
     let memory_usage = calculate_used_memory(memory_stats);
-    let memory_limit = memory_stats.limit.unwrap_or(1) as f64;
+    let memory_limit = memory_stats.limit.unwrap_or(0) as f64;
 
     if memory_limit > 0.0 {
         (memory_usage / memory_limit) * 100.0
@@ -538,48 +542,64 @@ fn parse_io_stat_content(content: &str) -> (Option<u64>, Option<u64>) {
 /// Optimized fallback function to extract disk bytes from cgroups v2 io.stat file
 /// when Docker Stats API returns null blkio_stats (moby/moby#35352).
 ///
-/// Uses direct path lookups first before falling back to systemd directory scanning,
-/// caches resolved path for stream efficiency, and uses strict container ID prefix matching.
+/// Resolves the container's io.stat once and caches it for the stream. A miss is
+/// cached too (`Some(None)`), so a host without these cgroups isn't re-scanned
+/// every frame.
 fn extract_cgroup_v2_disk_bytes(
+    cgroup_root: &std::path::Path,
     container_id: &str,
-    cached_path: &mut Option<std::path::PathBuf>,
+    cached_path: &mut CgroupPathCache,
 ) -> (Option<u64>, Option<u64>) {
-    // 1. Try cached path first
-    if let Some(path) = cached_path
+    if let Some(Some(path)) = cached_path
         && let Ok(content) = std::fs::read_to_string(path)
     {
         return parse_io_stat_content(&content);
     }
-
-    // 2. Try direct cgroupfs path
-    let cgroupfs_path =
-        std::path::PathBuf::from(format!("/sys/fs/cgroup/docker/{container_id}/io.stat"));
-    if let Ok(content) = std::fs::read_to_string(&cgroupfs_path) {
-        *cached_path = Some(cgroupfs_path);
-        return parse_io_stat_content(&content);
+    if matches!(cached_path, Some(None)) {
+        return (None, None);
     }
 
-    // 3. Scan system.slice for systemd cgroup scope matching docker-<container_id>*.scope
-    if let Ok(entries) = std::fs::read_dir("/sys/fs/cgroup/system.slice") {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if let Some(scope_id) = name.strip_prefix("docker-")
-                && scope_id.starts_with(container_id)
-                && name.ends_with(".scope")
-            {
-                let io_stat_path = entry.path().join("io.stat");
-                if let Ok(content) = std::fs::read_to_string(&io_stat_path) {
-                    let res = parse_io_stat_content(&content);
-                    if res.0.is_some() || res.1.is_some() {
-                        *cached_path = Some(io_stat_path);
-                        return res;
-                    }
-                }
-            }
-        }
-    }
+    let found = find_cgroup_io_stat(cgroup_root, container_id);
+    let res = found
+        .as_ref()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .map_or((None, None), |content| parse_io_stat_content(&content));
+    *cached_path = Some(found);
+    res
+}
 
-    (None, None)
+/// `None` until looked up; then the io.stat path, or `None` when there is none.
+type CgroupPathCache = Option<Option<std::path::PathBuf>>;
+
+const CGROUP_ROOT: &str = "/sys/fs/cgroup";
+
+/// Finds the container's io.stat under the cgroupfs (`docker/<id>`) or systemd
+/// (`system.slice/docker-<id>.scope`) layout. Both name the full 64-char ID, so
+/// the truncated `container_id` is matched as a prefix.
+fn find_cgroup_io_stat(root: &std::path::Path, container_id: &str) -> Option<std::path::PathBuf> {
+    let entries = |dir: &str| {
+        std::fs::read_dir(root.join(dir))
+            .into_iter()
+            .flatten()
+            .flatten()
+    };
+    let cgroupfs = entries("docker").filter(|entry| {
+        entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(container_id)
+    });
+    let systemd = entries("system.slice").filter(|entry| {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        name.strip_prefix("docker-")
+            .is_some_and(|scope_id| scope_id.starts_with(container_id))
+            && name.ends_with(".scope")
+    });
+    cgroupfs
+        .chain(systemd)
+        .map(|entry| entry.path().join("io.stat"))
+        .find(|path| path.is_file())
 }
 
 /// Calculates disk I/O rates in bytes per second from pre-extracted cumulative
@@ -824,6 +844,19 @@ mod tests {
     }
 
     #[test]
+    fn test_calculate_memory_percentage_missing_limit() {
+        let stats = ContainerStatsResponse {
+            memory_stats: Some(ContainerMemoryStats {
+                usage: Some(500_000_000),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(calculate_memory_percentage(&stats), 0.0);
+    }
+
+    #[test]
     fn test_extract_pids_with_limit() {
         let stats = ContainerStatsResponse {
             pids_stats: Some(bollard::models::ContainerPidsStats {
@@ -1054,5 +1087,41 @@ mod tests {
         let (read, write) = parse_io_stat_content(content);
         assert_eq!(read, Some(30720));
         assert_eq!(write, Some(891299600));
+    }
+
+    /// cgroupfs dirs carry the full ID, and a miss isn't re-scanned every frame
+    #[test]
+    fn test_cgroup_v2_lookup_matches_full_id_and_caches_a_miss() {
+        let root = std::env::temp_dir().join(format!("dtop-cgroup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let full_id = format!("abcdef123456{}", "0".repeat(52));
+        let dir = root.join("docker").join(&full_id);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("io.stat"), "8:0 rbytes=10 wbytes=20 rios=1 wios=1").unwrap();
+
+        let mut cache = None;
+        assert_eq!(
+            extract_cgroup_v2_disk_bytes(&root, "abcdef123456", &mut cache),
+            (Some(10), Some(20))
+        );
+
+        let mut miss = None;
+        assert_eq!(
+            extract_cgroup_v2_disk_bytes(&root, "fedcba654321", &mut miss),
+            (None, None)
+        );
+        assert_eq!(miss, Some(None));
+        // Created after the miss: not looked for again
+        let late = root
+            .join("docker")
+            .join(format!("fedcba654321{}", "0".repeat(52)));
+        std::fs::create_dir_all(&late).unwrap();
+        std::fs::write(late.join("io.stat"), "8:0 rbytes=1 wbytes=1").unwrap();
+        assert_eq!(
+            extract_cgroup_v2_disk_bytes(&root, "fedcba654321", &mut miss),
+            (None, None)
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
