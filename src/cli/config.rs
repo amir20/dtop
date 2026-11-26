@@ -77,17 +77,20 @@ impl Config {
     ///
     /// Returns (Config, Option<PathBuf>) where the PathBuf is Some if a config file was found
     pub fn load_with_path() -> Result<(Self, Option<PathBuf>), Box<dyn std::error::Error>> {
-        let config_paths = Self::get_config_paths();
-
-        for path in config_paths {
-            if path.exists() {
-                let contents = std::fs::read_to_string(&path)?;
-                let config: Config = serde_norway::from_str(&contents)?;
-                return Ok((config, Some(path)));
-            }
+        if let Some(path) = Self::find_path() {
+            let contents = std::fs::read_to_string(&path)?;
+            let config: Config = serde_norway::from_str(&contents)?;
+            return Ok((config, Some(path)));
         }
 
         Ok((Config::default(), None))
+    }
+
+    /// The first config file that exists, in the order `load_with_path` searches.
+    pub fn find_path() -> Option<PathBuf> {
+        Self::get_config_paths()
+            .into_iter()
+            .find(|path| path.exists())
     }
 
     /// Load the config file at an explicit path (`--config`).
@@ -167,8 +170,10 @@ impl Config {
         // When cli_all is false, config value is preserved (config is not overridden)
 
         // CLI sort takes precedence over config sort
+        // and drops the config's direction, which was saved for the config's field
         if cli_sort.is_some() {
             self.sort = cli_sort;
+            self.sort_direction = None;
         }
         // When cli_sort is None, config value is preserved
 
@@ -516,7 +521,7 @@ hosts:
             icons: None,
             all: None,
             sort: Some("name".to_string()), // Config says name
-            sort_direction: None,
+            sort_direction: Some("asc".to_string()),
             columns: None,
             hyperlinks: None,
             stats_header: None,
@@ -533,6 +538,8 @@ hosts:
             Some("cpu".to_string()), // CLI says cpu
         );
         assert_eq!(merged.sort, Some("cpu".to_string())); // CLI should win
+        // The saved direction belonged to the config's field; cpu uses its own default.
+        assert_eq!(merged.sort_direction, None);
     }
 
     #[test]

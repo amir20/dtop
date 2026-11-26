@@ -36,23 +36,8 @@ const ID_BASE: u32 = 0xD7_0000;
 /// placeholders. Under tmux or screen the reply names the multiplexer (or there
 /// is none), so logos stay off there.
 pub fn terminal_supports_logos(name: Option<&str>) -> bool {
-    let Some(name) = name else {
-        return false;
-    };
-    let lower = name.to_ascii_lowercase();
-    if lower.starts_with("ghostty") || lower == "rex" || lower.starts_with("rex ") {
-        return true;
-    }
-    // kitty replies `kitty(0.36.4)`; placeholders came in 0.28
-    if let Some(version) = lower.strip_prefix("kitty(") {
-        let mut parts = version
-            .split(['.', ')'])
-            .map(|p| p.parse::<u32>().unwrap_or(0));
-        let major = parts.next().unwrap_or(0);
-        let minor = parts.next().unwrap_or(0);
-        return (major, minor) >= (0, 28);
-    }
-    false
+    // kitty placeholders came in 0.28
+    name.is_some_and(|name| super::icons::is_ghostty_rex_or_kitty(name, 28))
 }
 
 /// A logo: its index in [`LOGOS`]

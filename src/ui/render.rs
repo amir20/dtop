@@ -11,7 +11,7 @@ use crate::core::types::ViewState;
 
 use crate::ui::action_menu::render_action_menu;
 use crate::ui::column_selector::render_column_selector;
-use crate::ui::container_list::render_container_list;
+use crate::ui::container_list::{clip_to_width, render_container_list};
 use crate::ui::details::render_details;
 use crate::ui::help::render_help_popup;
 use crate::ui::icons::{IconStyle, Icons};
@@ -289,7 +289,7 @@ fn render_status_notifications(f: &mut Frame, state: &AppState, styles: &UiStyle
     for (host_id, (error_msg, _)) in &state.connection_errors {
         // Shorten the error message if it's too long and build error text directly
         let error_text = if error_msg.len() > 80 {
-            format!("✗ {}: {}...", host_id, &error_msg[..77])
+            format!("✗ {}: {}...", host_id, clip_to_width(error_msg, 77).0)
         } else {
             format!("✗ {host_id}: {error_msg}")
         };
