@@ -380,6 +380,8 @@ src/
      shows a "reconnecting" banner, and the host is pinged with a capped backoff
      (1s → 5s) until it answers. On success `HostReconnected` is emitted and the
      container list is re-fetched, which re-synchronizes state for that host.
+     A list the daemon rejects with a 4xx (a bad `--filter`) is reported as a
+     connection error and the host is not retried, since it would fail the same way.
 
 4. **Stats Streaming** (`docker/stats.rs::stream_container_stats`)
    - One async task per container that streams real-time stats
@@ -404,6 +406,11 @@ src/
    - Uses `ansi-to-tui` to parse ANSI escape codes for colored output
    - Preserves whitespace and formatting from original logs
    - Sends each log line as `AppEvent::LogLine` event with pre-parsed Text
+   - Re-opens the follow stream when it ends (container restart, daemon restart) once inspect
+     says the container runs again, with a capped backoff (1s → 5s), from the newest line seen.
+     A removed container or a daemon refusal (4xx/501, e.g. an unreadable log driver) ends it
+   - `LogState` keeps at most `MAX_LOG_ENTRIES` lines; the oldest are dropped (and can be
+     fetched again by scrolling up), except while an older-logs fetch is in flight
 
 6. **Keyboard Worker** (`ui/input.rs::keyboard_worker`)
    - Blocking thread that polls keyboard input every 200ms

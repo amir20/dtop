@@ -306,8 +306,9 @@ async fn streaming_reopens_after_the_follow_stream_ends() {
     task.abort();
 }
 
-/// A read that breaks partway hands back what arrived and doesn't claim the
-/// history ended; widening the window on errors used to end in `false`.
+/// A read that breaks partway sends nothing (what arrived is the oldest part of
+/// the window, so prepending it would leave a gap) and doesn't claim the history
+/// ended; widening the window on errors used to end in `false`.
 #[tokio::test]
 async fn older_logs_keep_more_history_after_a_broken_read() {
     let fake = FakeLogs::start_with("logs-broken", (1..=5).collect(), vec![vec![]], true);
@@ -320,6 +321,6 @@ async fn older_logs_keep_more_history_after_a_broken_read() {
     else {
         panic!("no batch sent");
     };
-    assert_eq!(numbers(&batch), [1, 2, 3, 4]);
+    assert!(batch.is_empty(), "a partial window would leave a gap");
     assert!(has_more, "a broken read is not the start of the history");
 }

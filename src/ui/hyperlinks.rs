@@ -172,25 +172,33 @@ impl Widget for Hyperlink<'_> {
             &format!("{OSC8_PREFIX}{}{ST}{first_char}", self.url),
             first_width,
         );
-        // The closer carries an id derived from the URL (ignored by terminals:
-        // an empty URI ends the link) so it differs between links. Otherwise,
-        // when two same-length names ending in the same char swap rows, the diff
-        // rewrites the opener but skips the identical closer, leaving the link open.
+        // The closer carries an id derived from the opener cell (ignored by
+        // terminals: an empty URI ends the link), so it is rewritten whenever the
+        // opener is. Otherwise, when two same-length names ending in the same char
+        // swap rows, the diff rewrites the opener but skips the identical closer,
+        // leaving the link open.
         self.write_cell(
             buf,
             last_x,
             area.y,
-            &format!("{last_char}\u{1b}]8;id={:08x};{ST}", url_id(&self.url)),
+            &format!(
+                "{last_char}\u{1b}]8;id={:08x};{ST}",
+                link_id(&self.url, first_char)
+            ),
             last_width,
         );
     }
 }
 
-/// FNV-1a hash of a URL, to tell links' closers apart.
-fn url_id(url: &str) -> u32 {
-    url.bytes().fold(0x811c_9dc5, |hash, byte| {
-        (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
-    })
+/// FNV-1a hash of what the opener cell holds (URL and first char), to tell
+/// links' closers apart.
+fn link_id(url: &str, first_char: char) -> u32 {
+    let mut utf8 = [0; 4];
+    url.bytes()
+        .chain(first_char.encode_utf8(&mut utf8).bytes())
+        .fold(0x811c_9dc5, |hash, byte| {
+            (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+        })
 }
 
 impl Hyperlink<'_> {
@@ -334,7 +342,7 @@ mod widget_tests {
             buf[(6, 0)].symbol(),
             format!(
                 "x\u{1b}]8;id={:08x};\u{1b}\\",
-                url_id("https://example.com/x")
+                link_id("https://example.com/x", 'n')
             )
         );
         // Nothing outside the label is touched.

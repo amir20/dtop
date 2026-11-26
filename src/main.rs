@@ -263,9 +263,11 @@ async fn run_async(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         (Config::load_from(&path)?, Some(path))
     } else if cli_provided {
         // User explicitly provided --host, don't load config for hosts. Ctrl-S still
-        // saves to the file the search finds (it only rewrites preference keys), so
-        // it doesn't create a new ~/.config/dtop/config.yaml that shadows that file.
-        (Config::default(), Config::find_path())
+        // saves to the file a plain `dtop` would load (it only rewrites preference
+        // keys), so it doesn't create a ~/.config/dtop/config.yaml that shadows it.
+        // A found file that isn't a dtop config isn't one to write to.
+        let path = Config::load_with_path().ok().and_then(|(_, path)| path);
+        (Config::default(), path)
     } else {
         // Load config file if it exists
         Config::load_with_path()?

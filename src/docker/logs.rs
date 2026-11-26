@@ -252,11 +252,12 @@ pub async fn fetch_older_logs(
                 }
                 Err(e) => {
                     // Widening the window on a broken read would end in "no
-                    // more history"; hand back what arrived and leave it open
+                    // more history". What arrived is the oldest part of the
+                    // window, so prepending it would leave a gap: send nothing
+                    // and keep the cursor, so the next scroll retries
                     tracing::warn!("Failed to fetch older logs for {container_id}: {e}");
-                    batch_logs.drain(..batch_logs.len().saturating_sub(batch_size));
                     let _ = tx
-                        .send(AppEvent::LogBatchPrepend(key, batch_logs, true))
+                        .send(AppEvent::LogBatchPrepend(key, Vec::new(), true))
                         .await;
                     return;
                 }
@@ -399,6 +400,17 @@ pub async fn stream_container_logs(host: DockerHost, container_id: String, tx: E
                             return; // Channel closed, stop streaming
                         }
                     }
+                }
+                // The daemon refused (e.g. a log driver that can't be read):
+                // retrying would fail the same way every few seconds
+                Err(
+                    e @ bollard::errors::Error::DockerResponseServerError {
+                        status_code: 400..=499 | 501,
+                        ..
+                    },
+                ) => {
+                    tracing::warn!("Log stream for {container_id} refused: {e}");
+                    return;
                 }
                 Err(e) => {
                     tracing::warn!("Log stream for {container_id} broke: {e}");

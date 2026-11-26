@@ -451,7 +451,10 @@ impl AppState {
 
         let visual_lines_prepended = state.prepend_entries(log_entries, self.last_viewport_width);
 
-        state.oldest_timestamp = oldest;
+        // An empty batch (a failed read) leaves the cursor where it was
+        if oldest.is_some() {
+            state.oldest_timestamp = oldest;
+        }
         state.has_more_history = has_more_history;
         state.total_loaded += num_entries;
         state.fetching_older = false;

@@ -593,7 +593,9 @@ impl LogState {
     /// Drops the oldest entries once past `MAX_LOG_ENTRIES`, keeping every
     /// index and row count in step so a scrolled-up view stays on its lines.
     fn trim_oldest(&mut self) {
-        if self.log_entries.len() <= MAX_LOG_ENTRIES + LOG_TRIM_SLACK {
+        // A fetch in flight was cut from the old cursor: its batch would land
+        // in front of the kept lines and lose the ones dropped in between
+        if self.log_entries.len() <= MAX_LOG_ENTRIES + LOG_TRIM_SLACK || self.fetching_older {
             return;
         }
         // Without row counts the scroll can't be kept; the next draw measures them
@@ -1372,5 +1374,16 @@ mod tests {
         );
         assert!(state.has_more_history);
         assert_eq!(state.oldest_timestamp, Some(state.log_entries[0].timestamp));
+
+        // While an older-logs fetch is in flight nothing is dropped: its batch
+        // was cut from the old cursor and would land in front of the kept lines
+        state.fetching_older = true;
+        for i in 0..=LOG_TRIM_SLACK {
+            state.push_entry(entry(i));
+        }
+        assert_eq!(
+            state.log_entries.len(),
+            MAX_LOG_ENTRIES + LOG_TRIM_SLACK + 1
+        );
     }
 }
