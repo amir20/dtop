@@ -210,6 +210,8 @@ impl Icons {
                 ContainerAction::Start => "▶",
                 ContainerAction::Stop => "■",
                 ContainerAction::Restart => "↻",
+                ContainerAction::Pause => "⏸",
+                ContainerAction::Unpause => "⏯",
                 ContainerAction::Remove => "✕",
                 ContainerAction::Shell => ">_",
                 ContainerAction::Details => "ℹ",
@@ -219,6 +221,8 @@ impl Icons {
                 ContainerAction::Start => "\u{f04b}",   // nf-fa-play
                 ContainerAction::Stop => "\u{f04d}",    // nf-fa-stop
                 ContainerAction::Restart => "\u{f01e}", // nf-fa-refresh
+                ContainerAction::Pause => "\u{f04c}",   // nf-fa-pause
+                ContainerAction::Unpause => "\u{f04b}", // nf-fa-play
                 ContainerAction::Remove => "\u{f1f8}",  // nf-fa-trash
                 ContainerAction::Shell => "\u{f120}",   // nf-fa-terminal
                 ContainerAction::Details => "\u{f05a}", // nf-fa-info_circle

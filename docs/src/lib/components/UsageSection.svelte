@@ -5,7 +5,7 @@
     { key: "↑↓", action: "Move between containers" },
     { key: "→", action: "Stream this container's logs" },
     { key: "←", action: "Back to the container list" },
-    { key: "Enter", action: "Start, stop, restart, remove" },
+    { key: "Enter", action: "Start, stop, restart, pause, remove" },
     { key: "/", action: "Search by name or ID" },
     { key: "s", action: "Choose the sort field" },
     { key: "c", action: "Show and reorder columns" },

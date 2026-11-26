@@ -275,6 +275,8 @@ pub enum ContainerAction {
     Start,
     Stop,
     Restart,
+    Pause,
+    Unpause,
     Remove,
     Shell,
     Details,
@@ -288,6 +290,8 @@ impl ContainerAction {
             ContainerAction::Start => "Start",
             ContainerAction::Stop => "Stop",
             ContainerAction::Restart => "Restart",
+            ContainerAction::Pause => "Pause",
+            ContainerAction::Unpause => "Unpause",
             ContainerAction::Remove => "Remove",
             ContainerAction::Shell => "Shell",
             ContainerAction::Details => "Details",
@@ -301,6 +305,8 @@ impl ContainerAction {
             ContainerAction::Start => ("Starting", "Started"),
             ContainerAction::Stop => ("Stopping", "Stopped"),
             ContainerAction::Restart => ("Restarting", "Restarted"),
+            ContainerAction::Pause => ("Pausing", "Paused"),
+            ContainerAction::Unpause => ("Unpausing", "Unpaused"),
             ContainerAction::Remove => ("Removing", "Removed"),
             // Not reported: shells run through `RenderAction::StartShell`, not
             // the ActionInProgress/Success events. Kept so the match is total.
@@ -319,9 +325,14 @@ impl ContainerAction {
                 ContainerAction::Shell,
                 ContainerAction::Stop,
                 ContainerAction::Restart,
+                ContainerAction::Pause,
                 ContainerAction::Remove,
             ],
-            ContainerState::Paused => vec![ContainerAction::Stop, ContainerAction::Remove],
+            ContainerState::Paused => vec![
+                ContainerAction::Unpause,
+                ContainerAction::Stop,
+                ContainerAction::Remove,
+            ],
             ContainerState::Exited | ContainerState::Created | ContainerState::Dead => {
                 vec![ContainerAction::Start, ContainerAction::Remove]
             }
@@ -339,10 +350,12 @@ impl ContainerAction {
     pub fn available_for_states<'a>(
         states: impl IntoIterator<Item = &'a ContainerState>,
     ) -> Vec<ContainerAction> {
-        const BULK: [ContainerAction; 4] = [
+        const BULK: [ContainerAction; 6] = [
             ContainerAction::Start,
             ContainerAction::Stop,
             ContainerAction::Restart,
+            ContainerAction::Pause,
+            ContainerAction::Unpause,
             ContainerAction::Remove,
         ];
         let mut supported = [false; BULK.len()];

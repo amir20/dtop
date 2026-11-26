@@ -18,6 +18,8 @@ pub async fn execute_container_action(
         ContainerAction::Start => host.start_container(&container_key.container_id).await,
         ContainerAction::Stop => host.stop_container(&container_key.container_id).await,
         ContainerAction::Restart => host.restart_container(&container_key.container_id).await,
+        ContainerAction::Pause => host.pause_container(&container_key.container_id).await,
+        ContainerAction::Unpause => host.unpause_container(&container_key.container_id).await,
         ContainerAction::Remove => host.remove_container(&container_key.container_id).await,
         // Shell is handled in main.rs via StartShell, and Details opens a
         // popup from AppState. These paths should never be reached
