@@ -769,7 +769,7 @@ dependencies = [
 
 [[package]]
 name = "dtop"
-version = "0.11.3"
+version = "0.11.4"
 dependencies = [
  "ansi-to-tui",
  "base64 0.23.1",

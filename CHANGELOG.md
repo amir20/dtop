@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.4] - 2026-11-26
+
+### Features
+
+- Print a plain table when stdout isn't a terminal (#451)
+- *(actions)* Add pause and unpause container actions (#455)
+
+### Bug Fixes
+
+- Audit fixes across docker, core and UI/CLI (#456)
+
 ## [0.11.3] - 2026-11-12
 
 ### Features
