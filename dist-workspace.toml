@@ -23,3 +23,7 @@ generate-changelog = true
 changelog-backend = "git-cliff"
 # The archive format to use for non-windows builds (defaults .tar.xz)
 unix-archive = ".tar.gz"
+
+# GitHub retired the macos-14 runner dist defaults to for this target
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
