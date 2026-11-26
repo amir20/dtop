@@ -354,11 +354,11 @@ impl AppState {
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return match key.code {
                 KeyCode::Char('u') => match &self.view_state {
-                    ViewState::ContainerList | ViewState::SearchMode => self.handle_page_up(),
+                    ViewState::ContainerList => self.handle_page_up(),
                     _ => self.handle_scroll_page_up(),
                 },
                 KeyCode::Char('d') => match &self.view_state {
-                    ViewState::ContainerList | ViewState::SearchMode => self.handle_page_down(),
+                    ViewState::ContainerList => self.handle_page_down(),
                     _ => self.handle_scroll_page_down(),
                 },
                 KeyCode::Char('s') => self.handle_save_preferences(),

@@ -15,8 +15,10 @@ impl AppState {
         // Activate search mode
         self.view_state = ViewState::SearchMode;
 
-        // Clear any existing search input
+        // Clear any existing search input, and the filter it applied
         self.search_input.reset();
+        self.force_sort_containers();
+        self.ensure_selection();
 
         RenderAction::Render // Force redraw to show search bar
     }

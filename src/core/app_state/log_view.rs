@@ -107,12 +107,8 @@ impl AppState {
             return RenderAction::None;
         }
 
-        // Stop log streaming and cleanup log state
-        if let Some(mut state) = self.log_state.take()
-            && let Some(handle) = state.stream_handle.take()
-        {
-            handle.abort();
-        }
+        // Dropping the log state stops its streaming and fetch tasks
+        self.log_state = None;
 
         // `dtop logs <id>` exists only for this log view
         if self.quit_with_log_view {
@@ -519,7 +515,7 @@ impl AppState {
             let container_created = self.containers.get(&key).and_then(|c| c.created);
             let tx_clone = self.event_tx.clone();
 
-            tokio::spawn(async move {
+            state.older_logs_handle = Some(tokio::spawn(async move {
                 fetch_older_logs(
                     host_clone,
                     container_id,
@@ -530,7 +526,7 @@ impl AppState {
                     tx_clone,
                 )
                 .await;
-            });
+            }));
         }
 
         RenderAction::None // Don't render yet, wait for LogBatchPrepend
